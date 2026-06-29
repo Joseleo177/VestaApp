@@ -13,6 +13,13 @@ import { Setting } from "../models/Setting";
 
 const entities = [User, Tower, Property, Charge, Payment, Receipt, BankEntry, ExchangeRateRecord, Setting];
 
+const poolOptions = {
+  // Supabase session-mode limit is 15; stay well below it
+  max: 8,
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 5_000,
+};
+
 export const AppDataSource = env.db.url
   ? new DataSource({
       type: "postgres",
@@ -21,6 +28,7 @@ export const AppDataSource = env.db.url
       synchronize: env.dbSynchronize,
       logging: env.nodeEnv === "development",
       entities,
+      extra: poolOptions,
     })
   : new DataSource({
       type: "postgres",
@@ -32,4 +40,5 @@ export const AppDataSource = env.db.url
       synchronize: env.dbSynchronize,
       logging: env.nodeEnv === "development",
       entities,
+      extra: poolOptions,
     });
