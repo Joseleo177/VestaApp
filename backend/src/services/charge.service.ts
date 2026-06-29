@@ -46,7 +46,7 @@ export const ChargeService = {
       order: { period: "DESC" },
       relations: {
         payments: { submittedBy: true },
-        coveringReceipt: { payment: { submittedBy: true }, charge: { property: { tower: true } } },
+        coveringReceipt: { payment: { submittedBy: true } },
       },
     });
   },

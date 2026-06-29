@@ -14,9 +14,10 @@ import { Setting } from "../models/Setting";
 const entities = [User, Tower, Property, Charge, Payment, Receipt, BankEntry, ExchangeRateRecord, Setting];
 
 const poolOptions = {
-  // Supabase session-mode limit is 15; stay well below it
-  max: 8,
-  idleTimeoutMillis: 30_000,
+  // Con Supabase Transaction Mode (PgBouncer puerto 6543) no hay límite duro,
+  // pero igual mantenemos el pool pequeño por buenas prácticas serverless
+  max: 5,
+  idleTimeoutMillis: 10_000,
   connectionTimeoutMillis: 5_000,
 };
 
