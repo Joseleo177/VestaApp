@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#4338ca"/>
+    </linearGradient>
+    <linearGradient id="flame" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#e0e7ff" stop-opacity="0.9"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded square background -->
+  <rect width="32" height="32" rx="7" fill="url(#bg)"/>
+
+  <!-- Outer flame -->
+  <path d="M16 5
+    C16 5 23 11 23 18
+    C23 23.5 20 27.5 16 27.5
+    C12 27.5 9 23.5 9 18
+    C9 11 16 5 16 5Z"
+    fill="url(#flame)"/>
+
+  <!-- Inner flame cutout (creates depth) -->
+  <path d="M16 12
+    C16 12 20 16 20 19.5
+    C20 22 18.2 24 16 24
+    C13.8 24 12 22 12 19.5
+    C12 16 16 12 16 12Z"
+    fill="url(#bg)"/>
+</svg>

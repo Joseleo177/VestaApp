@@ -1,0 +1,109 @@
+# ============================================================================
+#  CondoApp - Stack único con HOT-RELOAD (desarrollo)
+#  Servicios: db (PostgreSQL) | backend (ts-node-dev) | frontend (Vite HMR)
+#
+#  El código se monta como volumen: editar archivos se refleja al instante,
+#  sin reconstruir imágenes. Para producción se ajusta este archivo llegado
+#  el momento (los Dockerfile ya traen su stage `production` listo).
+# ============================================================================
+
+services:
+  # ----------------------------------------------------------------------
+  # Base de datos relacional
+  # ----------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: condo_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-condominio}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-condominio}
+      POSTGRES_DB: ${DB_NAME:-condo_db}
+    volumes:
+      - condo_pgdata:/var/lib/postgresql/data
+    ports:
+      - "${DB_PORT:-5440}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-condominio} -d ${DB_NAME:-condo_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - condo_net
+
+  # ----------------------------------------------------------------------
+  # Backend - API REST con recarga en caliente (ts-node-dev)
+  # ----------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: condo_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development        # activa synchronize del esquema + logging SQL
+      PORT: 4000
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-condominio}
+      DB_PASSWORD: ${DB_PASSWORD:-condominio}
+      DB_NAME: ${DB_NAME:-condo_db}
+      JWT_SECRET: ${JWT_SECRET:-dev_secret}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+      UPLOADS_DIR: /app/uploads
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8085}
+    volumes:
+      - ./backend:/app             # código en vivo
+      - /app/node_modules          # preserva node_modules de la imagen
+      - condo_uploads:/app/uploads # comprobantes + recibos persistentes
+    ports:
+      - "${BACKEND_PORT:-4010}:4000"
+    # --poll: detecta cambios en archivos montados desde Windows (WSL2).
+    command: sh -c "npx ts-node-dev --respawn --poll --transpile-only src/server.ts"
+    networks:
+      - condo_net
+
+  # ----------------------------------------------------------------------
+  # Frontend - SPA con Vite + HMR
+  # ----------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    container_name: condo_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      # Vite expone las VITE_* del entorno en import.meta.env.
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:4010/api}
+    volumes:
+      - ./frontend:/app            # código en vivo (HMR)
+      - /app/node_modules          # preserva node_modules de la imagen
+    ports:
+      - "${FRONTEND_PORT:-8085}:${FRONTEND_PORT:-8085}"
+    # Vite escucha en el MISMO puerto del host -> el HMR websocket funciona directo.
+    command: sh -c "npm run dev -- --host --port ${FRONTEND_PORT:-8085}"
+    networks:
+      - condo_net
+
+# --------------------------------------------------------------------------
+# Volúmenes persistentes
+# --------------------------------------------------------------------------
+volumes:
+  condo_pgdata:
+    driver: local
+  condo_uploads:
+    driver: local
+
+# --------------------------------------------------------------------------
+# Red interna privada entre servicios
+# --------------------------------------------------------------------------
+networks:
+  condo_net:
+    driver: bridge
