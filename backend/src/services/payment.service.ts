@@ -1,3 +1,4 @@
+import { EntityManager } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { Payment, PaymentStatus, PaymentCurrency } from "../models/Payment";
 import { Charge, ChargeStatus } from "../models/Charge";
@@ -27,7 +28,7 @@ export interface CreatePaymentInput {
   amountBs?: number;
 }
 
-type TxManager = Parameters<Parameters<typeof AppDataSource.transaction>[0]>[0];
+type TxManager = EntityManager;
 
 /**
  * Aplica hasta `paidAmount` EUR a la cuota, respetando lo que realmente se debe.
