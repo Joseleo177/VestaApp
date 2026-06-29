@@ -11,6 +11,7 @@ import {
   CreditCard,
   FileSpreadsheet,
   TrendingUp,
+  Settings,
   LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
@@ -31,6 +32,7 @@ const ADMIN_APPS: AppItem[] = [
   { label: "Pagos",        to: "/admin/pagos",          icon: CreditCard     },
   { label: "Extracto",     to: "/admin/extracto",       icon: FileSpreadsheet},
   { label: "Tasa",         to: "/admin/tasa",           icon: TrendingUp     },
+  { label: "Ajustes",     to: "/admin/ajustes",        icon: Settings       },
 ];
 
 const OWNER_APPS: AppItem[] = [

@@ -37,6 +37,7 @@ function serializeCharge(charge: import("../models/Charge").Charge) {
           amountBs: confirmed.amountBs ? Number(confirmed.amountBs) : null,
           currency: confirmed.currency,
           ownerName: confirmed.submittedBy?.fullName ?? null,
+          receiptNumber: confirmed.receipt?.receiptNumber ?? null,
         }
       : null,
     property: prop

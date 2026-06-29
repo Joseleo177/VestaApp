@@ -280,9 +280,11 @@ export const PaymentService = {
         return null as unknown as Receipt;
       }
 
-      const prefix = await SettingsService.get("receipt_prefix");
-      const count  = await manager.count(Receipt);
-      const receiptNumber = `${prefix}-${String(count + 1).padStart(4, "0")}`;
+      const [prefix, num] = await Promise.all([
+        SettingsService.get("receipt_prefix"),
+        SettingsService.nextReceiptNumber(),
+      ]);
+      const receiptNumber = `${prefix}-${String(num).padStart(4, "0")}`;
 
       const rec = manager.create(Receipt, {
         payment,
@@ -343,9 +345,11 @@ export const PaymentService = {
         return null as unknown as Receipt;
       }
 
-      const prefix = await SettingsService.get("receipt_prefix");
-      const count  = await manager.count(Receipt);
-      const receiptNumber = `${prefix}-${String(count + 1).padStart(4, "0")}`;
+      const [prefix, num] = await Promise.all([
+        SettingsService.get("receipt_prefix"),
+        SettingsService.nextReceiptNumber(),
+      ]);
+      const receiptNumber = `${prefix}-${String(num).padStart(4, "0")}`;
 
       const receipt = manager.create(Receipt, {
         payment,

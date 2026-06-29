@@ -41,7 +41,7 @@ export const ChargeService = {
     return repo().find({
       where: { property: { owner: { id: ownerId } } },
       order: { period: "DESC" },
-      relations: { payments: { submittedBy: true } },
+      relations: { payments: { submittedBy: true, receipt: true } },
     });
   },
 

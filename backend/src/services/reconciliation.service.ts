@@ -328,9 +328,18 @@ export const ReconciliationService = {
    */
   async tryAutoConfirm(payment: Payment): Promise<boolean> {
     try {
-      const entry = await AppDataSource.getRepository(BankEntry).findOneBy({
-        referencia: normalizeRef(payment.reference),
-      });
+      const ref = normalizeRef(payment.reference);
+      if (ref.length < MIN_SUFFIX) return false;
+
+      const entry = await AppDataSource.getRepository(BankEntry)
+        .createQueryBuilder("be")
+        .where("be.matched = false")
+        .andWhere("(be.referencia = :ref OR be.referencia LIKE :suffix)", {
+          ref,
+          suffix: `%${ref}`,
+        })
+        .getOne();
+
       if (!entry) return false;
       if (!amountMatchesBankEntry(payment, Number(entry.monto))) return false;
 
@@ -339,5 +348,43 @@ export const ReconciliationService = {
     } catch {
       return false;
     }
+  },
+
+  /** Intenta reconciliar todos los pagos PENDING contra entradas bancarias libres. */
+  async reconcilePending(): Promise<{ confirmed: number; review: number }> {
+    const pending = await AppDataSource.getRepository(Payment).find({
+      where: { status: PaymentStatus.PENDING },
+      relations: { charge: true, property: { owner: true } },
+    });
+
+    let confirmed = 0;
+    let review = 0;
+
+    for (const payment of pending) {
+      const ref = normalizeRef(payment.reference);
+      if (ref.length < MIN_SUFFIX) continue;
+
+      const entry = await AppDataSource.getRepository(BankEntry)
+        .createQueryBuilder("be")
+        .where("be.matched = false")
+        .andWhere("(be.referencia = :ref OR be.referencia LIKE :suffix)", {
+          ref,
+          suffix: `%${ref}`,
+        })
+        .getOne();
+
+      if (!entry) continue;
+
+      if (amountMatchesBankEntry(payment, Number(entry.monto))) {
+        try {
+          await PaymentService.confirm(payment.id, null);
+          confirmed++;
+        } catch { /* ya confirmado o error */ }
+      } else {
+        review++;
+      }
+    }
+
+    return { confirmed, review };
   },
 };

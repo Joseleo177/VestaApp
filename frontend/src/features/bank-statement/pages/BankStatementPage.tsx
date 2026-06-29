@@ -2,7 +2,7 @@ import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "re
 import { toast } from "sonner";
 import {
   CheckCircle2, AlertTriangle, XCircle, Upload,
-  Loader2, Database, Search, X, Trash2,
+  Loader2, Database, Search, X, Trash2, RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -69,6 +69,7 @@ export function BankStatementPage() {
   // Selección
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [reconciling, setReconciling] = useState(false);
 
   const loadEntries = useCallback(async () => {
     setLoadingEntries(true);
@@ -99,6 +100,21 @@ export function BankStatementPage() {
     setSelected((prev) =>
       prev.size === filteredEntries.length ? new Set() : new Set(filteredEntries.map((e) => e.id))
     );
+
+  const handleReconcilePending = async () => {
+    setReconciling(true);
+    try {
+      const { confirmed, review } = await reconciliationService.reconcilePending();
+      if (confirmed > 0) toast.success(`${confirmed} pago(s) confirmado(s) automáticamente`);
+      if (review > 0) toast.info(`${review} pago(s) con monto diferente — revísalos manualmente`);
+      if (confirmed === 0 && review === 0) toast.info("No se encontraron coincidencias nuevas");
+      void loadEntries();
+    } catch {
+      toast.error("Error al reconciliar");
+    } finally {
+      setReconciling(false);
+    }
+  };
 
   const handleDelete = async () => {
     if (selected.size === 0) return;
@@ -183,10 +199,16 @@ export function BankStatementPage() {
             className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) { handleFileSelect(f); e.target.value = ""; } }}
           />
-          <Button onClick={() => inputRef.current?.click()} disabled={loading}>
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            {loading ? "Procesando..." : "Subir movimientos"}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleReconcilePending} loading={reconciling} title="Reconciliar pagos pendientes contra entradas bancarias existentes">
+              <RefreshCw className="h-4 w-4" />
+              Reconciliar pendientes
+            </Button>
+            <Button onClick={() => inputRef.current?.click()} disabled={loading}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              {loading ? "Procesando..." : "Subir movimientos"}
+            </Button>
+          </div>
         </div>
       </div>
 

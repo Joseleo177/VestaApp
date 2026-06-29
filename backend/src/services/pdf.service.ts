@@ -20,7 +20,7 @@ function eur(n: number): string {
 export function generateReceiptPdf(
   payment: Payment,
   receiptNumber: string,
-  opts?: { condoName?: string; condoCity?: string }
+  opts?: { condoName?: string; condoCity?: string; condoRif?: string; condoPhone?: string }
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: "A4", margin: 55 });
@@ -29,8 +29,10 @@ export function generateReceiptPdf(
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 
-    const condoName = opts?.condoName ?? "Condominio";
-    const city      = opts?.condoCity ?? "Caracas";
+    const condoName  = opts?.condoName ?? "Condominio";
+    const city       = opts?.condoCity ?? "Caracas";
+    const condoRif   = opts?.condoRif  ?? "";
+    const condoPhone = opts?.condoPhone ?? "";
     const charge    = payment.charge;
 
     // Montos de la cuota (lo que debía, no lo que pagó)
@@ -63,6 +65,11 @@ export function generateReceiptPdf(
        .text("RECIBO DE ADMINISTRACIÓN Y CONDOMINIO", { align: "center" });
     doc.fontSize(10).font("Helvetica").fillColor("#475569")
        .text(condoName, { align: "center" });
+    if (condoRif || condoPhone) {
+      const meta = [condoRif ? `RIF ${condoRif}` : "", condoPhone ? `Tlf. ${condoPhone}` : ""]
+        .filter(Boolean).join("  ·  ");
+      doc.fontSize(9).fillColor("#64748b").text(meta, { align: "center" });
+    }
     doc.moveDown(1.2);
 
     // Fecha
@@ -86,10 +93,11 @@ export function generateReceiptPdf(
     doc.moveDown(1.2);
 
     // ── Tabla de montos ────────────────────────────────────────────────────────
-    const tableX = 55;
-    const tableW = pageW;
-    const rowH   = 24;
-    let   ty     = doc.y;
+    const tableX     = 55;
+    const tableW     = pageW;
+    const rowH       = 24;
+    const tableStartY = doc.y;
+    let   ty          = tableStartY;
 
     const rows: { label: string; amount: string; bold?: boolean; highlight?: boolean }[] = [
       { label: "Cuota base", amount: `EUR ${eur(base)}` },
@@ -118,9 +126,10 @@ export function generateReceiptPdf(
       }
     }
 
-    doc.rect(tableX, doc.y - rowH * rows.length - 1, tableW, rowH * rows.length + 1)
-       .strokeColor("#cbd5e1").stroke();
+    doc.rect(tableX, tableStartY, tableW, ty - tableStartY).strokeColor("#cbd5e1").stroke();
 
+    // sync cursor to after the table then add spacing
+    doc.y = ty;
     doc.moveDown(1.5);
 
     // Detalle del pago (tasa, referencia)

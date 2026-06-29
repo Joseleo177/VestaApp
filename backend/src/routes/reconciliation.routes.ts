@@ -8,6 +8,7 @@ const router = Router();
 router.use(authenticate, authorize(UserRole.ADMIN));
 
 router.post("/reconcile", uploadXlsx.single("statement"), ReconciliationController.reconcile);
+router.post("/reconcile-pending", ReconciliationController.reconcilePending);
 router.get("/entries", ReconciliationController.listEntries);
 router.delete("/entries", ReconciliationController.deleteEntries);
 

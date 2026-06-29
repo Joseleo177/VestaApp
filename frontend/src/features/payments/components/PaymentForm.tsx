@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CheckCircle2, Clock } from "lucide-react";
+import { CheckCircle2, Clock, Building2 } from "lucide-react";
 import { Input, Select } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Charge, ChargeStatus, Payment, PaymentCurrency, PaymentStatus } from "@/types/domain";
@@ -9,7 +9,14 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import { ExchangeRate, exchangeRateService } from "@/features/exchange-rate/services/exchange-rate.service";
 import { paymentService } from "../services/payment.service";
 import { MODALIDADES_BS, MODALIDADES_DIVISAS, paymentSchema, PaymentFormValues } from "../schema";
-import { ApiError } from "@/services/api";
+import { ApiError, api } from "@/services/api";
+
+interface BankInfo {
+  bank_name: string;
+  bank_beneficiary: string;
+  bank_account: string;
+  condo_rif: string;
+}
 
 interface PaymentFormProps {
   charges: Charge[];
@@ -20,9 +27,14 @@ interface PaymentFormProps {
 
 export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: PaymentFormProps) {
   const today = new Date().toISOString().slice(0, 10);
-  const [dateRate, setDateRate] = useState<ExchangeRate | null>(null);
-  const [result, setResult]     = useState<Payment | null>(null);
+  const [dateRate, setDateRate]   = useState<ExchangeRate | null>(null);
+  const [result, setResult]       = useState<Payment | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [bankInfo, setBankInfo]   = useState<BankInfo | null>(null);
+
+  useEffect(() => {
+    api.get<BankInfo>("/settings").then(({ data }) => setBankInfo(data)).catch(() => {});
+  }, []);
 
   const {
     register,
@@ -209,6 +221,42 @@ export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: P
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Datos bancarios para transferencia */}
+      {!isEfectivo && bankInfo && (bankInfo.bank_name || bankInfo.bank_account) && (
+        <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Building2 className="h-4 w-4 text-blue-600 shrink-0" />
+            <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Datos para transferencia</span>
+          </div>
+          <div className="space-y-1 text-sm">
+            {bankInfo.bank_name && (
+              <div className="flex justify-between">
+                <span className="text-blue-600">Banco</span>
+                <span className="font-semibold text-blue-900">{bankInfo.bank_name}</span>
+              </div>
+            )}
+            {bankInfo.bank_beneficiary && (
+              <div className="flex justify-between gap-4">
+                <span className="text-blue-600 shrink-0">Beneficiario</span>
+                <span className="font-medium text-blue-900 text-right">{bankInfo.bank_beneficiary}</span>
+              </div>
+            )}
+            {bankInfo.condo_rif && (
+              <div className="flex justify-between">
+                <span className="text-blue-600">RIF</span>
+                <span className="font-medium text-blue-900">{bankInfo.condo_rif}</span>
+              </div>
+            )}
+            {bankInfo.bank_account && (
+              <div className="flex justify-between">
+                <span className="text-blue-600">Cuenta</span>
+                <span className="font-bold text-blue-900 tracking-wide">{bankInfo.bank_account}</span>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

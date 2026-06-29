@@ -131,7 +131,19 @@ export const PaymentController = {
         req.user!.sub,
         isAdmin
       );
-      const pdfBuffer = await generateReceiptPdf(receipt.payment, receipt.receiptNumber);
+      const { SettingsService } = await import("../services/settings.service");
+      const [condoName, condoCity, condoRif, condoPhone] = await Promise.all([
+        SettingsService.get("condo_name"),
+        SettingsService.get("condo_city"),
+        SettingsService.get("condo_rif"),
+        SettingsService.get("condo_phone"),
+      ]);
+      const pdfBuffer = await generateReceiptPdf(receipt.payment, receipt.receiptNumber, {
+        condoName,
+        condoCity,
+        condoRif,
+        condoPhone,
+      });
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="${receipt.receiptNumber}.pdf"`);
       res.setHeader("Content-Length", pdfBuffer.length);

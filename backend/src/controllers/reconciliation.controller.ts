@@ -31,6 +31,16 @@ export const ReconciliationController = {
     }
   },
 
+  // POST /api/bank-statements/reconcile-pending  (admin)
+  async reconcilePending(_req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await ReconciliationService.reconcilePending();
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  },
+
   // DELETE /api/bank-statements/entries  (admin) — elimina por lista de ids
   async deleteEntries(req: Request, res: Response, next: NextFunction) {
     try {

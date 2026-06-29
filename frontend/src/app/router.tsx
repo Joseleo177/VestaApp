@@ -13,6 +13,7 @@ import { BillingPage } from "@/features/billing/pages/BillingPage";
 import { AllPaymentsPage } from "@/features/payments/pages/AllPaymentsPage";
 import { BankStatementPage } from "@/features/bank-statement/pages/BankStatementPage";
 import { ExchangeRatePage } from "@/features/exchange-rate/pages/ExchangeRatePage";
+import { SettingsPage } from "@/features/admin-panel/pages/SettingsPage";
 
 export const router = createBrowserRouter([
   {
@@ -47,6 +48,7 @@ export const router = createBrowserRouter([
       { path: "pagos", element: <AllPaymentsPage /> },
       { path: "extracto", element: <BankStatementPage /> },
       { path: "tasa", element: <ExchangeRatePage /> },
+      { path: "ajustes", element: <SettingsPage /> },
     ],
   },
   {

@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
-import { Receipt } from "lucide-react";
+import { Receipt, Download, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
+import { paymentService } from "@/features/payments/services/payment.service";
 import { Card } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
 import { TableSkeleton } from "@/components/ui/Skeleton";
@@ -28,6 +30,19 @@ interface ChargesTableProps {
 }
 
 function ChargesTable({ charges, loading, onPay }: ChargesTableProps) {
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  const handleDownload = async (paymentId: string, receiptNumber: string) => {
+    setDownloadingId(paymentId);
+    try {
+      await paymentService.downloadReceipt(paymentId, receiptNumber);
+    } catch {
+      toast.error("No se pudo descargar el recibo");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   if (loading) return <Card className="overflow-hidden"><TableSkeleton rows={4} cols={5} /></Card>;
   if (charges.length === 0)
     return (
@@ -110,6 +125,19 @@ function ChargesTable({ charges, loading, onPay }: ChargesTableProps) {
                     {canPay && (
                       <Button size="sm" onClick={() => onPay(c)}>
                         Pagar
+                      </Button>
+                    )}
+                    {c.status === ChargeStatus.PAID && c.confirmedPayment?.receiptNumber && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={downloadingId === c.confirmedPayment.id}
+                        onClick={() => handleDownload(c.confirmedPayment!.id, c.confirmedPayment!.receiptNumber!)}
+                      >
+                        {downloadingId === c.confirmedPayment.id
+                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          : <Download className="h-3.5 w-3.5" />}
+                        PDF
                       </Button>
                     )}
                   </td>

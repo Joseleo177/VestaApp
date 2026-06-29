@@ -65,4 +65,9 @@ export const reconciliationService = {
   async deleteEntries(ids: string[]): Promise<void> {
     await api.delete("/bank-statements/entries", { data: { ids } });
   },
+
+  async reconcilePending(): Promise<{ confirmed: number; review: number }> {
+    const { data } = await api.post<{ confirmed: number; review: number }>("/bank-statements/reconcile-pending");
+    return data;
+  },
 };

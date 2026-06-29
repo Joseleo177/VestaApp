@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { PaymentCurrency } from "@/types/domain";
 
-export const MODALIDADES_BS      = ["Efectivo", "Pago Móvil", "Transferencia"] as const;
-export const MODALIDADES_DIVISAS = ["Efectivo", "Zelle"] as const;
+export const MODALIDADES_BS      = ["Efectivo", "Transferencia"] as const;
+export const MODALIDADES_DIVISAS = ["Efectivo"] as const;
 
 export const paymentSchema = z
   .object({

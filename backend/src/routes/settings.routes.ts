@@ -5,7 +5,7 @@ import { SettingsController } from "../controllers/settings.controller";
 
 const router = Router();
 
-router.get("/",    authenticate, authorize(UserRole.ADMIN), SettingsController.getAll);
+router.get("/",    authenticate, SettingsController.getAll);
 router.patch("/",  authenticate, authorize(UserRole.ADMIN), SettingsController.update);
 
 export default router;

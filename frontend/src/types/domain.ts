@@ -61,6 +61,7 @@ export interface ChargeConfirmedPayment {
   amountBs: number | null;
   currency: PaymentCurrency;
   ownerName: string | null;
+  receiptNumber: string | null;
 }
 
 export interface Charge {
