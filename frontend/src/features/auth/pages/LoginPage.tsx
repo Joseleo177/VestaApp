@@ -2,7 +2,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Building2 } from "lucide-react";
+import { Flame } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "../hooks/useAuth";
@@ -36,9 +36,9 @@ export function LoginPage() {
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center text-center">
           <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600 text-white">
-            <Building2 className="h-6 w-6" />
+            <Flame className="h-6 w-6" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-800">CondoApp</h1>
+          <h1 className="text-2xl font-bold text-slate-800">VestaApp</h1>
           <p className="text-sm text-slate-500">Gestión y pagos de condominio</p>
         </div>
 
@@ -68,9 +68,7 @@ export function LoginPage() {
             Iniciar sesión
           </Button>
 
-          <p className="pt-2 text-center text-xs text-slate-400">
-            Demo — Admin: 00000000 / admin123 · Vecino: 12345678 / owner123
-          </p>
+
         </form>
       </div>
     </div>

@@ -41,7 +41,18 @@ export interface ReconciliationResult {
 }
 
 function normalizeRef(s: string): string {
-  return s.trim().replace(/^'+/, "").toLowerCase();
+  return s.trim().replace(/^'+/, "").replace(/\s/g, "").toLowerCase();
+}
+
+const MIN_SUFFIX = 6;
+
+function refsMatch(a: string, b: string): boolean {
+  const na = normalizeRef(a);
+  const nb = normalizeRef(b);
+  if (na === nb) return true;
+  const shorter = na.length <= nb.length ? na : nb;
+  const longer  = na.length <= nb.length ? nb : na;
+  return shorter.length >= MIN_SUFFIX && longer.endsWith(shorter);
 }
 
 /** Quita tildes y pasa a minúsculas para comparar encabezados. */
@@ -255,7 +266,7 @@ export const ReconciliationService = {
       const refMatch = pending.find(
         (p) =>
           !matchedIds.has(p.id) &&
-          normalizeRef(p.reference) === normalizeRef(row.referencia)
+          refsMatch(p.reference, row.referencia)
       );
 
       if (!refMatch) {
