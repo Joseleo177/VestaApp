@@ -39,7 +39,14 @@ export const SettingsService = {
 
   /** Incrementa el contador de recibos y devuelve el nuevo valor. */
   async nextReceiptNumber(): Promise<number> {
-    await repo().upsert({ key: "receipt_counter", value: "0" }, ["key"]);
+    // INSERT si no existe (DO NOTHING si ya existe, sin resetear el valor)
+    await repo()
+      .createQueryBuilder()
+      .insert()
+      .into("settings")
+      .values({ key: "receipt_counter", value: "0" })
+      .orIgnore()
+      .execute();
     await repo()
       .createQueryBuilder()
       .update()

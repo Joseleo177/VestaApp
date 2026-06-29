@@ -14,6 +14,7 @@ RUN npm ci
 # Copia el código fuente y compila a JavaScript.
 COPY tsconfig.json ./
 COPY src ./src
+COPY assets ./assets
 RUN npm run build
 
 
@@ -44,6 +45,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 # Copia los artefactos compilados desde el builder.
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/assets ./assets
 
 # Crea el directorio de uploads (se monta como volumen en docker-compose).
 RUN mkdir -p /app/uploads && \

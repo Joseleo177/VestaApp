@@ -85,13 +85,13 @@ export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: P
   const isPartial = selected?.status === ChargeStatus.PARTIAL;
 
   const overdueAtPaymentDate = useMemo(() => {
-    if (!selected?.dueDate || isPartial) return false;
+    if (!selected?.dueDate) return false;
     const payDate = paymentDateInput ? new Date(paymentDateInput) : new Date();
     const dueDate = new Date(selected.dueDate);
     payDate.setHours(0, 0, 0, 0);
     dueDate.setHours(0, 0, 0, 0);
     return payDate.getTime() > dueDate.getTime();
-  }, [selected, paymentDateInput, isPartial]);
+  }, [selected, paymentDateInput]);
 
   const amountEurRef = selected
     ? isPartial
@@ -168,9 +168,15 @@ export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: P
           {isPartial ? (
             <>
               <div className="flex items-center justify-between">
-                <span className="text-slate-500">Cuota original</span>
+                <span className="text-slate-500">Cuota base</span>
                 <span className="text-slate-400">{formatCurrency(selected.amount)}</span>
               </div>
+              {overdueAtPaymentDate && (selected.moraAmount ?? 0) > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Mora (vencida)</span>
+                  <span className="font-medium text-rose-500">{formatCurrency(selected.moraAmount ?? 0)}</span>
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <span className="text-slate-500">Ya pagado</span>
                 <span className="text-emerald-600">– {formatCurrency(selected.amountPaid ?? 0)}</span>

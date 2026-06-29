@@ -24,10 +24,13 @@ export function amountDue(charge: Charge, currency?: PaymentCurrency, asOfDate?:
     return 0;
   }
   if (charge.status === ChargeStatus.PARTIAL) {
-    return Math.max(
-      0,
-      Math.round((Number(charge.amount) - Number(charge.amountPaid ?? 0)) * 100) / 100
-    );
+    const base  = Number(charge.amount);
+    const paid  = Number(charge.amountPaid ?? 0);
+    const mora  = Number(charge.moraAmount ?? 0);
+    // Si hay mora y la cuota está vencida, el pendiente incluye lo que falte de mora
+    const moraApplies = mora > 0 && isOverdue(charge, asOfDate) && currency !== PaymentCurrency.DIVISAS;
+    const total = base + (moraApplies ? mora : 0);
+    return Math.max(0, Math.round((total - paid) * 100) / 100);
   }
   const base = Number(charge.amount);
   const mora = Number(charge.moraAmount);

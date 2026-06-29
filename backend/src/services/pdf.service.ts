@@ -1,5 +1,7 @@
 import PDFDocument from "pdfkit";
-import { Payment, PaymentCurrency } from "../models/Payment";
+import path from "path";
+import fs from "fs";
+import { Payment } from "../models/Payment";
 import { ChargeStatus } from "../models/Charge";
 
 const MESES = [
@@ -43,33 +45,42 @@ export function generateReceiptPdf(
 
     const now       = new Date();
     const dateStr   = `${city}, ${now.getDate()} de ${MESES[now.getMonth()]} de ${now.getFullYear()}`;
-    const isBs      = payment.currency === PaymentCurrency.BS;
 
     // ── Encabezado ────────────────────────────────────────────────────────────
-    const pageW = doc.page.width - 110; // ancho útil
+    const pageW   = doc.page.width - 110; // ancho útil
+    const logoFile = path.join(process.cwd(), "assets", "LOGO.png");
+    const hasLogo  = fs.existsSync(logoFile);
+    const logoSize = 65;
+    const headerY  = 50;
 
-    doc.fontSize(9).fillColor("#64748b")
-       .text("VestaApp — Gestión de Condominio", 55, 55, { width: pageW / 2 });
+    if (hasLogo) {
+      doc.image(logoFile, 55, headerY, { width: logoSize, height: logoSize });
+    }
 
-    doc.fontSize(14).fillColor("#1e293b").font("Helvetica-Bold")
-       .text(`RECIBO N° ${receiptNumber}`, 55, 52, { width: pageW, align: "right" });
+    // Datos de la empresa al lado del logo
+    const infoX = (hasLogo ? 55 + logoSize + 14 : 55);
+    const infoW = pageW - (hasLogo ? logoSize + 14 : 0);
 
-    doc.moveDown(0.3);
-
-    // Línea separadora
-    doc.moveTo(55, doc.y).lineTo(55 + pageW, doc.y).strokeColor("#cbd5e1").stroke();
-    doc.moveDown(0.8);
-
-    // Título centrado
-    doc.fontSize(15).fillColor("#1e293b").font("Helvetica-Bold")
-       .text("RECIBO DE ADMINISTRACIÓN Y CONDOMINIO", { align: "center" });
-    doc.fontSize(10).font("Helvetica").fillColor("#475569")
-       .text(condoName, { align: "center" });
+    doc.fontSize(13).fillColor("#1e293b").font("Helvetica-Bold")
+       .text("RECIBO DE ADMINISTRACIÓN Y CONDOMINIO", infoX, headerY + 4, { width: infoW });
+    doc.fontSize(10).fillColor("#475569").font("Helvetica")
+       .text(condoName, infoX, headerY + 22, { width: infoW });
     if (condoRif || condoPhone) {
       const meta = [condoRif ? `RIF ${condoRif}` : "", condoPhone ? `Tlf. ${condoPhone}` : ""]
         .filter(Boolean).join("  ·  ");
-      doc.fontSize(9).fillColor("#64748b").text(meta, { align: "center" });
+      doc.fontSize(9).fillColor("#64748b").font("Helvetica")
+         .text(meta, infoX, headerY + 36, { width: infoW });
     }
+
+    // RECIBO N° — esquina superior derecha
+    doc.fontSize(11).fillColor("#1e293b").font("Helvetica-Bold")
+       .text(`RECIBO N° ${receiptNumber}`, 55, headerY + 4, { width: pageW, align: "right" });
+
+    // Fijar cursor debajo del bloque de cabecera
+    doc.y = headerY + logoSize + 10;
+
+    // Línea separadora
+    doc.moveTo(55, doc.y).lineTo(55 + pageW, doc.y).strokeColor("#cbd5e1").stroke();
     doc.moveDown(1.2);
 
     // Fecha
@@ -128,35 +139,28 @@ export function generateReceiptPdf(
 
     doc.rect(tableX, tableStartY, tableW, ty - tableStartY).strokeColor("#cbd5e1").stroke();
 
-    // sync cursor to after the table then add spacing
+    // sync cursor to after the table
     doc.y = ty;
-    doc.moveDown(1.5);
 
-    // Detalle del pago (tasa, referencia)
-    if (isBs && payment.exchangeRate) {
-      doc.fontSize(9).fillColor("#64748b").font("Helvetica")
-         .text(`Tasa BCV aplicada: Bs. ${eur(Number(payment.exchangeRate))} / EUR  ·  Monto transferido: Bs. ${payment.amountBs ? eur(Number(payment.amountBs)) : "—"}`);
-    }
-    if (payment.reference) {
-      doc.fontSize(9).fillColor("#64748b")
-         .text(`Referencia bancaria: ${payment.reference}  ·  Modalidad: ${payment.bank}`);
-    }
-
-    // ── Estado ─────────────────────────────────────────────────────────────────
+    // ── Estado (inmediatamente bajo la tabla) ──────────────────────────────────
     if (charge?.status === ChargeStatus.PAID) {
-      doc.moveDown(0.6);
-      doc.fontSize(9).fillColor("#16a34a").font("Helvetica-Bold")
+      doc.moveDown(0.8);
+      doc.fontSize(10).fillColor("#16a34a").font("Helvetica-Bold")
          .text("✓ Cuota pagada en su totalidad", { align: "center" });
     }
 
-    // ── Pie ────────────────────────────────────────────────────────────────────
-    const footerY = doc.page.height - 80;
+    // ── Pie (fijo en la página, texto corto en dos líneas) ─────────────────────
+    const footerY = doc.page.height - 120;
     doc.moveTo(55, footerY).lineTo(55 + pageW, footerY).strokeColor("#cbd5e1").stroke();
     doc.fontSize(7.5).fillColor("#94a3b8").font("Helvetica")
        .text(
-         "Este recibo no es de carácter fiscal. Acredita el pago de la cuota de condominio para el período especificado. " +
-         "El pago de este recibo no libera al propietario de adeudos de períodos anteriores. Generado por VestaApp.",
-         55, footerY + 8, { width: pageW, align: "center" }
+         "Este recibo no es de carácter fiscal. Acredita el pago de la cuota de condominio para el período especificado.",
+         55, footerY + 8, { width: pageW, align: "center", lineBreak: false }
+       );
+    doc.fontSize(7.5).fillColor("#94a3b8").font("Helvetica")
+       .text(
+         "El pago no libera al propietario de adeudos de períodos anteriores. Generado por VestaApp.",
+         55, footerY + 20, { width: pageW, align: "center", lineBreak: false }
        );
 
     doc.end();

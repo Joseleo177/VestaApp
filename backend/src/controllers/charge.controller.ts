@@ -2,17 +2,21 @@ import { Request, Response, NextFunction } from "express";
 import { AppDataSource } from "../config/data-source";
 import { ChargeService, amountDue, isOverdue } from "../services/charge.service";
 import { Charge, ChargeStatus, ChargeType } from "../models/Charge";
-import { PaymentStatus } from "../models/Payment";
+import { PaymentCurrency, PaymentStatus } from "../models/Payment";
 import { HttpError } from "../middlewares/error.middleware";
 
 function serializeCharge(charge: import("../models/Charge").Charge) {
   const prop = charge.property;
   const isPartial = charge.status === ChargeStatus.PARTIAL;
   const remaining = isPartial
-    ? Math.max(0, Number(charge.amount) - Number(charge.amountPaid ?? 0))
+    ? amountDue(charge, PaymentCurrency.BS) // incluye mora si está vencida
     : null;
 
-  const confirmed = charge.payments?.find((p) => p.status === PaymentStatus.CONFIRMED) ?? null;
+  // Preferir el pago confirmado que tiene recibo (el que cerró la cuota)
+  const confirmed =
+    charge.payments?.find((p) => p.status === PaymentStatus.CONFIRMED && p.receipt) ??
+    charge.payments?.find((p) => p.status === PaymentStatus.CONFIRMED) ??
+    null;
 
   return {
     id: charge.id,
