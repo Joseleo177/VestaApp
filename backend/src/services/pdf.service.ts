@@ -22,7 +22,8 @@ function eur(n: number): string {
 export function generateReceiptPdf(
   payment: Payment,
   receiptNumber: string,
-  opts?: { condoName?: string; condoCity?: string; condoRif?: string; condoPhone?: string }
+  opts?: { condoName?: string; condoCity?: string; condoRif?: string; condoPhone?: string },
+  chargeOverride?: import("../models/Charge").Charge | null
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: "A4", margin: 55 });
@@ -35,7 +36,8 @@ export function generateReceiptPdf(
     const city       = opts?.condoCity ?? "Caracas";
     const condoRif   = opts?.condoRif  ?? "";
     const condoPhone = opts?.condoPhone ?? "";
-    const charge    = payment.charge;
+    // Usar la cuota override (para recibos cascade) o la del pago
+    const charge = chargeOverride ?? payment.charge;
 
     // Montos de la cuota (lo que debía, no lo que pagó)
     const base      = charge ? Number(charge.amount)     : Number(payment.amount);
@@ -48,8 +50,15 @@ export function generateReceiptPdf(
 
     // ── Encabezado ────────────────────────────────────────────────────────────
     const pageW   = doc.page.width - 110; // ancho útil
-    const logoFile = path.join(process.cwd(), "assets", "LOGO.png");
-    const hasLogo  = fs.existsSync(logoFile);
+    // Buscar el logo en varios paths candidatos (local, Docker, Vercel Lambda)
+    const logoCandidates = [
+      path.join(process.cwd(), "assets", "LOGO.png"),
+      path.join(__dirname, "..", "..", "assets", "LOGO.png"),
+      path.join(__dirname, "..", "assets", "LOGO.png"),
+      path.join(__dirname, "assets", "LOGO.png"),
+    ];
+    const logoFile = logoCandidates.find((p) => fs.existsSync(p)) ?? "";
+    const hasLogo  = logoFile !== "";
     const logoSize = 65;
     const headerY  = 50;
 

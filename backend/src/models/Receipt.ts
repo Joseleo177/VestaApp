@@ -3,27 +3,33 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
-  OneToOne,
   ManyToOne,
   JoinColumn,
 } from "typeorm";
 import { Payment } from "./Payment";
 import { User } from "./User";
+import { Charge } from "./Charge";
 
 /**
- * Recibo PDF generado cuando un pago se confirma. Relación 1:1 con Payment.
+ * Recibo PDF generado cuando un pago confirma una cuota.
+ * Un pago puede generar múltiples recibos (uno por cuota cerrada en cascada).
  */
 @Entity({ name: "receipts" })
 export class Receipt {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
 
-  @OneToOne(() => Payment, (payment) => payment.receipt)
+  @ManyToOne(() => Payment, (payment) => payment.receipts)
   @JoinColumn({ name: "payment_id" })
   payment!: Payment;
 
+  /** Cuota específica que cubre este recibo (directa o cerrada por cascada). */
+  @ManyToOne(() => Charge, { nullable: true, eager: false })
+  @JoinColumn({ name: "charge_id" })
+  charge?: Charge | null;
+
   @Column({ name: "receipt_number", unique: true })
-  receiptNumber!: string; // "REC-2026-000123"
+  receiptNumber!: string; // "RC-0001"
 
   @Column({ name: "pdf_file_path", nullable: true })
   pdfFilePath?: string;

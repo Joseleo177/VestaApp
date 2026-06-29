@@ -45,8 +45,8 @@ export const ChargeService = {
       where: { property: { owner: { id: ownerId } } },
       order: { period: "DESC" },
       relations: {
-        payments: { submittedBy: true, receipt: true },
-        coveringReceipt: { payment: { submittedBy: true } },
+        payments: { submittedBy: true },
+        coveringReceipt: { payment: { submittedBy: true }, charge: { property: { tower: true } } },
       },
     });
   },

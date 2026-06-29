@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, XCircle, User, Building2, Calendar, Hash, Banknote, ArrowRightLeft } from "lucide-react";
+import { CheckCircle2, XCircle, Building2, Calendar, Hash, Banknote, ArrowRightLeft } from "lucide-react";
 import { Drawer } from "@/components/ui/Drawer";
 import { Button } from "@/components/ui/Button";
 import { Payment, PaymentCurrency } from "@/types/domain";

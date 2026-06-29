@@ -126,10 +126,12 @@ export const PaymentController = {
   async downloadReceipt(req: Request, res: Response, next: NextFunction) {
     try {
       const isAdmin = req.user!.role === UserRole.ADMIN;
+      const rn = req.query.rn as string | undefined;
       const receipt = await PaymentService.getReceipt(
         req.params.id,
         req.user!.sub,
-        isAdmin
+        isAdmin,
+        rn
       );
       const { SettingsService } = await import("../services/settings.service");
       const [condoName, condoCity, condoRif, condoPhone] = await Promise.all([
@@ -138,12 +140,13 @@ export const PaymentController = {
         SettingsService.get("condo_rif"),
         SettingsService.get("condo_phone"),
       ]);
-      const pdfBuffer = await generateReceiptPdf(receipt.payment, receipt.receiptNumber, {
-        condoName,
-        condoCity,
-        condoRif,
-        condoPhone,
-      });
+      // receipt.charge: cuota específica (cascade) o null → fallback a payment.charge
+      const pdfBuffer = await generateReceiptPdf(
+        receipt.payment,
+        receipt.receiptNumber,
+        { condoName, condoCity, condoRif, condoPhone },
+        receipt.charge
+      );
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="${receipt.receiptNumber}.pdf"`);
       res.setHeader("Content-Length", pdfBuffer.length);

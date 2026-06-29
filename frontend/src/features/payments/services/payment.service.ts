@@ -54,9 +54,10 @@ export const paymentService = {
 
   /** Descarga el recibo PDF como blob y dispara la descarga en el navegador. */
   async downloadReceipt(paymentId: string, receiptNumber: string): Promise<void> {
-    const { data } = await api.get<Blob>(`/payments/${paymentId}/receipt`, {
-      responseType: "blob",
-    });
+    const { data } = await api.get<Blob>(
+      `/payments/${paymentId}/receipt?rn=${encodeURIComponent(receiptNumber)}`,
+      { responseType: "blob" }
+    );
     const url = URL.createObjectURL(data);
     const link = document.createElement("a");
     link.href = url;

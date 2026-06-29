@@ -4,7 +4,7 @@ import {
   Column,
   CreateDateColumn,
   ManyToOne,
-  OneToOne,
+  OneToMany,
   JoinColumn,
 } from "typeorm";
 import { Property } from "./Property";
@@ -80,8 +80,8 @@ export class Payment {
   @Column({ name: "reject_reason", nullable: true })
   rejectReason?: string;
 
-  @OneToOne(() => Receipt, (receipt) => receipt.payment)
-  receipt?: Receipt;
+  @OneToMany(() => Receipt, (receipt) => receipt.payment)
+  receipts?: Receipt[];
 
   @CreateDateColumn({ name: "created_at" })
   createdAt!: Date;

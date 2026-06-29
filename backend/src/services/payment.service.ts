@@ -220,7 +220,7 @@ export const PaymentService = {
     return paymentRepo().find({
       where: { submittedBy: { id: userId } },
       order: { createdAt: "DESC" },
-      relations: { receipt: true },
+      relations: { receipts: true },
     });
   },
 
@@ -235,7 +235,7 @@ export const PaymentService = {
     return paymentRepo().find({
       where: status ? { status } : undefined,
       order: { createdAt: "DESC" },
-      relations: { receipt: true },
+      relations: { receipts: true },
     });
   },
 
@@ -288,29 +288,35 @@ export const PaymentService = {
         return null as unknown as Receipt;
       }
 
-      const [prefix, num] = await Promise.all([
-        SettingsService.get("receipt_prefix"),
-        SettingsService.nextReceiptNumber(),
-      ]);
-      const receiptNumber = `${prefix}-${String(num).padStart(4, "0")}`;
+      const prefix = await SettingsService.get("receipt_prefix");
 
-      const rec = manager.create(Receipt, {
+      // Recibo principal (cuota directa del pago)
+      const mainNum = await SettingsService.nextReceiptNumber();
+      const mainReceipt = manager.create(Receipt, {
         payment,
-        receiptNumber,
+        charge: payment.charge,
+        receiptNumber: `${prefix}-${String(mainNum).padStart(4, "0")}`,
         issuedBy: { id: adminId } as User,
       });
-
-      const savedReceipt = await manager.save(rec);
-
-      // Vincular el recibo a la cuota directa y a todas las cerradas por cascada
-      payment.charge.coveringReceipt = savedReceipt;
+      const savedMain = await manager.save(mainReceipt);
+      payment.charge.coveringReceipt = savedMain;
       await manager.save(Charge, payment.charge);
+
+      // Recibo individual para cada cuota cerrada por cascada
       for (const cc of cascadePaid) {
-        cc.coveringReceipt = savedReceipt;
+        const cascNum = await SettingsService.nextReceiptNumber();
+        const cascReceipt = manager.create(Receipt, {
+          payment,
+          charge: cc,
+          receiptNumber: `${prefix}-${String(cascNum).padStart(4, "0")}`,
+          issuedBy: { id: adminId } as User,
+        });
+        const savedCasc = await manager.save(cascReceipt);
+        cc.coveringReceipt = savedCasc;
         await manager.save(Charge, cc);
       }
 
-      return savedReceipt;
+      return savedMain;
     });
 
     return receipt;
@@ -364,28 +370,35 @@ export const PaymentService = {
         return null as unknown as Receipt;
       }
 
-      const [prefix, num] = await Promise.all([
-        SettingsService.get("receipt_prefix"),
-        SettingsService.nextReceiptNumber(),
-      ]);
-      const receiptNumber = `${prefix}-${String(num).padStart(4, "0")}`;
+      const prefix = await SettingsService.get("receipt_prefix");
 
-      const savedReceipt = manager.create(Receipt, {
+      // Recibo principal (cuota directa)
+      const mainNum = await SettingsService.nextReceiptNumber();
+      const mainReceipt = manager.create(Receipt, {
         payment,
-        receiptNumber,
+        charge: payment.charge,
+        receiptNumber: `${prefix}-${String(mainNum).padStart(4, "0")}`,
         issuedBy: { id: adminId } as User,
       });
-      await manager.save(savedReceipt);
-
-      // Vincular el recibo a la cuota directa y a todas las cerradas por cascada
-      payment.charge.coveringReceipt = savedReceipt;
+      const savedMain = await manager.save(mainReceipt);
+      payment.charge.coveringReceipt = savedMain;
       await manager.save(Charge, payment.charge);
+
+      // Recibo individual por cada cuota cerrada en cascada
       for (const cc of cascadePaid) {
-        cc.coveringReceipt = savedReceipt;
+        const cascNum = await SettingsService.nextReceiptNumber();
+        const cascReceipt = manager.create(Receipt, {
+          payment,
+          charge: cc,
+          receiptNumber: `${prefix}-${String(cascNum).padStart(4, "0")}`,
+          issuedBy: { id: adminId } as User,
+        });
+        const savedCasc = await manager.save(cascReceipt);
+        cc.coveringReceipt = savedCasc;
         await manager.save(Charge, cc);
       }
 
-      return savedReceipt;
+      return savedMain;
     });
   },
 
@@ -490,10 +503,17 @@ export const PaymentService = {
     });
   },
 
-  async getReceipt(paymentId: string, requesterId: string, isAdmin: boolean) {
+  async getReceipt(paymentId: string, requesterId: string, isAdmin: boolean, receiptNumber?: string) {
+    // Si se pasa receiptNumber, buscar por número único (más preciso para recibos cascade)
+    const where = receiptNumber
+      ? { receiptNumber }
+      : { payment: { id: paymentId } };
     const receipt = await receiptRepo().findOne({
-      where: { payment: { id: paymentId } },
-      relations: { payment: { submittedBy: true, property: true, charge: true } },
+      where,
+      relations: {
+        payment: { submittedBy: true, property: { tower: true }, charge: true },
+        charge: { property: { tower: true } },
+      },
     });
     if (!receipt) throw new HttpError(404, "Recibo no disponible aún");
     if (!isAdmin && receipt.payment.submittedBy.id !== requesterId) {
