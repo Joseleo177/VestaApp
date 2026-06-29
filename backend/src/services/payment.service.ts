@@ -74,6 +74,7 @@ const CREDIT_MIN = 0.10; // excedente menor a esto se absorbe sin guardar
 /**
  * Aplica un excedente a otras cuotas del propietario (por vencimiento ASC).
  * Si sobra más de EUR 0,10 y no hay más cuotas, lo acumula en creditBalance.
+ * Devuelve la lista de cuotas que quedaron PAID durante esta cascada.
  */
 async function cascadeExcess(
   manager: TxManager,
@@ -82,8 +83,8 @@ async function cascadeExcess(
   currency: PaymentCurrency,
   paymentDate: string | undefined,
   excludeChargeId: string
-): Promise<void> {
-  if (excess <= CREDIT_MIN) return;
+): Promise<Charge[]> {
+  if (excess <= CREDIT_MIN) return [];
 
   const others = await manager.find(Charge, {
     where: [
@@ -95,10 +96,14 @@ async function cascadeExcess(
   });
 
   let remaining = excess;
+  const cascadePaid: Charge[] = [];
   for (const charge of others) {
     if (charge.id === excludeChargeId) continue;
     if (remaining <= CREDIT_MIN) break;
     remaining = await applyPaymentToCharge(manager, charge, remaining, currency, paymentDate);
+    if (charge.status === ChargeStatus.PAID) {
+      cascadePaid.push(charge);
+    }
   }
 
   // Si queda más de EUR 0,10 sin cuotas donde aplicarlo → saldo a favor
@@ -109,6 +114,8 @@ async function cascadeExcess(
       await manager.save(User, user);
     }
   }
+
+  return cascadePaid;
 }
 
 /**
@@ -259,10 +266,11 @@ export const PaymentService = {
       payment.rejectReason = undefined;
       await manager.save(payment);
 
+      let cascadePaid: Charge[] = [];
       if (payment.charge) {
         const excess = await applyPaymentToCharge(manager, payment.charge, Number(payment.amount), payment.currency, payment.paymentDate);
         if (excess > 0.01 && payment.property?.owner?.id) {
-          await cascadeExcess(manager, payment.property.owner.id, excess, payment.currency, payment.paymentDate, payment.charge.id);
+          cascadePaid = await cascadeExcess(manager, payment.property.owner.id, excess, payment.currency, payment.paymentDate, payment.charge.id);
         }
       }
 
@@ -292,7 +300,17 @@ export const PaymentService = {
         issuedBy: { id: adminId } as User,
       });
 
-      return manager.save(rec);
+      const savedReceipt = await manager.save(rec);
+
+      // Vincular el recibo a la cuota directa y a todas las cerradas por cascada
+      payment.charge.coveringReceipt = savedReceipt;
+      await manager.save(Charge, payment.charge);
+      for (const cc of cascadePaid) {
+        cc.coveringReceipt = savedReceipt;
+        await manager.save(Charge, cc);
+      }
+
+      return savedReceipt;
     });
 
     return receipt;
@@ -334,10 +352,11 @@ export const PaymentService = {
       payment.rejectReason = undefined;
       await manager.save(payment);
 
+      let cascadePaid: Charge[] = [];
       if (payment.charge) {
         const excess = await applyPaymentToCharge(manager, payment.charge, eurAmount, payment.currency, payment.paymentDate);
         if (excess > 0.01 && payment.property?.owner?.id) {
-          await cascadeExcess(manager, payment.property.owner.id, excess, payment.currency, payment.paymentDate, payment.charge.id);
+          cascadePaid = await cascadeExcess(manager, payment.property.owner.id, excess, payment.currency, payment.paymentDate, payment.charge.id);
         }
       }
 
@@ -351,12 +370,22 @@ export const PaymentService = {
       ]);
       const receiptNumber = `${prefix}-${String(num).padStart(4, "0")}`;
 
-      const receipt = manager.create(Receipt, {
+      const savedReceipt = manager.create(Receipt, {
         payment,
         receiptNumber,
         issuedBy: { id: adminId } as User,
       });
-      return manager.save(receipt);
+      await manager.save(savedReceipt);
+
+      // Vincular el recibo a la cuota directa y a todas las cerradas por cascada
+      payment.charge.coveringReceipt = savedReceipt;
+      await manager.save(Charge, payment.charge);
+      for (const cc of cascadePaid) {
+        cc.coveringReceipt = savedReceipt;
+        await manager.save(Charge, cc);
+      }
+
+      return savedReceipt;
     });
   },
 

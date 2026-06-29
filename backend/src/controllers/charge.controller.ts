@@ -18,6 +18,9 @@ function serializeCharge(charge: import("../models/Charge").Charge) {
     charge.payments?.find((p) => p.status === PaymentStatus.CONFIRMED) ??
     null;
 
+  // Para cuotas cerradas por cascada: usar coveringReceipt como respaldo
+  const cr = !confirmed ? (charge.coveringReceipt ?? null) : null;
+
   return {
     id: charge.id,
     period: charge.period,
@@ -42,6 +45,18 @@ function serializeCharge(charge: import("../models/Charge").Charge) {
           currency: confirmed.currency,
           ownerName: confirmed.submittedBy?.fullName ?? null,
           receiptNumber: confirmed.receipt?.receiptNumber ?? null,
+        }
+      : cr
+      ? {
+          id: cr.payment?.id ?? null,
+          reference: cr.payment?.reference ?? null,
+          bank: cr.payment?.bank ?? null,
+          paymentDate: cr.payment?.paymentDate ?? null,
+          amount: Number(charge.amountPaid ?? 0),
+          amountBs: cr.payment?.amountBs ? Number(cr.payment.amountBs) : null,
+          currency: cr.payment?.currency ?? null,
+          ownerName: cr.payment?.submittedBy?.fullName ?? null,
+          receiptNumber: cr.receiptNumber,
         }
       : null,
     property: prop

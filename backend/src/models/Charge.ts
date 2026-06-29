@@ -9,6 +9,7 @@ import {
 } from "typeorm";
 import { Property } from "./Property";
 import { Payment } from "./Payment";
+import { Receipt } from "./Receipt";
 
 export enum ChargeStatus {
   PENDING = "PENDING",
@@ -58,6 +59,11 @@ export class Charge {
 
   @OneToMany(() => Payment, (payment) => payment.charge)
   payments?: Payment[];
+
+  /** Recibo que cubre esta cuota (puede ser de un pago en cascada). */
+  @ManyToOne(() => Receipt, { nullable: true, eager: false })
+  @JoinColumn({ name: "receipt_id" })
+  coveringReceipt?: Receipt | null;
 
   @CreateDateColumn({ name: "created_at" })
   createdAt!: Date;
