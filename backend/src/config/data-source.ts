@@ -9,8 +9,9 @@ import { Payment } from "../models/Payment";
 import { Receipt } from "../models/Receipt";
 import { BankEntry } from "../models/BankEntry";
 import { ExchangeRateRecord } from "../models/ExchangeRateRecord";
+import { Setting } from "../models/Setting";
 
-const entities = [User, Tower, Property, Charge, Payment, Receipt, BankEntry, ExchangeRateRecord];
+const entities = [User, Tower, Property, Charge, Payment, Receipt, BankEntry, ExchangeRateRecord, Setting];
 
 export const AppDataSource = env.db.url
   ? new DataSource({

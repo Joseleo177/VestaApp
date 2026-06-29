@@ -7,6 +7,7 @@ import chargeRoutes from "./charge.routes";
 import exchangeRateRoutes from "./exchange-rate.routes";
 import towerRoutes from "./tower.routes";
 import reconciliationRoutes from "./reconciliation.routes";
+import settingsRoutes from "./settings.routes";
 
 const router = Router();
 
@@ -20,5 +21,6 @@ router.use("/charges", chargeRoutes);
 router.use("/exchange-rate", exchangeRateRoutes);
 router.use("/towers", towerRoutes);
 router.use("/bank-statements", reconciliationRoutes);
+router.use("/settings", settingsRoutes);
 
 export default router;

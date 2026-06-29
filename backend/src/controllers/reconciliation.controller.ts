@@ -30,4 +30,18 @@ export const ReconciliationController = {
       next(err);
     }
   },
+
+  // DELETE /api/bank-statements/entries  (admin) — elimina por lista de ids
+  async deleteEntries(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { ids } = req.body as { ids: string[] };
+      if (!Array.isArray(ids) || ids.length === 0) {
+        throw new HttpError(400, "ids requeridos");
+      }
+      await AppDataSource.getRepository(BankEntry).delete(ids);
+      res.json({ deleted: ids.length });
+    } catch (err) {
+      next(err);
+    }
+  },
 };

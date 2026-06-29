@@ -9,5 +9,6 @@ router.use(authenticate, authorize(UserRole.ADMIN));
 
 router.post("/reconcile", uploadXlsx.single("statement"), ReconciliationController.reconcile);
 router.get("/entries", ReconciliationController.listEntries);
+router.delete("/entries", ReconciliationController.deleteEntries);
 
 export default router;

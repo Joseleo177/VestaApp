@@ -9,6 +9,7 @@ import { HttpError } from "../middlewares/error.middleware";
 import { amountDue } from "./charge.service";
 import { getRateForDate } from "./exchange-rate.service";
 import { ReconciliationService } from "./reconciliation.service";
+import { SettingsService } from "./settings.service";
 
 function normalizeRef(s: string): string {
   return s.trim().replace(/^'+/, "").toLowerCase();
@@ -265,15 +266,6 @@ export const PaymentService = {
         }
       }
 
-      const count = await manager.count(Receipt);
-      const receiptNumber = `REC-${new Date().getFullYear()}-${String(count + 1).padStart(6, "0")}`;
-
-      const rec = manager.create(Receipt, {
-        payment,
-        receiptNumber,
-        issuedBy: { id: adminId } as User,
-      });
-
       // Marcar la entrada bancaria como casada con este pago.
       const bankEntry = await AppDataSource.getRepository(BankEntry).findOneBy({
         referencia: normalizeRef(payment.reference),
@@ -282,6 +274,21 @@ export const PaymentService = {
         bankEntry.matched = true;
         await AppDataSource.getRepository(BankEntry).save(bankEntry);
       }
+
+      // Recibo solo cuando la cuota queda completamente PAGADA
+      if (!payment.charge || payment.charge.status !== ChargeStatus.PAID) {
+        return null as unknown as Receipt;
+      }
+
+      const prefix = await SettingsService.get("receipt_prefix");
+      const count  = await manager.count(Receipt);
+      const receiptNumber = `${prefix}-${String(count + 1).padStart(4, "0")}`;
+
+      const rec = manager.create(Receipt, {
+        payment,
+        receiptNumber,
+        issuedBy: { id: adminId } as User,
+      });
 
       return manager.save(rec);
     });
@@ -332,8 +339,13 @@ export const PaymentService = {
         }
       }
 
-      const count = await manager.count(Receipt);
-      const receiptNumber = `REC-${new Date().getFullYear()}-${String(count + 1).padStart(6, "0")}`;
+      if (!payment.charge || payment.charge.status !== ChargeStatus.PAID) {
+        return null as unknown as Receipt;
+      }
+
+      const prefix = await SettingsService.get("receipt_prefix");
+      const count  = await manager.count(Receipt);
+      const receiptNumber = `${prefix}-${String(count + 1).padStart(4, "0")}`;
 
       const receipt = manager.create(Receipt, {
         payment,

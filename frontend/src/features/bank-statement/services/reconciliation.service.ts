@@ -61,4 +61,8 @@ export const reconciliationService = {
     const { data } = await api.get<BankEntry[]>("/bank-statements/entries");
     return data;
   },
+
+  async deleteEntries(ids: string[]): Promise<void> {
+    await api.delete("/bank-statements/entries", { data: { ids } });
+  },
 };

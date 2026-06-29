@@ -2,7 +2,7 @@ import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "re
 import { toast } from "sonner";
 import {
   CheckCircle2, AlertTriangle, XCircle, Upload,
-  Loader2, Database, Search, X,
+  Loader2, Database, Search, X, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -66,10 +66,15 @@ export function BankStatementPage() {
   const [search, setSearch] = useState("");
   const [filterDate, setFilterDate] = useState("");
 
+  // Selección
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+
   const loadEntries = useCallback(async () => {
     setLoadingEntries(true);
     try {
       setEntries(await reconciliationService.listEntries());
+      setSelected(new Set());
     } catch {
       // silencioso — la tabla sigue vacía
     } finally {
@@ -79,13 +84,35 @@ export function BankStatementPage() {
 
   useEffect(() => { void loadEntries(); }, [loadEntries]);
 
-  const filteredEntries = useMemo(() => {
-    return entries.filter((e) => {
+  const filteredEntries = useMemo(() =>
+    entries.filter((e) => {
       const matchRef = search === "" || e.referencia.toLowerCase().includes(search.toLowerCase());
       const matchDate = filterDate === "" || e.fecha === filterDate;
       return matchRef && matchDate;
-    });
-  }, [entries, search, filterDate]);
+    }),
+  [entries, search, filterDate]);
+
+  const toggleOne = (id: string) =>
+    setSelected((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+
+  const toggleAll = () =>
+    setSelected((prev) =>
+      prev.size === filteredEntries.length ? new Set() : new Set(filteredEntries.map((e) => e.id))
+    );
+
+  const handleDelete = async () => {
+    if (selected.size === 0) return;
+    setDeleting(true);
+    try {
+      await reconciliationService.deleteEntries([...selected]);
+      toast.success(`${selected.size} entrada(s) eliminada(s)`);
+      void loadEntries();
+    } catch {
+      toast.error("No se pudieron eliminar las entradas");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const handleFileSelect = (f: File) => {
     if (!f.name.endsWith(".xlsx")) { toast.error("Solo se aceptan archivos .xlsx"); return; }
@@ -261,9 +288,23 @@ export function BankStatementPage() {
       <div className="space-y-3">
         {/* Cabecera con conteo y filtros */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2 font-semibold text-slate-700">
-            <Database className="h-5 w-5" />
-            Entradas bancarias guardadas ({entries.length})
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 font-semibold text-slate-700">
+              <Database className="h-5 w-5" />
+              Entradas bancarias guardadas ({entries.length})
+            </div>
+            {selected.size > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleDelete}
+                loading={deleting}
+                className="border-rose-200 text-rose-600 hover:bg-rose-50"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Eliminar ({selected.size})
+              </Button>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {/* Buscador por referencia */}
@@ -318,6 +359,14 @@ export function BankStatementPage() {
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                   <tr>
+                    <th className="px-3 py-2.5 w-8">
+                      <input
+                        type="checkbox"
+                        className="rounded border-slate-300"
+                        checked={selected.size === filteredEntries.length && filteredEntries.length > 0}
+                        onChange={toggleAll}
+                      />
+                    </th>
                     <th className="px-4 py-2.5 font-medium">Referencia</th>
                     <th className="px-4 py-2.5 font-medium">Monto</th>
                     <th className="px-4 py-2.5 font-medium">Fecha</th>
@@ -328,7 +377,12 @@ export function BankStatementPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredEntries.map((e) => (
-                    <tr key={e.id} className={cn("hover:bg-slate-50/60", e.matched && "bg-emerald-50/40")}>
+                    <tr key={e.id} className={cn("hover:bg-slate-50/60 cursor-pointer", e.matched && "bg-emerald-50/40", selected.has(e.id) && "bg-brand-50/60")}
+                      onClick={() => toggleOne(e.id)}>
+                      <td className="px-3 py-2.5" onClick={(ev) => ev.stopPropagation()}>
+                        <input type="checkbox" className="rounded border-slate-300"
+                          checked={selected.has(e.id)} onChange={() => toggleOne(e.id)} />
+                      </td>
                       <td className="px-4 py-2.5 font-mono text-xs text-slate-700">{e.referencia}</td>
                       <td className="px-4 py-2.5 font-semibold text-slate-700">{formatAmt(e.monto)}</td>
                       <td className="px-4 py-2.5 text-xs text-slate-500">{e.fecha ? formatDate(e.fecha) : "—"}</td>
