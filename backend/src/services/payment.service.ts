@@ -423,6 +423,18 @@ export const PaymentService = {
       });
       if (!payment) throw new HttpError(404, "Pago no encontrado");
 
+      // Nullear coveringReceipt en las cuotas ANTES de revertir estados
+      // (evita FK violation al borrar los recibos más adelante)
+      if (payment.receipts?.length) {
+        const receiptIds = payment.receipts.map((r) => r.id);
+        await manager
+          .createQueryBuilder()
+          .update(Charge)
+          .set({ coveringReceipt: null })
+          .where("receipt_id IN (:...receiptIds)", { receiptIds })
+          .execute();
+      }
+
       if (payment.status === PaymentStatus.CONFIRMED && payment.charge) {
         const charge = payment.charge;
 
