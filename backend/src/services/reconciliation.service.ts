@@ -248,7 +248,7 @@ export const ReconciliationService = {
     // Match new entries against PENDING payments
     const pending = await AppDataSource.getRepository(Payment).find({
       where: { status: PaymentStatus.PENDING },
-      relations: { receipt: true },
+      relations: { receipts: true },
     });
 
     const result: ReconciliationResult = {

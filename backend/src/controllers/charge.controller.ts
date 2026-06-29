@@ -12,14 +12,12 @@ function serializeCharge(charge: import("../models/Charge").Charge) {
     ? amountDue(charge, PaymentCurrency.BS) // incluye mora si está vencida
     : null;
 
-  // Preferir el pago confirmado que tiene recibo (el que cerró la cuota)
+  // Pago confirmado (para mostrar referencia/banco/fecha en la tabla)
   const confirmed =
-    charge.payments?.find((p) => p.status === PaymentStatus.CONFIRMED && p.receipt) ??
-    charge.payments?.find((p) => p.status === PaymentStatus.CONFIRMED) ??
-    null;
+    charge.payments?.find((p) => p.status === PaymentStatus.CONFIRMED) ?? null;
 
-  // Para cuotas cerradas por cascada: usar coveringReceipt como respaldo
-  const cr = !confirmed ? (charge.coveringReceipt ?? null) : null;
+  // Recibo que cubre esta cuota (directo o cascade) — fuente de verdad para el PDF
+  const cr = charge.coveringReceipt ?? null;
 
   return {
     id: charge.id,
@@ -34,7 +32,19 @@ function serializeCharge(charge: import("../models/Charge").Charge) {
     overdue: isOverdue(charge),
     amountDue: amountDue(charge),
     amountDueDivisas: remaining !== null ? remaining : Number(charge.amount),
-    confirmedPayment: confirmed
+    confirmedPayment: cr
+      ? {
+          id: cr.payment?.id ?? confirmed?.id ?? null,
+          reference: cr.payment?.reference ?? confirmed?.reference ?? null,
+          bank: cr.payment?.bank ?? confirmed?.bank ?? null,
+          paymentDate: cr.payment?.paymentDate ?? confirmed?.paymentDate ?? null,
+          amount: Number(charge.amountPaid ?? 0),
+          amountBs: cr.payment?.amountBs ? Number(cr.payment.amountBs) : null,
+          currency: cr.payment?.currency ?? confirmed?.currency ?? null,
+          ownerName: cr.payment?.submittedBy?.fullName ?? null,
+          receiptNumber: cr.receiptNumber,
+        }
+      : confirmed
       ? {
           id: confirmed.id,
           reference: confirmed.reference,
@@ -44,19 +54,7 @@ function serializeCharge(charge: import("../models/Charge").Charge) {
           amountBs: confirmed.amountBs ? Number(confirmed.amountBs) : null,
           currency: confirmed.currency,
           ownerName: confirmed.submittedBy?.fullName ?? null,
-          receiptNumber: confirmed.receipt?.receiptNumber ?? null,
-        }
-      : cr
-      ? {
-          id: cr.payment?.id ?? null,
-          reference: cr.payment?.reference ?? null,
-          bank: cr.payment?.bank ?? null,
-          paymentDate: cr.payment?.paymentDate ?? null,
-          amount: Number(charge.amountPaid ?? 0),
-          amountBs: cr.payment?.amountBs ? Number(cr.payment.amountBs) : null,
-          currency: cr.payment?.currency ?? null,
-          ownerName: cr.payment?.submittedBy?.fullName ?? null,
-          receiptNumber: cr.receiptNumber,
+          receiptNumber: null,
         }
       : null,
     property: prop

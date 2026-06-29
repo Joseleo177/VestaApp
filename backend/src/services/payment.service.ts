@@ -242,7 +242,7 @@ export const PaymentService = {
   async getById(id: string): Promise<Payment> {
     const payment = await paymentRepo().findOne({
       where: { id },
-      relations: { receipt: true },
+      relations: { receipts: true },
     });
     if (!payment) throw new HttpError(404, "Pago no encontrado");
     return payment;
@@ -253,7 +253,7 @@ export const PaymentService = {
     const receipt = await AppDataSource.transaction(async (manager) => {
       const payment = await manager.findOne(Payment, {
         where: { id: paymentId },
-        relations: { receipt: true, charge: true, property: { owner: true } },
+        relations: { receipts: true, charge: true, property: { owner: true } },
       });
       if (!payment) throw new HttpError(404, "Pago no encontrado");
       if (payment.status === PaymentStatus.CONFIRMED) {
@@ -335,7 +335,7 @@ export const PaymentService = {
     return AppDataSource.transaction(async (manager) => {
       const payment = await manager.findOne(Payment, {
         where: { id: paymentId },
-        relations: { receipt: true, charge: true, property: { owner: true } },
+        relations: { receipts: true, charge: true, property: { owner: true } },
       });
       if (!payment) throw new HttpError(404, "Pago no encontrado");
       if (payment.status === PaymentStatus.CONFIRMED) {
@@ -419,7 +419,7 @@ export const PaymentService = {
     return AppDataSource.transaction(async (manager) => {
       const payment = await manager.findOne(Payment, {
         where: { id: paymentId },
-        relations: { charge: true, receipt: true, property: { owner: true } },
+        relations: { charge: true, receipts: true, property: { owner: true } },
       });
       if (!payment) throw new HttpError(404, "Pago no encontrado");
 
@@ -495,8 +495,8 @@ export const PaymentService = {
         }
       }
 
-      if (payment.receipt) {
-        await manager.remove(Receipt, payment.receipt);
+      if (payment.receipts?.length) {
+        await manager.remove(Receipt, payment.receipts);
       }
 
       await manager.remove(Payment, payment);
