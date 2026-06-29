@@ -5,7 +5,7 @@ import { CheckCircle2, Clock } from "lucide-react";
 import { Input, Select } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Charge, ChargeStatus, Payment, PaymentCurrency, PaymentStatus } from "@/types/domain";
-import { formatCurrency, formatDate, formatPeriod } from "@/lib/format";
+import { formatCurrency, formatDate } from "@/lib/format";
 import { ExchangeRate, exchangeRateService } from "@/features/exchange-rate/services/exchange-rate.service";
 import { paymentService } from "../services/payment.service";
 import { MODALIDADES_BS, MODALIDADES_DIVISAS, paymentSchema, PaymentFormValues } from "../schema";
