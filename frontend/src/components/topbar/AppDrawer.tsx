@@ -14,7 +14,6 @@ import {
   LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
-import { UserRole } from "@/types/domain";
 import { cn } from "@/lib/cn";
 
 interface AppItem {

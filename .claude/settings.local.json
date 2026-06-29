@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "PowerShell(docker exec condo_db psql -U condominio -d condo_db -c \"\\\\dt\")",
-      "PowerShell(docker restart condo_backend)"
+      "PowerShell(docker restart condo_backend)",
+      "PowerShell(docker exec condo_backend node --version)",
+      "PowerShell(docker exec condo_backend node -e \"console.log\\(require\\('pg/package.json'\\).version\\)\")"
     ]
   }
 }
