@@ -89,6 +89,9 @@ export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: P
 
   const moraAnnulled = !isBS && overdueAtPaymentDate && (selected?.moraAmount ?? 0) > 0;
 
+  // Para el cálculo en Bs incluimos la mora cuando hay vencimiento y no se anula (pago en Bs)
+  const amountEurForBs = amountEurRef + (!isPartial && overdueAtPaymentDate && !moraAnnulled ? (selected?.moraAmount ?? 0) : 0);
+
   const eurFromBs =
     isBS && amountBsInput && dateRate
       ? Math.round((amountBsInput / dateRate.rate) * 100) / 100
@@ -201,7 +204,7 @@ export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: P
               <div className="flex items-center justify-between border-t border-blue-200 pt-1.5">
                 <span className="font-semibold">Debes transferir</span>
                 <span className="text-base font-bold text-blue-900">
-                  Bs. {(amountEurRef * dateRate.rate).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  Bs. {(amountEurForBs * dateRate.rate).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
             </div>
