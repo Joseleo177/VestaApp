@@ -51,8 +51,12 @@ export function generateReceiptPdf(
     const bsBase = exRate ? Math.round(base * exRate * 100) / 100 : null;
     const bsMora = (exRate && mora > 0) ? Math.round(mora * exRate * 100) / 100 : null;
 
-    const now = opts?.issuedAt ?? new Date();
-    const dateStr = `${city}, ${now.getDate()} de ${MESES[now.getMonth()]} de ${now.getFullYear()}`;
+    // Usar la fecha declarada del pago (cuando se hizo la transferencia), no la de hoy.
+    // Se añade T12:00:00 para evitar desfases de zona horaria con fechas tipo "YYYY-MM-DD".
+    const payDate = payment.paymentDate
+      ? new Date(`${payment.paymentDate}T12:00:00`)
+      : (opts?.issuedAt ?? new Date());
+    const dateStr = `${city}, ${payDate.getDate()} de ${MESES[payDate.getMonth()]} de ${payDate.getFullYear()}`;
 
     // ── Encabezado ────────────────────────────────────────────────────────────
     const pageW = doc.page.width - 110;
