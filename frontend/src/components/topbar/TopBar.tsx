@@ -1,16 +1,24 @@
 import { Flame, LogOut } from "lucide-react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { UserRole } from "@/types/domain";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppDrawer } from "./AppDrawer";
 import { ExchangeRatePill } from "./ExchangeRatePill";
 import { ProfileModal } from "@/features/auth/components/ProfileModal";
+import { api } from "@/services/api";
 
 /** Barra superior oscura: cajón de apps · marca · fecha/tasa · usuario. */
 export function TopBar() {
   const { user, logout, isAdmin, updateUser } = useAuth();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [condoName, setCondoName] = useState<string>("");
   const roleLabel = user?.role === UserRole.ADMIN ? "Administrador" : "Copropietario";
+
+  useEffect(() => {
+    api.get<{ condo_name: string }>("/settings")
+      .then(({ data }) => { if (data.condo_name) setCondoName(data.condo_name); })
+      .catch(() => {});
+  }, []);
 
   return (
     <header className="sticky top-0 z-40 border-b border-white/5 bg-slate-900 text-white">
@@ -23,9 +31,11 @@ export function TopBar() {
               <Flame className="h-4 w-4" />
             </span>
             <span className="text-sm font-bold tracking-tight">VestaApp</span>
-            <span className="hidden rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-300 sm:inline">
-              Condominio
-            </span>
+            {condoName && (
+              <span className="hidden rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-300 sm:inline">
+                {condoName}
+              </span>
+            )}
           </div>
         </div>
 

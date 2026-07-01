@@ -295,7 +295,7 @@ export const PaymentService = {
       const mainReceipt = manager.create(Receipt, {
         payment,
         charge: payment.charge,
-        receiptNumber: `${prefix}-${String(mainNum).padStart(4, "0")}`,
+        receiptNumber: `${prefix}-${String(mainNum).padStart(8, "0")}`,
         issuedBy: { id: adminId } as User,
       });
       const savedMain = await manager.save(mainReceipt);
@@ -308,7 +308,7 @@ export const PaymentService = {
         const cascReceipt = manager.create(Receipt, {
           payment,
           charge: cc,
-          receiptNumber: `${prefix}-${String(cascNum).padStart(4, "0")}`,
+          receiptNumber: `${prefix}-${String(cascNum).padStart(8, "0")}`,
           issuedBy: { id: adminId } as User,
         });
         const savedCasc = await manager.save(cascReceipt);
@@ -377,7 +377,7 @@ export const PaymentService = {
       const mainReceipt = manager.create(Receipt, {
         payment,
         charge: payment.charge,
-        receiptNumber: `${prefix}-${String(mainNum).padStart(4, "0")}`,
+        receiptNumber: `${prefix}-${String(mainNum).padStart(8, "0")}`,
         issuedBy: { id: adminId } as User,
       });
       const savedMain = await manager.save(mainReceipt);
@@ -390,7 +390,7 @@ export const PaymentService = {
         const cascReceipt = manager.create(Receipt, {
           payment,
           charge: cc,
-          receiptNumber: `${prefix}-${String(cascNum).padStart(4, "0")}`,
+          receiptNumber: `${prefix}-${String(cascNum).padStart(8, "0")}`,
           issuedBy: { id: adminId } as User,
         });
         const savedCasc = await manager.save(cascReceipt);
