@@ -219,6 +219,20 @@ export function generateReceiptPdf(
         55, doc.y + 2, { width: pageW, align: "center" }
       );
 
+    // ── Firma / Sello ──────────────────────────────────────────────────────────
+    const firmaCandidates = [
+      path.join(process.cwd(), "assets", "FIRMA.png"),
+      path.join(__dirname, "..", "..", "assets", "FIRMA.png"),
+      path.join(__dirname, "..", "assets", "FIRMA.png"),
+      path.join(__dirname, "assets", "FIRMA.png"),
+    ];
+    const firmaFile = firmaCandidates.find((p) => fs.existsSync(p)) ?? "";
+    if (firmaFile) {
+      const firmaW = 180;
+      doc.moveDown(1);
+      doc.image(firmaFile, 55 + (pageW - firmaW) / 2, doc.y, { width: firmaW });
+    }
+
     doc.end();
   });
 }
