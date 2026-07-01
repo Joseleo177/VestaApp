@@ -2,7 +2,6 @@ import PDFDocument from "pdfkit";
 import path from "path";
 import fs from "fs";
 import { Payment } from "../models/Payment";
-import { ChargeStatus } from "../models/Charge";
 
 const MESES = [
   "enero","febrero","marzo","abril","mayo","junio",
@@ -15,6 +14,9 @@ function formatPeriod(period: string): string {
 }
 
 function eur(n: number): string {
+  return new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+}
+function bs(n: number): string {
   return new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 }
 
@@ -36,23 +38,24 @@ export function generateReceiptPdf(
     const city       = opts?.condoCity ?? "Barquisimeto";
     const condoRif   = opts?.condoRif  ?? "";
     const condoPhone = opts?.condoPhone ?? "";
-    // Usar la cuota override (para recibos cascade) o la del pago
-    const charge = chargeOverride ?? payment.charge;
+    const charge     = chargeOverride ?? payment.charge;
 
-    // Montos de la cuota (lo que debía, no lo que pagó)
-    const base      = charge ? Number(charge.amount)     : Number(payment.amount);
-    const mora      = charge ? Number(charge.moraAmount) : 0;
-    const moraPaid  = charge ? Number(charge.amountPaid) > base + 0.01 : false;
-    const total     = moraPaid ? base + mora : base;
-    const amountBs  = payment.amountBs ? Number(payment.amountBs) : null;
-    const exRate    = payment.exchangeRate ? Number(payment.exchangeRate) : null;
+    const base     = charge ? Number(charge.amount)     : Number(payment.amount);
+    const mora     = charge ? Number(charge.moraAmount) : 0;
+    const moraPaid = charge ? Number(charge.amountPaid) > base + 0.01 : false;
+    const total    = moraPaid ? base + mora : base;
+    const exRate   = payment.exchangeRate ? Number(payment.exchangeRate) : null;
+    // Bs total proporcional a esta cuota
+    const bsTotal  = exRate ? Math.round(total * exRate * 100) / 100
+                   : payment.amountBs ? Number(payment.amountBs) : null;
+    const bsBase   = exRate ? Math.round(base * exRate * 100) / 100 : null;
+    const bsMora   = (exRate && mora > 0) ? Math.round(mora * exRate * 100) / 100 : null;
 
-    const now       = new Date();
-    const dateStr   = `${city}, ${now.getDate()} de ${MESES[now.getMonth()]} de ${now.getFullYear()}`;
+    const now      = new Date();
+    const dateStr  = `${city}, ${now.getDate()} de ${MESES[now.getMonth()]} de ${now.getFullYear()}`;
 
     // ── Encabezado ────────────────────────────────────────────────────────────
-    const pageW   = doc.page.width - 110; // ancho útil
-    // Buscar el logo en varios paths candidatos (local, Docker, Vercel Lambda)
+    const pageW  = doc.page.width - 110;
     const logoCandidates = [
       path.join(process.cwd(), "assets", "LOGO.png"),
       path.join(__dirname, "..", "..", "assets", "LOGO.png"),
@@ -68,10 +71,10 @@ export function generateReceiptPdf(
       doc.image(logoFile, 55, headerY, { width: logoSize, height: logoSize });
     }
 
-    // Datos de la empresa — centrados en el espacio junto al logo
-    const infoX = (hasLogo ? 55 + logoSize + 12 : 55);
+    const infoX = hasLogo ? 55 + logoSize + 12 : 55;
     const infoW = pageW - (hasLogo ? logoSize + 12 : 0);
 
+    // Nombre empresa + datos — centrados en el área junto al logo
     doc.fontSize(13).fillColor("#1e293b").font("Helvetica-Bold")
        .text("RECIBO DE ADMINISTRACIÓN Y CONDOMINIO", infoX, headerY + 6, { width: infoW, align: "center" });
     doc.fontSize(10).fillColor("#475569").font("Helvetica")
@@ -83,12 +86,11 @@ export function generateReceiptPdf(
          .text(meta, infoX, headerY + 42, { width: infoW, align: "center" });
     }
 
-    // RECIBO N° — debajo del bloque de texto, alineado a la derecha del área de info
+    // RECIBO N° centrado en el área del encabezado
     doc.fontSize(11).fillColor("#1e293b").font("Helvetica-Bold")
-       .text(`RECIBO N° ${receiptNumber}`, infoX, headerY + 60, { width: infoW, align: "center" });
+       .text(`RECIBO N° ${receiptNumber}`, 55, headerY + logoSize + 6, { width: pageW, align: "center" });
 
-    // Fijar cursor debajo del bloque de cabecera
-    doc.y = headerY + logoSize + 12;
+    doc.y = headerY + logoSize + 24;
 
     // Línea separadora
     doc.moveTo(55, doc.y).lineTo(55 + pageW, doc.y).strokeColor("#cbd5e1").stroke();
@@ -105,50 +107,80 @@ export function generateReceiptPdf(
     const tower    = (payment.property as any)?.tower?.name ?? "";
     const unitFull = tower ? `${unit} · ${tower}` : unit;
     const period   = charge?.period ? formatPeriod(charge.period) : "—";
+    const concepto = charge?.description ?? "Cuota de condominio";
 
     doc.fontSize(11).fillColor("#1e293b");
-    doc.text("Recibí de: ", { continued: true }).font("Helvetica-Bold").text(owner);
+    doc.font("Helvetica").text("Recibí de: ", { continued: true }).font("Helvetica-Bold").text(owner);
     doc.font("Helvetica").text("Del Apto: ", { continued: true }).font("Helvetica-Bold").text(unitFull);
-    const concepto = charge?.description ?? "cuota de condominio";
-    doc.font("Helvetica")
-       .text(`Por concepto de ${concepto} correspondiente al período: `, { continued: true })
-       .font("Helvetica-Bold").text(period);
+    doc.font("Helvetica-Bold").text(`${concepto}: `, { continued: true }).text(period);
     doc.moveDown(1.2);
 
     // ── Tabla de montos ────────────────────────────────────────────────────────
-    const tableX     = 55;
-    const tableW     = pageW;
-    const rowH       = 24;
+    const tableX      = 55;
+    const tableW      = pageW;
+    const rowH        = 26;
+    const labelW      = tableW * 0.40;
+    const bsW         = tableW * 0.35;
+    const eurW        = tableW * 0.25;
     const tableStartY = doc.y;
     let   ty          = tableStartY;
 
-    const bsTotal = amountBs ?? (exRate ? Math.round(total * exRate * 100) / 100 : null);
+    // Cabecera de la tabla si hay Bs
+    if (bsTotal !== null) {
+      doc.rect(tableX, ty, tableW, rowH - 6).fillColor("#e2e8f0").fill();
+      doc.fillColor("#64748b").font("Helvetica").fontSize(8)
+         .text("CONCEPTO", tableX + 8, ty + 4, { width: labelW });
+      doc.fillColor("#64748b").font("Helvetica").fontSize(8)
+         .text("MONTO (Bs.)", tableX + labelW, ty + 4, { width: bsW, align: "right" });
+      doc.fillColor("#64748b").font("Helvetica").fontSize(8)
+         .text("REF. (EUR)", tableX + labelW + bsW, ty + 4, { width: eurW - 8, align: "right" });
+      ty += rowH - 6;
+      doc.moveTo(tableX, ty).lineTo(tableX + tableW, ty).strokeColor("#cbd5e1").stroke();
+    }
 
-    const rows: { label: string; amount: string; bold?: boolean; highlight?: boolean }[] = [
-      { label: "Cuota base", amount: `EUR ${eur(base)}` },
+    type Row = { label: string; bsAmt?: number | null; eurAmt: number; bold?: boolean; highlight?: boolean };
+
+    const rows: Row[] = [
+      { label: "Cuota base", bsAmt: bsBase, eurAmt: base },
     ];
     if (moraPaid && mora > 0) {
-      rows.push({ label: "Mora por retraso", amount: `EUR ${eur(mora)}` });
+      rows.push({ label: "Mora por retraso", bsAmt: bsMora, eurAmt: mora });
     }
-    rows.push({ label: "TOTAL", amount: `EUR ${eur(total)}`, bold: true, highlight: true });
-    if (bsTotal) {
-      const bsFmt = new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      rows.push({ label: `Ref. en Euros: EUR ${eur(total)}`, amount: `Bs. ${bsFmt.format(bsTotal)}`, bold: true, highlight: true });
-    }
+    rows.push({ label: "TOTAL", bsAmt: bsTotal, eurAmt: total, bold: true, highlight: true });
 
     for (const row of rows) {
       if (row.highlight) {
         doc.rect(tableX, ty, tableW, rowH).fillColor("#f1f5f9").fill();
       }
+      const textY = ty + (rowH - (row.bold ? 12 : 10)) / 2;
+
+      // Columna label
       doc.fillColor(row.bold ? "#1e293b" : "#475569")
          .font(row.bold ? "Helvetica-Bold" : "Helvetica")
          .fontSize(row.bold ? 12 : 10)
-         .text(row.label, tableX + 8, ty + (rowH - 12) / 2, { width: tableW / 2 });
-      doc.fillColor("#1e293b")
-         .font(row.bold ? "Helvetica-Bold" : "Helvetica")
-         .fontSize(row.bold ? 12 : 10)
-         .text(row.amount, tableX + tableW / 2, ty + (rowH - 12) / 2,
-               { width: tableW / 2 - 8, align: "right" });
+         .text(row.label, tableX + 8, textY, { width: labelW });
+
+      if (bsTotal !== null) {
+        // Columna Bs (principal)
+        const bsText = row.bsAmt != null ? `Bs. ${bs(row.bsAmt)}` : "—";
+        doc.fillColor("#1e293b")
+           .font(row.bold ? "Helvetica-Bold" : "Helvetica")
+           .fontSize(row.bold ? 12 : 10)
+           .text(bsText, tableX + labelW, textY, { width: bsW, align: "right" });
+
+        // Columna EUR (referencia, más pequeña)
+        doc.fillColor("#64748b")
+           .font("Helvetica")
+           .fontSize(9)
+           .text(`EUR ${eur(row.eurAmt)}`, tableX + labelW + bsW, textY, { width: eurW - 8, align: "right" });
+      } else {
+        // Sin Bs — solo EUR a la derecha
+        doc.fillColor("#1e293b")
+           .font(row.bold ? "Helvetica-Bold" : "Helvetica")
+           .fontSize(row.bold ? 12 : 10)
+           .text(`EUR ${eur(row.eurAmt)}`, tableX + labelW, textY, { width: bsW + eurW - 8, align: "right" });
+      }
+
       ty += rowH;
       if (!row.highlight) {
         doc.moveTo(tableX, ty).lineTo(tableX + tableW, ty).strokeColor("#e2e8f0").stroke();
@@ -156,18 +188,9 @@ export function generateReceiptPdf(
     }
 
     doc.rect(tableX, tableStartY, tableW, ty - tableStartY).strokeColor("#cbd5e1").stroke();
-
-    // sync cursor to after the table
     doc.y = ty;
 
-    // ── Estado (inmediatamente bajo la tabla) ──────────────────────────────────
-    if (charge?.status === ChargeStatus.PAID) {
-      doc.moveDown(0.8);
-      doc.fontSize(10).fillColor("#16a34a").font("Helvetica-Bold")
-         .text("✓ Cuota pagada en su totalidad", { align: "center" });
-    }
-
-    // ── Pie (fijo en la página, texto corto en dos líneas) ─────────────────────
+    // ── Pie ───────────────────────────────────────────────────────────────────
     const footerY = doc.page.height - 120;
     doc.moveTo(55, footerY).lineTo(55 + pageW, footerY).strokeColor("#cbd5e1").stroke();
     doc.fontSize(7.5).fillColor("#94a3b8").font("Helvetica")
