@@ -39,7 +39,7 @@ export function LoginPage() {
             <Flame className="h-6 w-6" />
           </div>
           <h1 className="text-2xl font-bold text-slate-800">VestaApp</h1>
-          <p className="text-sm text-slate-500">Gestión y pagos de condominio</p>
+          <p className="text-sm text-slate-500">Gestión y pagos de cuotas</p>
         </div>
 
         <form

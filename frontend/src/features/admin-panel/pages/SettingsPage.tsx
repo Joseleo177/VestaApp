@@ -75,7 +75,7 @@ export function SettingsPage() {
           onChange={set("receipt_counter")}
         />
         <p className="text-xs text-slate-400">
-          El próximo recibo será <strong>{values.receipt_prefix || "RC"}-{String(Number(values.receipt_counter || 0) + 1).padStart(4, "0")}</strong>.
+          El próximo recibo será <strong>{values.receipt_prefix || "RC"}-{String(Number(values.receipt_counter || 0) + 1).padStart(8, "0")}</strong>.
           Cambia el contador si ya tienes recibos emitidos fuera del sistema.
         </p>
       </Card>
