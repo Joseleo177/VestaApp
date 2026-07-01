@@ -31,6 +31,7 @@ export interface User {
   cedula: string;
   fullName: string;
   phone?: string;
+  email?: string;
   role: UserRole;
   isActive?: boolean;
   createdAt?: string;

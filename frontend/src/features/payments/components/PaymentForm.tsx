@@ -200,12 +200,12 @@ export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: P
                   </span>
                 </div>
               )}
-              {!isBS && (
-                <div className="flex items-center justify-between border-t border-slate-200 pt-2 mt-1">
-                  <span className="font-semibold text-slate-700">Total a pagar</span>
-                  <span className="text-lg font-bold text-slate-900">{formatCurrency(amountEurRef)}</span>
-                </div>
-              )}
+              <div className="flex items-center justify-between border-t border-slate-200 pt-2 mt-1">
+                <span className="font-semibold text-slate-700">Total a pagar</span>
+                <span className="text-lg font-bold text-slate-900">
+                  {formatCurrency(isBS ? amountEurForBs : amountEurRef)}
+                </span>
+              </div>
               {moraAnnulled && (
                 <p className="mt-2 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-700">
                   Pagando en divisas se anula la mora.

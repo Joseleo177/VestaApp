@@ -14,5 +14,6 @@ router.post(
   AuthController.register
 );
 router.get("/me", authenticate, AuthController.me);
+router.patch("/profile", authenticate, AuthController.updateProfile);
 
 export default router;

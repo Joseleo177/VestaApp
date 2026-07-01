@@ -18,6 +18,7 @@ interface AuthContextValue {
   loading: boolean;
   login: (cedula: string, password: string) => Promise<User>;
   logout: () => void;
+  updateUser: (user: User) => void;
 }
 
 // El estado global SOLO maneja la sesión (no listas de pagos ni filtros).
@@ -65,6 +66,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const updateUser = useCallback((updatedUser: User) => {
+    const session = loadSession();
+    if (session) {
+      const newSession = { ...session, user: updatedUser };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newSession));
+    }
+    setUser(updatedUser);
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -74,8 +84,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       login,
       logout,
+      updateUser,
     }),
-    [user, loading, login, logout]
+    [user, loading, login, logout, updateUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

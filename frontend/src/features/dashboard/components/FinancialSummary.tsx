@@ -41,6 +41,12 @@ export function FinancialSummary({ statement, lastConfirmed, loading, creditBala
   const balance = statement?.balance ?? 0;
   const due = statement ? nextDueCharge(statement.charges) : undefined;
   const overdue = due ? isOverdue(due.dueDate) : false;
+  const pendingCount = statement?.charges.filter(
+    (c) => c.status === ChargeStatus.PENDING || c.status === ChargeStatus.PARTIAL
+  ).length ?? 0;
+  const hasOverdue = statement?.charges.some(
+    (c) => (c.status === ChargeStatus.PENDING || c.status === ChargeStatus.PARTIAL) && isOverdue(c.dueDate)
+  ) ?? false;
 
   return (
     <div className={`grid grid-cols-1 gap-4 ${cols}`}>
@@ -58,10 +64,16 @@ export function FinancialSummary({ statement, lastConfirmed, loading, creditBala
           {formatCurrency(balance)}
         </p>
         <p className="mt-1 text-xs text-slate-400">
-          {rate && balance > 0
-            ? `≈ ${formatBs(balance, rate.rate)}`
-            : balance > 0
-            ? "Alícuotas por pagar"
+          {balance > 0
+            ? (
+              <span className="space-y-0.5 flex flex-col">
+                {rate && <span>≈ {formatBs(balance, rate.rate)}</span>}
+                <span>
+                  {pendingCount} cuota{pendingCount !== 1 ? "s" : ""} pendiente{pendingCount !== 1 ? "s" : ""}
+                  {hasOverdue && <span className="ml-1 text-rose-500 font-medium">· incluye mora</span>}
+                </span>
+              </span>
+            )
             : "Estás al día"}
         </p>
       </Card>

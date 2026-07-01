@@ -46,6 +46,8 @@ export const AuthController = {
           id: user.id,
           cedula: user.cedula,
           fullName: user.fullName,
+          email: user.email,
+          phone: user.phone,
           role: user.role,
         },
       });
@@ -90,6 +92,39 @@ export const AuthController = {
         id: user.id,
         cedula: user.cedula,
         fullName: user.fullName,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // PATCH /api/auth/profile
+  async updateProfile(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user!.sub;
+      const { phone, email, password } = req.body;
+      
+      const user = await userRepo().findOneBy({ id: userId });
+      if (!user) throw new HttpError(404, "Usuario no encontrado");
+
+      if (phone !== undefined) user.phone = phone;
+      if (email !== undefined) user.email = email;
+      
+      if (password) {
+        user.passwordHash = await bcrypt.hash(password, 10);
+      }
+      
+      await userRepo().save(user);
+
+      res.json({
+        id: user.id,
+        cedula: user.cedula,
+        fullName: user.fullName,
+        phone: user.phone,
+        email: user.email,
         role: user.role,
       });
     } catch (err) {
