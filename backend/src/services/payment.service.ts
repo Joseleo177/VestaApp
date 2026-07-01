@@ -274,13 +274,19 @@ export const PaymentService = {
         }
       }
 
-      // Marcar la entrada bancaria como casada con este pago.
-      const bankEntry = await AppDataSource.getRepository(BankEntry).findOneBy({
-        referencia: normalizeRef(payment.reference),
-      });
-      if (bankEntry && !bankEntry.matched) {
+      // Marcar la entrada bancaria como casada con este pago (sufijo o exacta).
+      const ref = normalizeRef(payment.reference);
+      const bankEntry = await manager.getRepository(BankEntry)
+        .createQueryBuilder("be")
+        .where("be.matched = false")
+        .andWhere("(be.referencia = :ref OR be.referencia LIKE :suffix)", {
+          ref,
+          suffix: `%${ref}`,
+        })
+        .getOne();
+      if (bankEntry) {
         bankEntry.matched = true;
-        await AppDataSource.getRepository(BankEntry).save(bankEntry);
+        await manager.save(BankEntry, bankEntry);
       }
 
       // Recibo solo cuando la cuota queda completamente PAGADA
@@ -357,6 +363,21 @@ export const PaymentService = {
       payment.reviewedAt = new Date();
       payment.rejectReason = undefined;
       await manager.save(payment);
+
+      // Marcar entrada bancaria como casada (sufijo o exacta).
+      const refP = normalizeRef(payment.reference);
+      const bankEntryP = await manager.getRepository(BankEntry)
+        .createQueryBuilder("be")
+        .where("be.matched = false")
+        .andWhere("(be.referencia = :ref OR be.referencia LIKE :suffix)", {
+          ref: refP,
+          suffix: `%${refP}`,
+        })
+        .getOne();
+      if (bankEntryP) {
+        bankEntryP.matched = true;
+        await manager.save(BankEntry, bankEntryP);
+      }
 
       let cascadePaid: Charge[] = [];
       if (payment.charge) {
@@ -498,12 +519,18 @@ export const PaymentService = {
 
       // Liberar la entrada bancaria que estaba casada con este pago
       if (payment.status === PaymentStatus.CONFIRMED) {
-        const bankEntry = await AppDataSource.getRepository(BankEntry).findOneBy({
-          referencia: normalizeRef(payment.reference),
-        });
-        if (bankEntry?.matched) {
+        const refR = normalizeRef(payment.reference);
+        const bankEntry = await manager.getRepository(BankEntry)
+          .createQueryBuilder("be")
+          .where("be.matched = true")
+          .andWhere("(be.referencia = :ref OR be.referencia LIKE :suffix)", {
+            ref: refR,
+            suffix: `%${refR}`,
+          })
+          .getOne();
+        if (bankEntry) {
           bankEntry.matched = false;
-          await AppDataSource.getRepository(BankEntry).save(bankEntry);
+          await manager.save(BankEntry, bankEntry);
         }
       }
 
