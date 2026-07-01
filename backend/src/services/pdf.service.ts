@@ -188,6 +188,15 @@ export function generateReceiptPdf(
     doc.moveDown(1);
     doc.moveTo(55, doc.y).lineTo(55 + pageW, doc.y).strokeColor("#cbd5e1").stroke();
     doc.moveDown(0.5);
+    if (exRate) {
+      const tasaFmt = new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+      doc.fontSize(7.5).fillColor("#94a3b8").font("Helvetica")
+        .text(
+          `Tasa de cambio aplicada: Bs. ${tasaFmt.format(exRate)} / EUR`,
+          55, doc.y, { width: pageW, align: "center" }
+        );
+      doc.moveDown(0.4);
+    }
     doc.fontSize(7.5).fillColor("#94a3b8").font("Helvetica")
       .text(
         "Este recibo no es de carácter fiscal. Acredita el pago de la cuota de condominio para el período especificado.",
