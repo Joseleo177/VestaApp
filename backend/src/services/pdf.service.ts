@@ -88,25 +88,25 @@ export function generateReceiptPdf(
     const textStartY = headerY + Math.round((logoSize - textBlockH) / 2);
 
     // Info empresa — centrada en columna central
-    doc.fontSize(11).fillColor("#1e293b").font("Helvetica-Bold")
+    doc.fontSize(11).fillColor("#000000").font("Helvetica-Bold")
       .text("RECIBO DE PAGO", col2X, textStartY, { width: col2W, align: "center" });
-    doc.fontSize(10).fillColor("#475569").font("Helvetica")
+    doc.fontSize(10).fillColor("#000000").font("Helvetica-Bold")
       .text(condoName, col2X, textStartY + lineH, { width: col2W, align: "center" });
     if (condoRif || condoPhone) {
       const meta = [condoRif ? `RIF ${condoRif}` : "", condoPhone ? `Tlf. ${condoPhone}` : ""]
         .filter(Boolean).join("  ·  ");
-      doc.fontSize(9).fillColor("#334155").font("Helvetica")
+      doc.fontSize(9).fillColor("#000000").font("Helvetica-Bold")
         .text(meta, col2X, textStartY + lineH * 2, { width: col2W, align: "center" });
     }
 
     // RECIBO N° — columna derecha, alineado con el bloque de empresa
-    doc.fontSize(8).fillColor("#334155").font("Helvetica")
+    doc.fontSize(8).fillColor("#000000").font("Helvetica-Bold")
       .text("RECIBO N°", col3X, textStartY, { width: col3W, align: "right" });
-    doc.fontSize(12).fillColor("#1e293b").font("Helvetica-Bold")
+    doc.fontSize(12).fillColor("#000000").font("Helvetica-Bold")
       .text(receiptNumber, col3X, textStartY + lineH, { width: col3W, align: "right" });
 
     // Resetear cursor al margen izquierdo para que el cuerpo quede alineado a la izquierda
-    doc.y = headerY + logoSize + 16;
+    doc.y = headerY + logoSize + 6;
     doc.x = 55;
 
     // Línea separadora
@@ -114,7 +114,7 @@ export function generateReceiptPdf(
     doc.moveDown(1.2);
 
     // Fecha
-    doc.fontSize(10).fillColor("#334155").font("Helvetica")
+    doc.fontSize(10).fillColor("#000000").font("Helvetica-Bold")
       .text(dateStr, { align: "left" });
     doc.moveDown(1);
 
@@ -126,9 +126,9 @@ export function generateReceiptPdf(
     const period = charge?.period ? formatPeriod(charge.period) : "—";
     const concepto = charge?.description ?? "Cuota de Recuperacion";
 
-    doc.fontSize(11).fillColor("#1e293b");
-    doc.font("Helvetica").text("Recibo de: ", { continued: true }).font("Helvetica-Bold").text(owner);
-    doc.font("Helvetica").text("Del apartamento: ", { continued: true }).font("Helvetica-Bold").text(unitFull);
+    doc.fontSize(11).fillColor("#000000");
+    doc.font("Helvetica-Bold").text("Recibo de: ", { continued: true }).font("Helvetica-Bold").text(owner);
+    doc.font("Helvetica-Bold").text("Del apartamento: ", { continued: true }).font("Helvetica-Bold").text(unitFull);
     doc.font("Helvetica-Bold").text(`${concepto}: `, { continued: true }).text(period);
     doc.moveDown(1.2);
 
@@ -160,7 +160,7 @@ export function generateReceiptPdf(
       const textY = ty + (rowH - (row.bold ? 12 : 10)) / 2;
 
       // Columna label
-      doc.fillColor(row.bold ? "#1e293b" : "#475569")
+      doc.fillColor(row.bold ? "#000000" : "#000000")
         .font(row.bold ? "Helvetica-Bold" : "Helvetica")
         .fontSize(row.bold ? 12 : 10)
         .text(row.label, tableX + 8, textY, { width: labelW });
@@ -168,19 +168,19 @@ export function generateReceiptPdf(
       if (bsTotal !== null) {
         // Columna Bs (principal)
         const bsText = row.bsAmt != null ? `Bs. ${bs(row.bsAmt)}` : "—";
-        doc.fillColor("#1e293b")
+        doc.fillColor("#000000")
           .font(row.bold ? "Helvetica-Bold" : "Helvetica")
           .fontSize(row.bold ? 12 : 10)
           .text(bsText, tableX + labelW, textY, { width: bsW, align: "right" });
 
         // Columna EUR (referencia, más pequeña)
-        doc.fillColor("#334155")
-          .font("Helvetica")
+        doc.fillColor("#000000")
+          .font("Helvetica-Bold")
           .fontSize(9)
           .text(`EUR ${eur(row.eurAmt)}`, tableX + labelW + bsW, textY, { width: eurW - 8, align: "right" });
       } else {
         // Sin Bs — solo EUR a la derecha
-        doc.fillColor("#1e293b")
+        doc.fillColor("#000000")
           .font(row.bold ? "Helvetica-Bold" : "Helvetica")
           .fontSize(row.bold ? 12 : 10)
           .text(`EUR ${eur(row.eurAmt)}`, tableX + labelW, textY, { width: bsW + eurW - 8, align: "right" });
@@ -201,19 +201,19 @@ export function generateReceiptPdf(
     doc.moveDown(0.5);
     if (exRate) {
       const tasaFmt = new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-      doc.fontSize(7.5).fillColor("#475569").font("Helvetica")
+      doc.fontSize(7.5).fillColor("#000000").font("Helvetica-Bold")
         .text(
           `Tasa de cambio aplicada: Bs. ${tasaFmt.format(exRate)} / EUR`,
           55, doc.y, { width: pageW, align: "center" }
         );
       doc.moveDown(0.4);
     }
-    doc.fontSize(7.5).fillColor("#475569").font("Helvetica")
+    doc.fontSize(7.5).fillColor("#000000").font("Helvetica-Bold")
       .text(
         "Este recibo no es de carácter fiscal. Acredita el pago de la cuota de recuperacion para el período especificado.",
         55, doc.y, { width: pageW, align: "center" }
       );
-    doc.fontSize(7.5).fillColor("#475569").font("Helvetica")
+    doc.fontSize(7.5).fillColor("#000000").font("Helvetica-Bold")
       .text(
         "El pago no libera al propietario de adeudos de períodos anteriores.",
         55, doc.y + 2, { width: pageW, align: "center" }
