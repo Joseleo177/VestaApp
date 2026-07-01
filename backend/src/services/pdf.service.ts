@@ -81,23 +81,29 @@ export function generateReceiptPdf(
     const col2X = 55 + (hasLogo ? logoSize + 10 : 0);
     const col2W = col3X - col2X - 8;
 
+    // Centrar verticalmente el bloque de texto dentro de la altura del logo
+    const lineH = 18;
+    const infoLines = condoRif || condoPhone ? 3 : 2;
+    const textBlockH = infoLines * lineH;
+    const textStartY = headerY + Math.round((logoSize - textBlockH) / 2);
+
     // Info empresa — centrada en columna central
     doc.fontSize(11).fillColor("#1e293b").font("Helvetica-Bold")
-      .text("RECIBO DE PAGO", col2X, headerY + 10, { width: col2W, align: "center" });
+      .text("RECIBO DE PAGO", col2X, textStartY, { width: col2W, align: "center" });
     doc.fontSize(10).fillColor("#475569").font("Helvetica")
-      .text(condoName, col2X, headerY + 30, { width: col2W, align: "center" });
+      .text(condoName, col2X, textStartY + lineH, { width: col2W, align: "center" });
     if (condoRif || condoPhone) {
       const meta = [condoRif ? `RIF ${condoRif}` : "", condoPhone ? `Tlf. ${condoPhone}` : ""]
         .filter(Boolean).join("  ·  ");
       doc.fontSize(9).fillColor("#334155").font("Helvetica")
-        .text(meta, col2X, headerY + 46, { width: col2W, align: "center" });
+        .text(meta, col2X, textStartY + lineH * 2, { width: col2W, align: "center" });
     }
 
-    // RECIBO N° — columna derecha
+    // RECIBO N° — columna derecha, alineado con el bloque de empresa
     doc.fontSize(8).fillColor("#334155").font("Helvetica")
-      .text("RECIBO N°", col3X, headerY + 24, { width: col3W, align: "right" });
+      .text("RECIBO N°", col3X, textStartY, { width: col3W, align: "right" });
     doc.fontSize(12).fillColor("#1e293b").font("Helvetica-Bold")
-      .text(receiptNumber, col3X, headerY + 38, { width: col3W, align: "right" });
+      .text(receiptNumber, col3X, textStartY + lineH, { width: col3W, align: "right" });
 
     // Resetear cursor al margen izquierdo para que el cuerpo quede alineado a la izquierda
     doc.y = headerY + logoSize + 16;
