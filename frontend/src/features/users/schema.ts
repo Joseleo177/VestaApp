@@ -18,6 +18,7 @@ export function buildUserSchema(isEditing: boolean) {
     fullName: z.string().min(3, "Indica el nombre completo"),
     cedula: z.string().min(1, "La cédula es requerida"),
     phone: z.string().optional(),
+    email: z.string().email("Correo inválido").optional().or(z.literal("")),
     role: z.nativeEnum(UserRole),
     password,
   });

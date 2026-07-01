@@ -11,6 +11,7 @@ export interface PublicUser {
   cedula: string;
   fullName: string;
   phone?: string;
+  email?: string;
   role: UserRole;
   isActive: boolean;
   createdAt: Date;
@@ -22,6 +23,7 @@ export function toPublicUser(u: User): PublicUser {
     cedula: u.cedula,
     fullName: u.fullName,
     phone: u.phone,
+    email: u.email,
     role: u.role,
     isActive: u.isActive,
     createdAt: u.createdAt,
@@ -33,6 +35,7 @@ export interface CreateUserInput {
   password: string;
   fullName: string;
   phone?: string;
+  email?: string;
   role: UserRole;
 }
 
@@ -40,6 +43,7 @@ export interface UpdateUserInput {
   cedula?: string;
   fullName?: string;
   phone?: string;
+  email?: string;
   role?: UserRole;
   password?: string;
 }
@@ -65,6 +69,7 @@ export const UserService = {
       passwordHash: await bcrypt.hash(input.password, 10),
       fullName: input.fullName,
       phone: input.phone,
+      email: input.email,
       role: input.role,
     });
     return toPublicUser(await repo().save(user));
@@ -80,6 +85,7 @@ export const UserService = {
     }
     if (input.fullName !== undefined) user.fullName = input.fullName;
     if (input.phone !== undefined) user.phone = input.phone;
+    if (input.email !== undefined) user.email = input.email;
     if (input.role !== undefined) user.role = input.role;
     if (input.password) user.passwordHash = await bcrypt.hash(input.password, 10);
 

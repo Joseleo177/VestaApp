@@ -20,7 +20,7 @@ export const UserController = {
   // POST /api/users  (admin)
   async create(req: Request, res: Response, next: NextFunction) {
     try {
-      const { cedula, password, fullName, phone, role } = req.body;
+      const { cedula, password, fullName, phone, email, role } = req.body;
       if (!cedula || !password || !fullName) {
         throw new HttpError(400, "cedula, password y fullName son requeridos");
       }
@@ -29,6 +29,7 @@ export const UserController = {
         password,
         fullName,
         phone,
+        email,
         role: parseRole(role),
       });
       res.status(201).json(user);
@@ -40,11 +41,12 @@ export const UserController = {
   // PATCH /api/users/:id  (admin)
   async update(req: Request, res: Response, next: NextFunction) {
     try {
-      const { cedula, fullName, phone, role, password } = req.body;
+      const { cedula, fullName, phone, email, role, password } = req.body;
       const user = await UserService.update(req.params.id, {
         cedula,
         fullName,
         phone,
+        email,
         role: role === undefined ? undefined : parseRole(role),
         password: password || undefined,
       });

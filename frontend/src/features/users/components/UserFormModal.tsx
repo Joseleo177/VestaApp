@@ -31,6 +31,7 @@ export function UserFormModal({ open, user, onClose, onSaved }: UserFormModalPro
       fullName: user?.fullName ?? "",
       cedula: user?.cedula ?? "",
       phone: user?.phone ?? "",
+      email: user?.email ?? "",
       role: user?.role ?? UserRole.OWNER,
       password: "",
     },
@@ -43,6 +44,7 @@ export function UserFormModal({ open, user, onClose, onSaved }: UserFormModalPro
           fullName: values.fullName,
           cedula: values.cedula,
           phone: values.phone,
+          email: values.email || undefined,
           role: values.role,
           password: values.password || undefined,
         });
@@ -52,6 +54,7 @@ export function UserFormModal({ open, user, onClose, onSaved }: UserFormModalPro
           fullName: values.fullName,
           cedula: values.cedula,
           phone: values.phone,
+          email: values.email || undefined,
           role: values.role,
           password: values.password as string,
         });
@@ -92,6 +95,14 @@ export function UserFormModal({ open, user, onClose, onSaved }: UserFormModalPro
             {...register("phone")}
           />
         </div>
+        <Input
+          id="email"
+          type="email"
+          label="Correo electrónico (opcional)"
+          placeholder="Ej. usuario@correo.com"
+          error={errors.email?.message}
+          {...register("email")}
+        />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Select id="role" label="Rol" error={errors.role?.message} {...register("role")}>
             {Object.values(UserRole).map((r) => (

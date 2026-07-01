@@ -28,8 +28,22 @@ export const PropertyService = {
     const rows = await AppDataSource.getRepository(Charge)
       .createQueryBuilder("charge")
       .select("charge.property_id", "propertyId")
-      .addSelect("COALESCE(SUM(charge.amount), 0)", "balance")
-      .where("charge.status = :status", { status: ChargeStatus.PENDING })
+      .addSelect(
+        `COALESCE(SUM(
+          CASE charge.status
+            WHEN 'PARTIAL' THEN
+              (charge.amount - COALESCE(charge.amount_paid, 0)) +
+              CASE WHEN charge.due_date < CURRENT_DATE THEN COALESCE(charge.mora_amount, 0) ELSE 0 END
+            ELSE
+              charge.amount +
+              CASE WHEN charge.due_date < CURRENT_DATE THEN COALESCE(charge.mora_amount, 0) ELSE 0 END
+          END
+        ), 0)`,
+        "balance"
+      )
+      .where("charge.status IN (:...statuses)", {
+        statuses: [ChargeStatus.PENDING, ChargeStatus.PARTIAL],
+      })
       .groupBy("charge.property_id")
       .getRawMany<{ propertyId: string; balance: string }>();
 

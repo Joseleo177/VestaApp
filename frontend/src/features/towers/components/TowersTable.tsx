@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ApiError } from "@/services/api";
 import { towerService } from "../services/tower.service";
 
@@ -18,13 +19,15 @@ interface TowersTableProps {
 
 export function TowersTable({ towers, loading, onEdit, onDeleted }: TowersTableProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Tower | null>(null);
 
-  const handleDelete = async (tower: Tower) => {
-    if (!confirm(`¿Eliminar "${tower.name}"? Esta acción no se puede deshacer.`)) return;
-    setDeletingId(tower.id);
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    setDeletingId(deleteTarget.id);
+    setDeleteTarget(null);
     try {
-      await towerService.remove(tower.id);
-      toast.success(`Torre "${tower.name}" eliminada`);
+      await towerService.remove(deleteTarget.id);
+      toast.success(`Torre "${deleteTarget.name}" eliminada`);
       onDeleted();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar");
@@ -54,6 +57,7 @@ export function TowersTable({ towers, loading, onEdit, onDeleted }: TowersTableP
   }
 
   return (
+    <>
     <Card className="overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
@@ -77,7 +81,7 @@ export function TowersTable({ towers, loading, onEdit, onDeleted }: TowersTableP
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => handleDelete(tower)}
+                      onClick={() => setDeleteTarget(tower)}
                       disabled={deletingId === tower.id}
                       className="text-rose-600 hover:border-rose-300 hover:bg-rose-50"
                     >
@@ -91,5 +95,16 @@ export function TowersTable({ towers, loading, onEdit, onDeleted }: TowersTableP
         </table>
       </div>
     </Card>
+
+    <ConfirmDialog
+      open={deleteTarget !== null}
+      onClose={() => setDeleteTarget(null)}
+      onConfirm={handleDeleteConfirm}
+      title="Eliminar torre"
+      description={`¿Eliminar "${deleteTarget?.name}"? Esta acción no se puede deshacer.`}
+      confirmLabel="Eliminar"
+      loading={deletingId === deleteTarget?.id}
+    />
+    </>
   );
 }
