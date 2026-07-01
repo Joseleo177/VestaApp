@@ -68,7 +68,7 @@ export function generateReceiptPdf(
     ];
     const logoFile = logoCandidates.find((p) => fs.existsSync(p)) ?? "";
     const hasLogo = logoFile !== "";
-    const logoSize = 105;
+    const logoSize = 125;
     const headerY = 45;
 
     if (hasLogo) {
