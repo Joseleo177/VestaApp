@@ -44,7 +44,7 @@ export function LoginPage() {
 
         <form
           onSubmit={handleSubmit(onSubmit)}
-          className="space-y-5 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm"
+          className="space-y-5 rounded-2xl border border-slate-200 bg-white px-6 py-7 shadow-sm sm:p-8"
         >
           <Input
             id="cedula"

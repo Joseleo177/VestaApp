@@ -311,9 +311,9 @@ export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: P
         <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">{submitError}</p>
       )}
 
-      <div className="flex justify-end gap-3 pt-2">
-        <Button type="button" variant="outline" onClick={onCancel}>Cancelar</Button>
-        <Button type="submit" loading={isSubmitting} disabled={charges.length === 0}>
+      <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end sm:gap-3">
+        <Button type="button" variant="outline" onClick={onCancel} className="w-full sm:w-auto justify-center">Cancelar</Button>
+        <Button type="submit" loading={isSubmitting} disabled={charges.length === 0} className="w-full sm:w-auto justify-center">
           {isSubmitting ? "Verificando..." : "Registrar pago"}
         </Button>
       </div>

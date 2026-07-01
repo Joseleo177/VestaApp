@@ -25,7 +25,7 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center sm:p-4">
       <div
         className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
         onClick={onClose}
@@ -35,12 +35,17 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
         role="dialog"
         aria-modal="true"
         className={cn(
-          "relative z-10 w-full max-w-lg rounded-2xl bg-white shadow-xl",
+          "relative z-10 w-full bg-white shadow-xl",
+          "rounded-t-2xl sm:rounded-2xl sm:max-w-lg",
           "max-h-[90vh] overflow-y-auto",
           className
         )}
       >
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        {/* Indicador de arrastre — solo móvil */}
+        <div className="flex justify-center pt-3 sm:hidden" aria-hidden>
+          <div className="h-1 w-10 rounded-full bg-slate-200" />
+        </div>
+        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
           <h2 className="text-lg font-semibold text-slate-800">{title}</h2>
           <button
             onClick={onClose}
@@ -50,7 +55,7 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="px-6 py-5">{children}</div>
+        <div className="px-5 py-5 sm:px-6">{children}</div>
       </div>
     </div>
   );

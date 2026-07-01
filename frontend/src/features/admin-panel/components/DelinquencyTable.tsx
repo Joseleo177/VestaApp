@@ -77,44 +77,73 @@ export function DelinquencyTable({ properties, loading }: DelinquencyTableProps)
           description="Ninguna propiedad coincide con el filtro o la búsqueda."
         />
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-              <tr>
-                <th className="px-5 py-3 font-medium">Propiedad</th>
-                <th className="px-5 py-3 font-medium">Propietario</th>
-                <th className="px-5 py-3 font-medium">Saldo pendiente</th>
-                <th className="px-5 py-3 text-right font-medium">Estado</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filtered.map((p) => (
-                <tr key={p.id} className="hover:bg-slate-50/60">
-                  <td className="px-5 py-3.5">
-                    <div className="font-medium text-slate-800">{p.code}</div>
-                    {p.tower && <div className="text-xs text-slate-400">{p.tower.name}</div>}
-                  </td>
-                  <td className="px-5 py-3.5 text-slate-600">{p.owner?.fullName ?? "—"}</td>
-                  <td className="px-5 py-3.5 font-semibold text-slate-700">
-                    {formatCurrency(p.balance)}
-                  </td>
-                  <td className="px-5 py-3.5 text-right">
-                    <span
-                      className={cn(
-                        "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset",
-                        p.balance > 0
-                          ? "bg-rose-50 text-rose-700 ring-rose-600/20"
-                          : "bg-emerald-50 text-emerald-700 ring-emerald-600/20"
-                      )}
-                    >
-                      {p.balance > 0 ? "Moroso" : "Al día"}
-                    </span>
-                  </td>
+        <>
+          {/* Vista móvil: tarjetas */}
+          <div className="sm:hidden divide-y divide-slate-100">
+            {filtered.map((p) => (
+              <div key={p.id} className="flex items-center justify-between gap-3 px-4 py-3.5">
+                <div className="min-w-0">
+                  <p className="font-semibold text-slate-800">{p.code}</p>
+                  {p.tower && <p className="text-xs text-slate-400">{p.tower.name}</p>}
+                  <p className="text-sm text-slate-500 truncate">{p.owner?.fullName ?? "—"}</p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="font-bold text-slate-700">{formatCurrency(p.balance)}</p>
+                  <span
+                    className={cn(
+                      "mt-1 inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset",
+                      p.balance > 0
+                        ? "bg-rose-50 text-rose-700 ring-rose-600/20"
+                        : "bg-emerald-50 text-emerald-700 ring-emerald-600/20"
+                    )}
+                  >
+                    {p.balance > 0 ? "Moroso" : "Al día"}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Vista desktop: tabla */}
+          <div className="hidden sm:block overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-5 py-3 font-medium">Propiedad</th>
+                  <th className="px-5 py-3 font-medium">Propietario</th>
+                  <th className="px-5 py-3 font-medium">Saldo pendiente</th>
+                  <th className="px-5 py-3 text-right font-medium">Estado</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filtered.map((p) => (
+                  <tr key={p.id} className="hover:bg-slate-50/60">
+                    <td className="px-5 py-3.5">
+                      <div className="font-medium text-slate-800">{p.code}</div>
+                      {p.tower && <div className="text-xs text-slate-400">{p.tower.name}</div>}
+                    </td>
+                    <td className="px-5 py-3.5 text-slate-600">{p.owner?.fullName ?? "—"}</td>
+                    <td className="px-5 py-3.5 font-semibold text-slate-700">
+                      {formatCurrency(p.balance)}
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <span
+                        className={cn(
+                          "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset",
+                          p.balance > 0
+                            ? "bg-rose-50 text-rose-700 ring-rose-600/20"
+                            : "bg-emerald-50 text-emerald-700 ring-emerald-600/20"
+                        )}
+                      >
+                        {p.balance > 0 ? "Moroso" : "Al día"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </Card>
   );

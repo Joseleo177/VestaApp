@@ -34,7 +34,7 @@ export function generateReceiptPdf(
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 
-    const condoName = opts?.condoName ?? "Condominio";
+    const condoName = opts?.condoName ?? "Centro Residencial Plaza Mayor";
     const city = opts?.condoCity ?? "Barquisimeto";
     const condoRif = opts?.condoRif ?? "";
     const condoPhone = opts?.condoPhone ?? "";
@@ -83,7 +83,7 @@ export function generateReceiptPdf(
 
     // Info empresa — centrada en columna central
     doc.fontSize(11).fillColor("#1e293b").font("Helvetica-Bold")
-      .text("RECIBO DE ADMINISTRACIÓN Y CONDOMINIO", col2X, headerY + 10, { width: col2W, align: "center" });
+      .text("RECIBO DE PAGO", col2X, headerY + 10, { width: col2W, align: "center" });
     doc.fontSize(10).fillColor("#475569").font("Helvetica")
       .text(condoName, col2X, headerY + 30, { width: col2W, align: "center" });
     if (condoRif || condoPhone) {
@@ -118,7 +118,7 @@ export function generateReceiptPdf(
     const tower = (payment.property as any)?.tower?.name ?? "";
     const unitFull = tower ? `${unit} · ${tower}` : unit;
     const period = charge?.period ? formatPeriod(charge.period) : "—";
-    const concepto = charge?.description ?? "Cuota de condominio";
+    const concepto = charge?.description ?? "Cuota de Recuperacion";
 
     doc.fontSize(11).fillColor("#1e293b");
     doc.font("Helvetica").text("Recibo de: ", { continued: true }).font("Helvetica-Bold").text(owner);
@@ -204,7 +204,7 @@ export function generateReceiptPdf(
     }
     doc.fontSize(7.5).fillColor("#94a3b8").font("Helvetica")
       .text(
-        "Este recibo no es de carácter fiscal. Acredita el pago de la cuota de condominio para el período especificado.",
+        "Este recibo no es de carácter fiscal. Acredita el pago de la cuota de recuperacion para el período especificado.",
         55, doc.y, { width: pageW, align: "center" }
       );
     doc.fontSize(7.5).fillColor("#94a3b8").font("Helvetica")

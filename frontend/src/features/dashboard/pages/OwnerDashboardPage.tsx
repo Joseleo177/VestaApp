@@ -61,7 +61,81 @@ function ChargesTable({ charges, loading, onPay }: ChargesTableProps) {
 
   return (
     <Card className="overflow-hidden">
-      <div className="overflow-x-auto">
+      {/* Vista móvil: tarjetas */}
+      <div className="sm:hidden divide-y divide-slate-100">
+        {sorted.map((c) => {
+          const overdue   = c.status === ChargeStatus.PENDING && isOverdue(c.dueDate);
+          const isPartial = c.status === ChargeStatus.PARTIAL;
+          const canPay    = c.status === ChargeStatus.PENDING || isPartial;
+          const amount    = c.status === ChargeStatus.PAID
+            ? formatCurrency(c.amountPaid ?? c.amount)
+            : formatCurrency(c.amountDue ?? c.amount);
+          return (
+            <div key={c.id} className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-slate-800">{formatPeriod(c.period)}</span>
+                    {c.type === ChargeType.SPECIAL && (
+                      <span className="inline-flex rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-600 ring-1 ring-inset ring-violet-500/20">
+                        Especial
+                      </span>
+                    )}
+                  </div>
+                  {c.description && (
+                    <p className="mt-0.5 text-xs text-slate-400 truncate">{c.description}</p>
+                  )}
+                </div>
+                <span
+                  className={cn(
+                    "shrink-0 inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset",
+                    STATUS_META[c.status].cls
+                  )}
+                >
+                  {STATUS_META[c.status].label}
+                </span>
+              </div>
+
+              <div className="mt-3 flex items-end justify-between gap-3">
+                <div>
+                  <p className="text-lg font-bold text-slate-800">{amount}</p>
+                  {overdue && <p className="text-xs text-rose-500">mora incluida</p>}
+                  {isPartial && (c.amountPaid ?? 0) > 0 && (
+                    <p className="text-xs text-orange-500">pagado: {formatCurrency(c.amountPaid ?? 0)}</p>
+                  )}
+                  <p className="text-xs text-slate-400">Vence {formatDate(c.dueDate)}</p>
+                  {c.confirmedPayment && (
+                    <p className="mt-0.5 font-mono text-xs text-slate-400">
+                      {c.confirmedPayment.reference} · {c.confirmedPayment.bank}
+                    </p>
+                  )}
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  {canPay && (
+                    <Button size="sm" onClick={() => onPay(c)}>Pagar</Button>
+                  )}
+                  {c.status === ChargeStatus.PAID && c.confirmedPayment?.receiptNumber && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={downloadingId === c.confirmedPayment.id}
+                      onClick={() => handleDownload(c.confirmedPayment!.id, c.confirmedPayment!.receiptNumber!)}
+                    >
+                      {downloadingId === c.confirmedPayment.id
+                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        : <Download className="h-3.5 w-3.5" />}
+                      PDF
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Vista desktop: tabla */}
+      <div className="hidden sm:block overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
             <tr>

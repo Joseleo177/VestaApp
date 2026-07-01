@@ -35,7 +35,31 @@ export function ValidationInbox({ payments, loading, onSelect }: ValidationInbox
 
   return (
     <Card className="overflow-hidden">
-      <div className="overflow-x-auto">
+      {/* Vista móvil: tarjetas */}
+      <div className="sm:hidden divide-y divide-slate-100">
+        {payments.map((p) => (
+          <button
+            key={p.id}
+            onClick={() => onSelect(p)}
+            className="w-full p-4 text-left transition-colors hover:bg-brand-50/50 active:bg-brand-50"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold text-slate-800">{p.submittedBy.fullName}</p>
+                <p className="text-xs text-slate-400">{p.property.code}</p>
+              </div>
+              <p className="shrink-0 font-bold text-slate-700">{formatCurrency(p.amount)}</p>
+            </div>
+            <div className="mt-1.5 flex items-center justify-between gap-3">
+              <p className="text-sm text-slate-500">{p.reference}</p>
+              <p className="text-xs text-slate-400">{formatDate(p.paymentDate)}</p>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* Vista desktop: tabla */}
+      <div className="hidden sm:block overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
             <tr>

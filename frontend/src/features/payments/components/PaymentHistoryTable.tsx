@@ -34,7 +34,42 @@ export function PaymentHistoryTable({ payments, loading }: PaymentHistoryTablePr
 
   return (
     <Card className="overflow-hidden">
-      <div className="overflow-x-auto">
+      {/* Vista móvil: tarjetas */}
+      <div className="sm:hidden divide-y divide-slate-100">
+        {payments.map((payment) => (
+          <div key={payment.id} className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold text-slate-800">
+                  {payment.charge ? formatPeriod(payment.charge.period) : "—"}
+                </p>
+                <p className="text-xs text-slate-400">{formatDate(payment.paymentDate)}</p>
+              </div>
+              <StatusBadge status={payment.status} />
+            </div>
+            <div className="mt-2 flex items-end justify-between gap-3">
+              <div>
+                <p className="text-lg font-bold text-slate-800">{formatCurrency(payment.amount)}</p>
+                <p className="text-xs text-slate-400">
+                  {payment.currency === PaymentCurrency.BS && payment.amountBs
+                    ? `Bs. ${payment.amountBs.toLocaleString("es-VE")}`
+                    : "Divisas (€)"}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-slate-600">{payment.reference}</p>
+                <p className="text-xs text-slate-400">{payment.bank}</p>
+              </div>
+            </div>
+            {payment.status === PaymentStatus.REJECTED && payment.rejectReason && (
+              <p className="mt-2 text-xs text-rose-500">{payment.rejectReason}</p>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Vista desktop: tabla */}
+      <div className="hidden sm:block overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
             <tr>
