@@ -68,11 +68,11 @@ export function generateReceiptPdf(
     ];
     const logoFile = logoCandidates.find((p) => fs.existsSync(p)) ?? "";
     const hasLogo = logoFile !== "";
-    const logoSize = 85;
+    const logoSize = 105;
     const headerY = 45;
 
     if (hasLogo) {
-      doc.image(logoFile, 55, headerY, { width: logoSize, height: logoSize });
+      doc.image(logoFile, 55, headerY, { fit: [logoSize, logoSize], align: "center", valign: "center" });
     }
 
     // ── Layout 3 columnas: [logo] [info empresa] [RECIBO N°] ──────────────────
@@ -89,12 +89,12 @@ export function generateReceiptPdf(
     if (condoRif || condoPhone) {
       const meta = [condoRif ? `RIF ${condoRif}` : "", condoPhone ? `Tlf. ${condoPhone}` : ""]
         .filter(Boolean).join("  ·  ");
-      doc.fontSize(9).fillColor("#64748b").font("Helvetica")
+      doc.fontSize(9).fillColor("#334155").font("Helvetica")
         .text(meta, col2X, headerY + 46, { width: col2W, align: "center" });
     }
 
     // RECIBO N° — columna derecha
-    doc.fontSize(8).fillColor("#64748b").font("Helvetica")
+    doc.fontSize(8).fillColor("#334155").font("Helvetica")
       .text("RECIBO N°", col3X, headerY + 24, { width: col3W, align: "right" });
     doc.fontSize(12).fillColor("#1e293b").font("Helvetica-Bold")
       .text(receiptNumber, col3X, headerY + 38, { width: col3W, align: "right" });
@@ -168,7 +168,7 @@ export function generateReceiptPdf(
           .text(bsText, tableX + labelW, textY, { width: bsW, align: "right" });
 
         // Columna EUR (referencia, más pequeña)
-        doc.fillColor("#64748b")
+        doc.fillColor("#334155")
           .font("Helvetica")
           .fontSize(9)
           .text(`EUR ${eur(row.eurAmt)}`, tableX + labelW + bsW, textY, { width: eurW - 8, align: "right" });
@@ -195,19 +195,19 @@ export function generateReceiptPdf(
     doc.moveDown(0.5);
     if (exRate) {
       const tasaFmt = new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-      doc.fontSize(7.5).fillColor("#94a3b8").font("Helvetica")
+      doc.fontSize(7.5).fillColor("#475569").font("Helvetica")
         .text(
           `Tasa de cambio aplicada: Bs. ${tasaFmt.format(exRate)} / EUR`,
           55, doc.y, { width: pageW, align: "center" }
         );
       doc.moveDown(0.4);
     }
-    doc.fontSize(7.5).fillColor("#94a3b8").font("Helvetica")
+    doc.fontSize(7.5).fillColor("#475569").font("Helvetica")
       .text(
         "Este recibo no es de carácter fiscal. Acredita el pago de la cuota de recuperacion para el período especificado.",
         55, doc.y, { width: pageW, align: "center" }
       );
-    doc.fontSize(7.5).fillColor("#94a3b8").font("Helvetica")
+    doc.fontSize(7.5).fillColor("#475569").font("Helvetica")
       .text(
         "El pago no libera al propietario de adeudos de períodos anteriores.",
         55, doc.y + 2, { width: pageW, align: "center" }
