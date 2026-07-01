@@ -69,7 +69,7 @@ export function generateReceiptPdf(
     const logoFile = logoCandidates.find((p) => fs.existsSync(p)) ?? "";
     const hasLogo = logoFile !== "";
     const logoSize = 125;
-    const headerY = 45;
+    const headerY = 30;
 
     if (hasLogo) {
       doc.image(logoFile, 55, headerY, { fit: [logoSize, logoSize], align: "center", valign: "center" });
@@ -101,12 +101,12 @@ export function generateReceiptPdf(
 
     // RECIBO N° — columna derecha, alineado con el bloque de empresa
     doc.fontSize(8).fillColor("#000000").font("Helvetica-Bold")
-      .text("RECIBO N°", col3X, textStartY, { width: col3W, align: "right" });
+      .text("RECIBO N°:", col3X, textStartY, { width: col3W, align: "right" });
     doc.fontSize(12).fillColor("#000000").font("Helvetica-Bold")
       .text(receiptNumber, col3X, textStartY + lineH, { width: col3W, align: "right" });
 
     // Resetear cursor al margen izquierdo para que el cuerpo quede alineado a la izquierda
-    doc.y = headerY + logoSize + 6;
+    doc.y = headerY + logoSize + 2;
     doc.x = 55;
 
     // Línea separadora
@@ -127,8 +127,8 @@ export function generateReceiptPdf(
     const concepto = charge?.description ?? "Cuota de Recuperacion";
 
     doc.fontSize(11).fillColor("#000000");
-    doc.font("Helvetica-Bold").text("Recibo de: ", { continued: true }).font("Helvetica-Bold").text(owner);
-    doc.font("Helvetica-Bold").text("Del apartamento: ", { continued: true }).font("Helvetica-Bold").text(unitFull);
+    doc.font("Helvetica-Bold").text("Recibo de: ", { continued: true }).font("Helvetica").text(owner);
+    doc.font("Helvetica-Bold").text("Del apartamento: ", { continued: true }).font("Helvetica").text(unitFull);
     doc.font("Helvetica-Bold").text(`${concepto}: `, { continued: true }).text(period);
     doc.moveDown(1.2);
 
