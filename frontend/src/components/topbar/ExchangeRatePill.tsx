@@ -1,11 +1,13 @@
 import { CalendarDays, RefreshCw } from "lucide-react";
 import { useExchangeRate } from "@/features/exchange-rate/hooks/useExchangeRate";
+import { useAuth } from "@/features/auth/hooks/useAuth";
 import { formatRate } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
 /** Píldora central: fecha de hoy + tasa BCV (Bs/USD) con refresco manual. */
 export function ExchangeRatePill() {
   const { data, loading, refresh } = useExchangeRate();
+  const { isAdmin } = useAuth();
 
   const today = new Date().toLocaleDateString("es-VE", {
     day: "2-digit",
@@ -26,15 +28,17 @@ export function ExchangeRatePill() {
           {data ? formatRate(data.rate) : "—"}
         </span>
       </span>
-      <button
-        onClick={() => void refresh()}
-        disabled={loading}
-        className="text-slate-400 transition-colors hover:text-white disabled:opacity-50"
-        aria-label="Actualizar tasa"
-        title="Actualizar tasa BCV"
-      >
-        <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-      </button>
+      {isAdmin && (
+        <button
+          onClick={() => void refresh()}
+          disabled={loading}
+          className="text-slate-400 transition-colors hover:text-white disabled:opacity-50"
+          aria-label="Actualizar tasa"
+          title="Actualizar tasa BCV"
+        >
+          <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+        </button>
+      )}
     </div>
   );
 }

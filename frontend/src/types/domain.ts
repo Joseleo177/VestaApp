@@ -107,7 +107,7 @@ export interface Payment {
   status: PaymentStatus;
   reviewedAt?: string | null;
   rejectReason?: string | null;
-  receipt?: Receipt | null;
+  receipts?: Receipt[] | null;
   createdAt: string;
 }
 

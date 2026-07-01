@@ -85,10 +85,11 @@ export function AllPaymentsPage() {
   };
 
   const handleDownload = async (payment: Payment) => {
-    if (!payment.receipt) return;
+    const firstReceipt = payment.receipts?.[0];
+    if (!firstReceipt) return;
     setBusyId(payment.id);
     try {
-      await paymentService.downloadReceipt(payment.id, payment.receipt.receiptNumber);
+      await paymentService.downloadReceipt(payment.id, firstReceipt.receiptNumber);
       toast.success("Recibo descargado");
     } catch {
       toast.error("No se pudo descargar el recibo");
@@ -182,7 +183,7 @@ export function AllPaymentsPage() {
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex justify-end gap-1.5">
-                        {p.status === PaymentStatus.CONFIRMED && p.receipt ? (
+                        {p.status === PaymentStatus.CONFIRMED && p.receipts?.[0] ? (
                           <Button
                             size="sm"
                             variant="outline"

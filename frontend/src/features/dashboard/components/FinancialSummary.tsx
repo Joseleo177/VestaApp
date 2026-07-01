@@ -59,7 +59,7 @@ export function FinancialSummary({ statement, lastConfirmed, loading, creditBala
         </p>
         <p className="mt-1 text-xs text-slate-400">
           {rate && balance > 0
-            ? `≈ ${formatBs(balance, rate.rate)} a tasa BCV`
+            ? `≈ ${formatBs(balance, rate.rate)}`
             : balance > 0
             ? "Alícuotas por pagar"
             : "Estás al día"}

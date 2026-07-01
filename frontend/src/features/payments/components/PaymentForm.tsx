@@ -216,7 +216,7 @@ export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: P
           {isBS && dateRate && (
             <div className="mt-2 rounded-lg bg-blue-50 px-3 py-2.5 text-xs text-blue-700 space-y-1">
               <div className="flex items-center justify-between">
-                <span>Tasa BCV {formatDate(dateRate.updatedAt)}</span>
+                <span>Tasa EURO {formatDate(dateRate.updatedAt)}</span>
                 <span className="font-medium">Bs. {dateRate.rate.toLocaleString("es-VE", { minimumFractionDigits: 2 })}/EUR</span>
               </div>
               <div className="flex items-center justify-between border-t border-blue-200 pt-1.5">
