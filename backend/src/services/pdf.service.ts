@@ -68,8 +68,8 @@ export function generateReceiptPdf(
     ];
     const logoFile = logoCandidates.find((p) => fs.existsSync(p)) ?? "";
     const hasLogo = logoFile !== "";
-    const logoSize = 125;
-    const headerY = 30;
+    const logoSize = 155;
+    const headerY = 0;
 
     if (hasLogo) {
       doc.image(logoFile, 55, headerY, { fit: [logoSize, logoSize], align: "center", valign: "center" });
