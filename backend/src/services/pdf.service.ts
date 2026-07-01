@@ -72,31 +72,32 @@ export function generateReceiptPdf(
     }
 
     // ── Layout 3 columnas: [logo] [info empresa] [RECIBO N°] ──────────────────
-    const colGap   = 12;
-    const col3W    = 130;
-    const col2X    = 55 + (hasLogo ? logoSize + colGap : 0);
-    const col2W    = pageW - (hasLogo ? logoSize + colGap : 0) - col3W - colGap;
-    const col3X    = 55 + pageW - col3W;
+    const col3W = 100;
+    const col3X = 55 + pageW - col3W;
+    const col2X = 55 + (hasLogo ? logoSize + 10 : 0);
+    const col2W = col3X - col2X - 8;
 
     // Info empresa — centrada en columna central
-    doc.fontSize(13).fillColor("#1e293b").font("Helvetica-Bold")
-      .text("RECIBO DE ADMINISTRACIÓN Y CONDOMINIO", col2X, headerY + 8, { width: col2W, align: "center" });
+    doc.fontSize(11).fillColor("#1e293b").font("Helvetica-Bold")
+      .text("RECIBO DE ADMINISTRACIÓN Y CONDOMINIO", col2X, headerY + 10, { width: col2W, align: "center" });
     doc.fontSize(10).fillColor("#475569").font("Helvetica")
-      .text(condoName, col2X, headerY + 28, { width: col2W, align: "center" });
+      .text(condoName, col2X, headerY + 30, { width: col2W, align: "center" });
     if (condoRif || condoPhone) {
       const meta = [condoRif ? `RIF ${condoRif}` : "", condoPhone ? `Tlf. ${condoPhone}` : ""]
         .filter(Boolean).join("  ·  ");
       doc.fontSize(9).fillColor("#64748b").font("Helvetica")
-        .text(meta, col2X, headerY + 44, { width: col2W, align: "center" });
+        .text(meta, col2X, headerY + 46, { width: col2W, align: "center" });
     }
 
-    // RECIBO N° — columna derecha, alineado al centro de esa columna
-    doc.fontSize(9).fillColor("#64748b").font("Helvetica")
-      .text("RECIBO N°", col3X, headerY + 22, { width: col3W, align: "right" });
+    // RECIBO N° — columna derecha
+    doc.fontSize(8).fillColor("#64748b").font("Helvetica")
+      .text("RECIBO N°", col3X, headerY + 24, { width: col3W, align: "right" });
     doc.fontSize(12).fillColor("#1e293b").font("Helvetica-Bold")
-      .text(receiptNumber, col3X, headerY + 36, { width: col3W, align: "right" });
+      .text(receiptNumber, col3X, headerY + 38, { width: col3W, align: "right" });
 
+    // Resetear cursor al margen izquierdo para que el cuerpo quede alineado a la izquierda
     doc.y = headerY + logoSize + 16;
+    doc.x = 55;
 
     // Línea separadora
     doc.moveTo(55, doc.y).lineTo(55 + pageW, doc.y).strokeColor("#cbd5e1").stroke();
@@ -204,7 +205,7 @@ export function generateReceiptPdf(
       );
     doc.fontSize(7.5).fillColor("#94a3b8").font("Helvetica")
       .text(
-        "El pago no libera al propietario de adeudos de períodos anteriores. Generado por VestaApp.",
+        "El pago no libera al propietario de adeudos de períodos anteriores.",
         55, doc.y + 2, { width: pageW, align: "center" }
       );
 
