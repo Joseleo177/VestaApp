@@ -71,26 +71,32 @@ export function generateReceiptPdf(
       doc.image(logoFile, 55, headerY, { width: logoSize, height: logoSize });
     }
 
-    const infoX = hasLogo ? 55 + logoSize + 12 : 55;
-    const infoW = pageW - (hasLogo ? logoSize + 12 : 0);
+    // ── Layout 3 columnas: [logo] [info empresa] [RECIBO N°] ──────────────────
+    const colGap   = 12;
+    const col3W    = 130;
+    const col2X    = 55 + (hasLogo ? logoSize + colGap : 0);
+    const col2W    = pageW - (hasLogo ? logoSize + colGap : 0) - col3W - colGap;
+    const col3X    = 55 + pageW - col3W;
 
-    // Nombre empresa + datos — centrados en el área junto al logo
+    // Info empresa — centrada en columna central
     doc.fontSize(13).fillColor("#1e293b").font("Helvetica-Bold")
-      .text("RECIBO DE ADMINISTRACIÓN Y CONDOMINIO", infoX, headerY + 6, { width: infoW, align: "center" });
+      .text("RECIBO DE ADMINISTRACIÓN Y CONDOMINIO", col2X, headerY + 8, { width: col2W, align: "center" });
     doc.fontSize(10).fillColor("#475569").font("Helvetica")
-      .text(condoName, infoX, headerY + 26, { width: infoW, align: "center" });
+      .text(condoName, col2X, headerY + 28, { width: col2W, align: "center" });
     if (condoRif || condoPhone) {
       const meta = [condoRif ? `RIF ${condoRif}` : "", condoPhone ? `Tlf. ${condoPhone}` : ""]
         .filter(Boolean).join("  ·  ");
       doc.fontSize(9).fillColor("#64748b").font("Helvetica")
-        .text(meta, infoX, headerY + 42, { width: infoW, align: "center" });
+        .text(meta, col2X, headerY + 44, { width: col2W, align: "center" });
     }
 
-    // RECIBO N° centrado en el área del encabezado
-    doc.fontSize(11).fillColor("#1e293b").font("Helvetica-Bold")
-      .text(`RECIBO N° ${receiptNumber}`, 55, headerY + logoSize + 6, { width: pageW, align: "center" });
+    // RECIBO N° — columna derecha, alineado al centro de esa columna
+    doc.fontSize(9).fillColor("#64748b").font("Helvetica")
+      .text("RECIBO N°", col3X, headerY + 22, { width: col3W, align: "right" });
+    doc.fontSize(12).fillColor("#1e293b").font("Helvetica-Bold")
+      .text(receiptNumber, col3X, headerY + 36, { width: col3W, align: "right" });
 
-    doc.y = headerY + logoSize + 24;
+    doc.y = headerY + logoSize + 16;
 
     // Línea separadora
     doc.moveTo(55, doc.y).lineTo(55 + pageW, doc.y).strokeColor("#cbd5e1").stroke();
@@ -178,18 +184,19 @@ export function generateReceiptPdf(
     doc.rect(tableX, tableStartY, tableW, ty - tableStartY).strokeColor("#cbd5e1").stroke();
     doc.y = ty;
 
-    // ── Pie ───────────────────────────────────────────────────────────────────
-    const footerY = doc.page.height - 120;
-    doc.moveTo(55, footerY).lineTo(55 + pageW, footerY).strokeColor("#cbd5e1").stroke();
+    // ── Pie — justo debajo de la tabla ────────────────────────────────────────
+    doc.moveDown(1);
+    doc.moveTo(55, doc.y).lineTo(55 + pageW, doc.y).strokeColor("#cbd5e1").stroke();
+    doc.moveDown(0.5);
     doc.fontSize(7.5).fillColor("#94a3b8").font("Helvetica")
       .text(
         "Este recibo no es de carácter fiscal. Acredita el pago de la cuota de condominio para el período especificado.",
-        55, footerY + 8, { width: pageW, align: "center", lineBreak: false }
+        55, doc.y, { width: pageW, align: "center" }
       );
     doc.fontSize(7.5).fillColor("#94a3b8").font("Helvetica")
       .text(
         "El pago no libera al propietario de adeudos de períodos anteriores. Generado por VestaApp.",
-        55, footerY + 20, { width: pageW, align: "center", lineBreak: false }
+        55, doc.y + 2, { width: pageW, align: "center" }
       );
 
     doc.end();
