@@ -24,7 +24,7 @@ function bs(n: number): string {
 export function generateReceiptPdf(
   payment: Payment,
   receiptNumber: string,
-  opts?: { condoName?: string; condoCity?: string; condoRif?: string; condoPhone?: string },
+  opts?: { condoName?: string; condoCity?: string; condoRif?: string; condoPhone?: string; issuedAt?: Date },
   chargeOverride?: import("../models/Charge").Charge | null
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -51,7 +51,7 @@ export function generateReceiptPdf(
     const bsBase = exRate ? Math.round(base * exRate * 100) / 100 : null;
     const bsMora = (exRate && mora > 0) ? Math.round(mora * exRate * 100) / 100 : null;
 
-    const now = new Date();
+    const now = opts?.issuedAt ?? new Date();
     const dateStr = `${city}, ${now.getDate()} de ${MESES[now.getMonth()]} de ${now.getFullYear()}`;
 
     // ── Encabezado ────────────────────────────────────────────────────────────

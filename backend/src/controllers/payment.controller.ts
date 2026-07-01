@@ -144,7 +144,7 @@ export const PaymentController = {
       const pdfBuffer = await generateReceiptPdf(
         receipt.payment,
         receipt.receiptNumber,
-        { condoName, condoCity, condoRif, condoPhone },
+        { condoName, condoCity, condoRif, condoPhone, issuedAt: receipt.issuedAt },
         receipt.charge
       );
       res.setHeader("Content-Type", "application/pdf");
