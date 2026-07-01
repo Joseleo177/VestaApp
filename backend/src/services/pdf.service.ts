@@ -33,7 +33,7 @@ export function generateReceiptPdf(
     doc.on("error", reject);
 
     const condoName  = opts?.condoName ?? "Condominio";
-    const city       = opts?.condoCity ?? "Caracas";
+    const city       = opts?.condoCity ?? "Barquisimeto";
     const condoRif   = opts?.condoRif  ?? "";
     const condoPhone = opts?.condoPhone ?? "";
     // Usar la cuota override (para recibos cascade) o la del pago
@@ -44,6 +44,8 @@ export function generateReceiptPdf(
     const mora      = charge ? Number(charge.moraAmount) : 0;
     const moraPaid  = charge ? Number(charge.amountPaid) > base + 0.01 : false;
     const total     = moraPaid ? base + mora : base;
+    const amountBs  = payment.amountBs ? Number(payment.amountBs) : null;
+    const exRate    = payment.exchangeRate ? Number(payment.exchangeRate) : null;
 
     const now       = new Date();
     const dateStr   = `${city}, ${now.getDate()} de ${MESES[now.getMonth()]} de ${now.getFullYear()}`;
@@ -59,34 +61,34 @@ export function generateReceiptPdf(
     ];
     const logoFile = logoCandidates.find((p) => fs.existsSync(p)) ?? "";
     const hasLogo  = logoFile !== "";
-    const logoSize = 65;
-    const headerY  = 50;
+    const logoSize = 85;
+    const headerY  = 45;
 
     if (hasLogo) {
       doc.image(logoFile, 55, headerY, { width: logoSize, height: logoSize });
     }
 
-    // Datos de la empresa al lado del logo
-    const infoX = (hasLogo ? 55 + logoSize + 14 : 55);
-    const infoW = pageW - (hasLogo ? logoSize + 14 : 0);
+    // Datos de la empresa — centrados en el espacio junto al logo
+    const infoX = (hasLogo ? 55 + logoSize + 12 : 55);
+    const infoW = pageW - (hasLogo ? logoSize + 12 : 0);
 
     doc.fontSize(13).fillColor("#1e293b").font("Helvetica-Bold")
-       .text("RECIBO DE ADMINISTRACIÓN Y CONDOMINIO", infoX, headerY + 4, { width: infoW });
+       .text("RECIBO DE ADMINISTRACIÓN Y CONDOMINIO", infoX, headerY + 6, { width: infoW, align: "center" });
     doc.fontSize(10).fillColor("#475569").font("Helvetica")
-       .text(condoName, infoX, headerY + 22, { width: infoW });
+       .text(condoName, infoX, headerY + 26, { width: infoW, align: "center" });
     if (condoRif || condoPhone) {
       const meta = [condoRif ? `RIF ${condoRif}` : "", condoPhone ? `Tlf. ${condoPhone}` : ""]
         .filter(Boolean).join("  ·  ");
       doc.fontSize(9).fillColor("#64748b").font("Helvetica")
-         .text(meta, infoX, headerY + 36, { width: infoW });
+         .text(meta, infoX, headerY + 42, { width: infoW, align: "center" });
     }
 
-    // RECIBO N° — esquina superior derecha
+    // RECIBO N° — debajo del bloque de texto, alineado a la derecha del área de info
     doc.fontSize(11).fillColor("#1e293b").font("Helvetica-Bold")
-       .text(`RECIBO N° ${receiptNumber}`, 55, headerY + 4, { width: pageW, align: "right" });
+       .text(`RECIBO N° ${receiptNumber}`, infoX, headerY + 60, { width: infoW, align: "center" });
 
     // Fijar cursor debajo del bloque de cabecera
-    doc.y = headerY + logoSize + 10;
+    doc.y = headerY + logoSize + 12;
 
     // Línea separadora
     doc.moveTo(55, doc.y).lineTo(55 + pageW, doc.y).strokeColor("#cbd5e1").stroke();
@@ -107,8 +109,9 @@ export function generateReceiptPdf(
     doc.fontSize(11).fillColor("#1e293b");
     doc.text("Recibí de: ", { continued: true }).font("Helvetica-Bold").text(owner);
     doc.font("Helvetica").text("Del Apto: ", { continued: true }).font("Helvetica-Bold").text(unitFull);
+    const concepto = charge?.description ?? "cuota de condominio";
     doc.font("Helvetica")
-       .text("Por concepto de cuota de condominio correspondiente al período: ", { continued: true })
+       .text(`Por concepto de ${concepto} correspondiente al período: `, { continued: true })
        .font("Helvetica-Bold").text(period);
     doc.moveDown(1.2);
 
@@ -119,6 +122,8 @@ export function generateReceiptPdf(
     const tableStartY = doc.y;
     let   ty          = tableStartY;
 
+    const bsTotal = amountBs ?? (exRate ? Math.round(total * exRate * 100) / 100 : null);
+
     const rows: { label: string; amount: string; bold?: boolean; highlight?: boolean }[] = [
       { label: "Cuota base", amount: `EUR ${eur(base)}` },
     ];
@@ -126,6 +131,10 @@ export function generateReceiptPdf(
       rows.push({ label: "Mora por retraso", amount: `EUR ${eur(mora)}` });
     }
     rows.push({ label: "TOTAL", amount: `EUR ${eur(total)}`, bold: true, highlight: true });
+    if (bsTotal) {
+      const bsFmt = new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      rows.push({ label: `Ref. en Euros: EUR ${eur(total)}`, amount: `Bs. ${bsFmt.format(bsTotal)}`, bold: true, highlight: true });
+    }
 
     for (const row of rows) {
       if (row.highlight) {
