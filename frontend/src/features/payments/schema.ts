@@ -11,10 +11,13 @@ export const paymentSchema = z
       errorMap: () => ({ message: "Selecciona la moneda de pago" }),
     }),
     modalidad: z.string().min(1, "Selecciona la modalidad de pago"),
-    amountBs: z.coerce
-      .number({ invalid_type_error: "Ingresa el monto transferido" })
-      .positive("El monto debe ser mayor a 0")
-      .optional(),
+    amountBs: z.preprocess(
+      (v) => (v === "" || v === null ? undefined : v),
+      z.coerce
+        .number({ invalid_type_error: "Ingresa el monto transferido" })
+        .positive("El monto debe ser mayor a 0")
+        .optional()
+    ),
     reference: z.string().max(40, "Referencia demasiado larga").optional(),
     paymentDate: z
       .string()

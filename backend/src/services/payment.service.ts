@@ -165,18 +165,21 @@ export const PaymentService = {
     }
 
     // Evitar registro duplicado: misma referencia bancaria ya existe (PENDING o CONFIRMED).
-    const duplicate = await paymentRepo().findOne({
-      where: [
-        { reference: input.reference, status: PaymentStatus.PENDING },
-        { reference: input.reference, status: PaymentStatus.CONFIRMED },
-      ],
-    });
-    if (duplicate) {
-      throw new HttpError(
-        409,
-        "Ya existe un pago registrado con esa referencia bancaria. " +
-          "Si crees que es un error, contacta al administrador."
-      );
+    // Se omite para pagos en efectivo (referencia vacía).
+    if (input.reference && input.reference.trim().length > 0) {
+      const duplicate = await paymentRepo().findOne({
+        where: [
+          { reference: input.reference, status: PaymentStatus.PENDING },
+          { reference: input.reference, status: PaymentStatus.CONFIRMED },
+        ],
+      });
+      if (duplicate) {
+        throw new HttpError(
+          409,
+          "Ya existe un pago registrado con esa referencia bancaria. " +
+            "Si crees que es un error, contacta al administrador."
+        );
+      }
     }
 
     // Para cuotas PARTIAL, amountDue ya devuelve el saldo restante.

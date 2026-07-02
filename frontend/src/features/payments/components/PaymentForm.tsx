@@ -27,13 +27,13 @@ interface PaymentFormProps {
 
 export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: PaymentFormProps) {
   const today = new Date().toISOString().slice(0, 10);
-  const [dateRate, setDateRate]   = useState<ExchangeRate | null>(null);
-  const [result, setResult]       = useState<Payment | null>(null);
+  const [dateRate, setDateRate] = useState<ExchangeRate | null>(null);
+  const [result, setResult] = useState<Payment | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [bankInfo, setBankInfo]   = useState<BankInfo | null>(null);
+  const [bankInfo, setBankInfo] = useState<BankInfo | null>(null);
 
   useEffect(() => {
-    api.get<BankInfo>("/settings").then(({ data }) => setBankInfo(data)).catch(() => {});
+    api.get<BankInfo>("/settings").then(({ data }) => setBankInfo(data)).catch(() => { });
   }, []);
 
   const {
@@ -46,20 +46,20 @@ export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: P
     resolver: zodResolver(paymentSchema),
     mode: "onChange",
     defaultValues: {
-      chargeId:    defaultChargeId ?? charges[0]?.id ?? "",
-      currency:    PaymentCurrency.BS,
-      modalidad:   "Transferencia",
+      chargeId: defaultChargeId ?? charges[0]?.id ?? "",
+      currency: PaymentCurrency.BS,
+      modalidad: "Transferencia",
       paymentDate: today,
     },
   });
 
-  const chargeId        = watch("chargeId");
-  const currency        = watch("currency");
-  const modalidad       = watch("modalidad");
-  const amountBsInput   = watch("amountBs");
+  const chargeId = watch("chargeId");
+  const currency = watch("currency");
+  const modalidad = watch("modalidad");
+  const amountBsInput = watch("amountBs");
   const paymentDateInput = watch("paymentDate");
 
-  const isBS      = currency === PaymentCurrency.BS;
+  const isBS = currency === PaymentCurrency.BS;
   const isEfectivo = modalidad === "Efectivo";
 
   // Cuando cambia la moneda, resetear la modalidad al primer valor válido
@@ -73,7 +73,7 @@ export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: P
     let cancelled = false;
     exchangeRateService.getForDate(paymentDateInput).then((r) => {
       if (!cancelled) setDateRate(r);
-    }).catch(() => {});
+    }).catch(() => { });
     return () => { cancelled = true; };
   }, [paymentDateInput]);
 
@@ -119,6 +119,11 @@ export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: P
     }
   };
 
+  const onValidationError = (errs: object) => {
+    const msgs = Object.entries(errs).map(([f, e]: [string, any]) => `${f}: ${e?.message}`).join(" | ");
+    setSubmitError(`Error de validación: ${msgs}`);
+  };
+
   if (result) {
     const confirmed = result.status === PaymentStatus.CONFIRMED;
     return (
@@ -148,7 +153,7 @@ export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: P
   const modalidadOpts = isBS ? MODALIDADES_BS : MODALIDADES_DIVISAS;
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={handleSubmit(onSubmit, onValidationError)} className="space-y-4">
       {/* Moneda + Modalidad en fila */}
       <div className="grid grid-cols-2 gap-3">
         <Select id="currency" label="Moneda" error={errors.currency?.message} {...register("currency")}>
@@ -168,7 +173,7 @@ export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: P
           {isPartial ? (
             <>
               <div className="flex items-center justify-between">
-                <span className="text-slate-500">Cuota base</span>
+                <span className="text-slate-500"> Monto Cuota</span>
                 <span className="text-slate-400">{formatCurrency(selected.amount)}</span>
               </div>
               {overdueAtPaymentDate && (selected.moraAmount ?? 0) > 0 && (
@@ -189,7 +194,7 @@ export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: P
           ) : (
             <>
               <div className="flex items-center justify-between">
-                <span className="text-slate-500">Cuota base</span>
+                <span className="text-slate-500">Monto Cuota</span>
                 <span className="font-medium text-slate-700">{formatCurrency(selected.amount)}</span>
               </div>
               {overdueAtPaymentDate && (selected.moraAmount ?? 0) > 0 && (

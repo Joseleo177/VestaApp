@@ -65,6 +65,7 @@ export function BankStatementPage() {
   // Filtros
   const [search, setSearch] = useState("");
   const [filterDate, setFilterDate] = useState("");
+  const [filterMatched, setFilterMatched] = useState<"all" | "matched" | "free">("all");
 
   // Selección
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -89,9 +90,10 @@ export function BankStatementPage() {
     entries.filter((e) => {
       const matchRef = search === "" || e.referencia.toLowerCase().includes(search.toLowerCase());
       const matchDate = filterDate === "" || e.fecha === filterDate;
-      return matchRef && matchDate;
+      const matchStatus = filterMatched === "all" || (filterMatched === "matched" ? e.matched : !e.matched);
+      return matchRef && matchDate && matchStatus;
     }),
-  [entries, search, filterDate]);
+  [entries, search, filterDate, filterMatched]);
 
   const toggleOne = (id: string) =>
     setSelected((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
@@ -290,19 +292,6 @@ export function BankStatementPage() {
             </div>
           )}
 
-          <ResultSection<UnmatchedRow>
-            title="Sin coincidencia" icon={<XCircle className="h-5 w-5" />}
-            color="text-slate-400" items={result.unmatched}
-            cols={["Referencia", "Monto", "Fecha", "Descripción"]}
-            renderRow={(m, i) => (
-              <tr key={i} className="hover:bg-slate-50/60">
-                <td className="px-4 py-2.5 font-mono text-xs text-slate-500">{m.bankRef}</td>
-                <td className="px-4 py-2.5 text-slate-500">{formatAmt(m.bankAmount)}</td>
-                <td className="px-4 py-2.5 text-xs text-slate-400">{m.bankDate ? formatDate(m.bankDate) : "—"}</td>
-                <td className="px-4 py-2.5 text-xs text-slate-400 max-w-xs truncate">{m.bankDesc ?? "—"}</td>
-              </tr>
-            )}
-          />
         </div>
       )}
 
@@ -362,6 +351,16 @@ export function BankStatementPage() {
                 <X className="h-4 w-4" />
               </button>
             )}
+            {/* Filtro estado */}
+            <select
+              value={filterMatched}
+              onChange={(e) => setFilterMatched(e.target.value as "all" | "matched" | "free")}
+              className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100"
+            >
+              <option value="all">Todos</option>
+              <option value="matched">Conciliado</option>
+              <option value="free">Libre</option>
+            </select>
           </div>
         </div>
 

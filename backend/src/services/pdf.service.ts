@@ -48,8 +48,6 @@ export function generateReceiptPdf(
     // Bs total proporcional a esta cuota
     const bsTotal = exRate ? Math.round(total * exRate * 100) / 100
       : payment.amountBs ? Number(payment.amountBs) : null;
-    const bsBase = exRate ? Math.round(base * exRate * 100) / 100 : null;
-    const bsMora = (exRate && mora > 0) ? Math.round(mora * exRate * 100) / 100 : null;
 
     // Usar la fecha declarada del pago (cuando se hizo la transferencia), no la de hoy.
     // Se añade T12:00:00 para evitar desfases de zona horaria con fechas tipo "YYYY-MM-DD".
@@ -145,13 +143,11 @@ export function generateReceiptPdf(
 
     type Row = { label: string; bsAmt?: number | null; eurAmt: number; bold?: boolean; highlight?: boolean };
 
+    // Mora sumada en Monto base — no se desglosa por separado
     const rows: Row[] = [
-      { label: "Cuota base", bsAmt: bsBase, eurAmt: base },
+      { label: "Monto", bsAmt: bsTotal, eurAmt: total },
+      { label: "TOTAL", bsAmt: bsTotal, eurAmt: total, bold: true, highlight: true },
     ];
-    if (moraPaid && mora > 0) {
-      rows.push({ label: "Mora por retraso", bsAmt: bsMora, eurAmt: mora });
-    }
-    rows.push({ label: "TOTAL", bsAmt: bsTotal, eurAmt: total, bold: true, highlight: true });
 
     for (const row of rows) {
       if (row.highlight) {
@@ -177,13 +173,13 @@ export function generateReceiptPdf(
         doc.fillColor("#000000")
           .font("Helvetica-Bold")
           .fontSize(9)
-          .text(`EUR ${eur(row.eurAmt)}`, tableX + labelW + bsW, textY, { width: eurW - 8, align: "right" });
+          .text(`REF ${eur(row.eurAmt)}`, tableX + labelW + bsW, textY, { width: eurW - 8, align: "right" });
       } else {
         // Sin Bs — solo EUR a la derecha
         doc.fillColor("#000000")
           .font(row.bold ? "Helvetica-Bold" : "Helvetica")
           .fontSize(row.bold ? 12 : 10)
-          .text(`EUR ${eur(row.eurAmt)}`, tableX + labelW, textY, { width: bsW + eurW - 8, align: "right" });
+          .text(`REF ${eur(row.eurAmt)}`, tableX + labelW, textY, { width: bsW + eurW - 8, align: "right" });
       }
 
       ty += rowH;
@@ -203,7 +199,7 @@ export function generateReceiptPdf(
       const tasaFmt = new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
       doc.fontSize(7.5).fillColor("#000000").font("Helvetica-Bold")
         .text(
-          `Tasa de cambio aplicada: Bs. ${tasaFmt.format(exRate)} / EUR`,
+          `Tasa de cambio aplicada: Bs. ${tasaFmt.format(exRate)}`,
           55, doc.y, { width: pageW, align: "center" }
         );
       doc.moveDown(0.4);
