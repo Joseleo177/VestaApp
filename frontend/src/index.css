@@ -81,3 +81,14 @@
     @apply tracking-tight;
   }
 }
+
+@layer utilities {
+  /* Fila que scrollea en horizontal sin mostrar la barra (tabs, chips). */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}

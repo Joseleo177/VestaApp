@@ -36,11 +36,11 @@ export function UnitsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-[28px] font-bold leading-tight text-ios-label">Departamentos</h1>
           <p className="text-sm text-ios-secondary">
-            Unidades del condominio y su copropietario asignado
+            Unidades de la asociación y su copropietario asignado
           </p>
         </div>
         <Button onClick={openCreate}>

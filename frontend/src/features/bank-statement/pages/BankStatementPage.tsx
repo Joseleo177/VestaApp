@@ -185,8 +185,8 @@ export function BankStatementPage() {
   return (
     <div className="space-y-6">
       {/* Encabezado + botón subir */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-[28px] font-bold leading-tight text-ios-label">Extracto bancario</h1>
           <p className="text-sm text-ios-secondary">
             Sube el extracto del banco (.xlsx) para conciliar automáticamente los pagos pendientes
@@ -200,14 +200,32 @@ export function BankStatementPage() {
             className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) { handleFileSelect(f); e.target.value = ""; } }}
           />
+          {/*
+            En móvil van compactos y con etiqueta corta para caber en una línea;
+            desde `sm` recuperan altura, aire y el texto completo.
+          */}
           <div className="flex gap-2">
-            <Button variant="outline" onClick={handleReconcilePending} loading={reconciling} title="Reconciliar pagos pendientes contra entradas bancarias existentes">
+            <Button
+              size="sm"
+              variant="outline"
+              className="sm:h-11 sm:px-5 sm:text-[15px]"
+              onClick={handleReconcilePending}
+              loading={reconciling}
+              title="Reconciliar pagos pendientes contra entradas bancarias existentes"
+            >
               <RefreshCw className="h-4 w-4" />
-              Reconciliar pendientes
+              Reconciliar
+              <span className="hidden sm:inline">&nbsp;pendientes</span>
             </Button>
-            <Button onClick={() => inputRef.current?.click()} disabled={loading}>
+            <Button
+              size="sm"
+              className="sm:h-11 sm:px-5 sm:text-[15px]"
+              onClick={() => inputRef.current?.click()}
+              disabled={loading}
+            >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              {loading ? "Procesando..." : "Subir movimientos"}
+              {loading ? "Procesando…" : "Subir"}
+              {!loading && <span className="hidden sm:inline">&nbsp;movimientos</span>}
             </Button>
           </div>
         </div>
@@ -316,16 +334,16 @@ export function BankStatementPage() {
               </Button>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
             {/* Buscador por referencia */}
-            <div className="relative">
+            <div className="relative col-span-2 sm:col-auto">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ios-secondary" />
               <input
                 type="text"
                 placeholder="Buscar referencia…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-9 w-48 rounded-xl border-0 bg-ios-fill pl-8 pr-3 text-sm text-ios-label placeholder:text-ios-secondary focus:outline-none focus:ring-2 focus:ring-brand-500/70"
+                className="h-9 w-full rounded-xl border-0 bg-ios-fill pl-8 sm:w-48 pr-3 text-sm text-ios-label placeholder:text-ios-secondary focus:outline-none focus:ring-2 focus:ring-brand-500/70"
               />
               {search && (
                 <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-ios-secondary hover:text-ios-label">
@@ -333,28 +351,33 @@ export function BankStatementPage() {
                 </button>
               )}
             </div>
-            {/* Filtro de fecha */}
-            <div className="relative">
+            {/* Filtro de fecha — a todo el ancho en móvil: si queda pegado al
+                borde derecho, el calendario nativo se abre fuera de pantalla. */}
+            <div className="flex min-w-0 items-center gap-1">
               <input
                 type="date"
                 value={filterDate}
                 onChange={(e) => setFilterDate(e.target.value)}
                 className={cn(
-                  "h-9 rounded-xl border-0 bg-ios-fill px-3 text-sm text-ios-label focus:outline-none focus:ring-2 focus:ring-brand-500/70",
-                  filterDate ? "border-brand-500 text-brand-700" : ""
+                  "h-9 w-full min-w-0 rounded-xl border-0 bg-ios-fill px-3 text-sm text-ios-label focus:outline-none focus:ring-2 focus:ring-brand-500/70 sm:w-auto",
+                  filterDate ? "text-brand-700" : ""
                 )}
               />
+              {filterDate && (
+                <button
+                  onClick={() => setFilterDate("")}
+                  className="shrink-0 text-xs text-ios-secondary hover:text-ios-label"
+                  aria-label="Quitar filtro de fecha"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
-            {filterDate && (
-              <button onClick={() => setFilterDate("")} className="text-xs text-ios-secondary hover:text-ios-label">
-                <X className="h-4 w-4" />
-              </button>
-            )}
             {/* Filtro estado */}
             <select
               value={filterMatched}
               onChange={(e) => setFilterMatched(e.target.value as "all" | "matched" | "free")}
-              className="h-9 rounded-xl border-0 bg-ios-fill px-3 text-sm text-ios-label focus:outline-none focus:ring-2 focus:ring-brand-500/70"
+              className="h-9 w-full min-w-0 rounded-xl border-0 bg-ios-fill px-3 text-sm text-ios-label focus:outline-none focus:ring-2 focus:ring-brand-500/70 sm:w-auto"
             >
               <option value="all">Todos</option>
               <option value="matched">Conciliado</option>

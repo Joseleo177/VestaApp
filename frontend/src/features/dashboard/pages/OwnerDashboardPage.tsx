@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Receipt, Download, Loader2 } from "lucide-react";
+import { Receipt, Download, Loader2, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { paymentService } from "@/features/payments/services/payment.service";
@@ -98,14 +98,20 @@ function ChargesTable({ charges, loading, onPay }: ChargesTableProps) {
                     <p className="mt-0.5 text-xs text-ios-secondary truncate">{c.description}</p>
                   )}
                 </div>
-                <span
-                  className={cn(
-                    "shrink-0 inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium",
-                    STATUS_META[c.status].cls
-                  )}
-                >
-                  {STATUS_META[c.status].label}
-                </span>
+                {c.pendingPayment ? (
+                  <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-ios-blue/10 px-2.5 py-0.5 text-xs font-medium text-ios-blue">
+                    <Clock className="h-3 w-3" /> En revisión
+                  </span>
+                ) : (
+                  <span
+                    className={cn(
+                      "shrink-0 inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium",
+                      STATUS_META[c.status].cls
+                    )}
+                  >
+                    {STATUS_META[c.status].label}
+                  </span>
+                )}
               </div>
 
               <div className="mt-3 flex items-end justify-between gap-3">
@@ -123,8 +129,15 @@ function ChargesTable({ charges, loading, onPay }: ChargesTableProps) {
                   )}
                 </div>
                 <div className="flex gap-2 shrink-0">
-                  {canPay && (
+                  {canPay && !c.pendingPayment && (
                     <Button size="sm" onClick={() => onPay(c)}>Pagar</Button>
+                  )}
+                  {c.pendingPayment && (
+                    <span className="self-center text-right text-xs text-ios-blue">
+                      {formatCurrency(c.pendingPayment.amount)}
+                      <br />
+                      esperando validación
+                    </span>
                   )}
                   {c.status === ChargeStatus.PAID && c.confirmedPayment?.receiptNumber && (
                     <Button
@@ -195,14 +208,25 @@ function ChargesTable({ charges, loading, onPay }: ChargesTableProps) {
                   </td>
                   <td className="px-5 py-3.5 text-xs text-ios-secondary">{formatDate(c.dueDate)}</td>
                   <td className="px-5 py-3.5">
-                    <span
-                      className={cn(
-                        "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium",
-                        STATUS_META[c.status].cls
-                      )}
-                    >
-                      {STATUS_META[c.status].label}
-                    </span>
+                    {c.pendingPayment ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-ios-blue/10 px-2.5 py-0.5 text-xs font-medium text-ios-blue">
+                        <Clock className="h-3 w-3" /> En revisión
+                      </span>
+                    ) : (
+                      <span
+                        className={cn(
+                          "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium",
+                          STATUS_META[c.status].cls
+                        )}
+                      >
+                        {STATUS_META[c.status].label}
+                      </span>
+                    )}
+                    {c.pendingPayment && (
+                      <div className="mt-1 text-xs text-ios-blue">
+                        {formatCurrency(c.pendingPayment.amount)} esperando validación
+                      </div>
+                    )}
                     {c.confirmedPayment && (
                       <div className="mt-1 font-mono text-xs text-ios-secondary">
                         {c.confirmedPayment.reference} · {c.confirmedPayment.bank}
@@ -211,7 +235,7 @@ function ChargesTable({ charges, loading, onPay }: ChargesTableProps) {
                     )}
                   </td>
                   <td className="px-5 py-3.5 text-right">
-                    {canPay && (
+                    {canPay && !c.pendingPayment && (
                       <Button size="sm" onClick={() => onPay(c)}>
                         Pagar
                       </Button>

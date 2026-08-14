@@ -164,7 +164,7 @@ export const ChargeService = {
     const desc =
       description?.trim() ||
       (type === ChargeType.REGULAR
-        ? `Cuota de condominio ${period}`
+        ? `Cuota de asociación ${period}`
         : `Cuota especial ${period}`);
 
     const effectiveMora = type === ChargeType.SPECIAL ? 0 : moraAmount;

@@ -133,7 +133,7 @@ export function GenerateChargesForm({ onGenerated }: GenerateChargesFormProps) {
             placeholder={
               isSpecial
                 ? "Ej. Reparación bomba de agua Torre A"
-                : "Ej. Cuota de condominio 2026-06"
+                : "Ej. Cuota de asociación 2026-06"
             }
             error={errors.description?.message}
             {...register("description")}

@@ -109,6 +109,25 @@ export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: P
       ? Math.round((amountBsInput / dateRate.rate) * 100) / 100
       : null;
 
+  // Monto en Bs que corresponde a la cuota seleccionada, con la tasa de la fecha.
+  const suggestedBs =
+    isBS && dateRate && amountEurForBs > 0
+      ? Math.round(amountEurForBs * dateRate.rate * 100) / 100
+      : null;
+
+  /**
+   * Se precarga el monto sugerido para no obligar al vecino a transcribirlo,
+   * pero se deja de tocar en cuanto él escribe: si transfirió otra cifra, manda
+   * la suya (el backend recalcula los euros desde los bolívares reales).
+   */
+  const [amountTouched, setAmountTouched] = useState(false);
+  useEffect(() => {
+    if (amountTouched || suggestedBs === null) return;
+    setValue("amountBs", suggestedBs, { shouldValidate: false });
+  }, [suggestedBs, amountTouched, setValue]);
+
+  const amountBsField = register("amountBs");
+
   const onSubmit = async (values: PaymentFormValues) => {
     setSubmitError(null);
     try {
@@ -280,9 +299,12 @@ export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: P
             step="0.01"
             min="0.01"
             label="Monto transferido (Bs)"
-            placeholder="Ej. 17.709,75"
             error={errors.amountBs?.message}
-            {...register("amountBs")}
+            {...amountBsField}
+            onChange={(e) => {
+              setAmountTouched(true);
+              void amountBsField.onChange(e);
+            }}
           />
           {eurFromBs !== null && (
             <p className="mt-1 text-xs text-ios-secondary">

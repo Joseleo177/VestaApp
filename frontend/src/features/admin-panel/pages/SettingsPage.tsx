@@ -81,16 +81,16 @@ export function SettingsPage() {
       </Card>
 
       <Card className="p-6 space-y-5">
-        <h2 className="font-semibold text-ios-label">Datos del condominio</h2>
+        <h2 className="font-semibold text-ios-label">Datos de la asociación</h2>
         <Input
           id="condo_name"
-          label="Nombre del condominio"
+          label="Nombre de la asociación"
           placeholder="Ej. Residencias Las Palmas"
           disabled={loading}
           value={values.condo_name}
           onChange={set("condo_name")}
         />
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input
             id="condo_rif"
             label="RIF"

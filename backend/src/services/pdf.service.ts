@@ -20,7 +20,7 @@ function bs(n: number): string {
   return new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 }
 
-/** Genera el PDF del recibo de condominio en memoria. */
+/** Genera el PDF del recibo de la asociación en memoria. */
 export function generateReceiptPdf(
   payment: Payment,
   receiptNumber: string,

@@ -250,7 +250,9 @@ export const PaymentService = {
     return paymentRepo().find({
       where: status ? { status } : undefined,
       order: { createdAt: "DESC" },
-      relations: { receipts: true },
+      // La cuota de cada recibo revela todas las cuotas que saldó el pago,
+      // incluidas las cerradas en cascada con el excedente.
+      relations: { receipts: { charge: true } },
     });
   },
 

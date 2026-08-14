@@ -18,7 +18,7 @@ export async function runSeed(): Promise<void> {
   const admin = userRepo.create({
     cedula: adminCedula,
     passwordHash: await bcrypt.hash("admin123", 10),
-    fullName: "Administrador del Condominio",
+    fullName: "Administrador de la Asociación",
     role: UserRole.ADMIN,
   });
   await userRepo.save(admin);
@@ -48,7 +48,7 @@ export async function runSeed(): Promise<void> {
   const charge = AppDataSource.getRepository(Charge).create({
     property,
     period,
-    description: `Cuota de condominio ${period}`,
+    description: `Cuota de asociación ${period}`,
     type: ChargeType.REGULAR,
     amount: 25.0,
     moraAmount: 5.0,

@@ -1,4 +1,4 @@
-# CondoApp — Sistema Open Source de Gestión y Pagos de Condominio
+# CondoApp — Sistema Open Source de Gestión y Pagos de la Asociación
 
 Monorepo con arquitectura de microservicios separados (Frontend · Backend · DB)
 comunicados por una API RESTful.

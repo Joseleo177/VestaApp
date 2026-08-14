@@ -1,9 +1,16 @@
-import { forwardRef, InputHTMLAttributes, SelectHTMLAttributes } from "react";
+import { forwardRef, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react";
 import { cn } from "@/lib/cn";
 
 interface FieldProps {
   label?: string;
   error?: string;
+}
+
+interface InputExtras {
+  /** Ícono decorativo al inicio del campo. */
+  icon?: ReactNode;
+  /** Control al final del campo (p. ej. mostrar/ocultar contraseña). */
+  trailing?: ReactNode;
 }
 
 /** Campo iOS: relleno gris sin borde, esquinas amplias y altura táctil de 44 pt. */
@@ -21,20 +28,39 @@ const errorClass = "text-[13px] font-medium text-ios-red";
 
 export const Input = forwardRef<
   HTMLInputElement,
-  InputHTMLAttributes<HTMLInputElement> & FieldProps
->(({ label, error, className, id, ...props }, ref) => (
+  InputHTMLAttributes<HTMLInputElement> & FieldProps & InputExtras
+>(({ label, error, className, id, icon, trailing, ...props }, ref) => (
   <div className="space-y-1.5">
     {label && (
       <label htmlFor={id} className={labelClass}>
         {label}
       </label>
     )}
-    <input
-      ref={ref}
-      id={id}
-      className={cn(baseField, fieldState(error), className)}
-      {...props}
-    />
+    <div className="relative">
+      {icon && (
+        <span
+          className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ios-secondary"
+          aria-hidden
+        >
+          {icon}
+        </span>
+      )}
+      <input
+        ref={ref}
+        id={id}
+        className={cn(
+          baseField,
+          fieldState(error),
+          icon && "pl-11",
+          trailing && "pr-11",
+          className
+        )}
+        {...props}
+      />
+      {trailing && (
+        <span className="absolute right-2 top-1/2 -translate-y-1/2">{trailing}</span>
+      )}
+    </div>
     {error && <p className={errorClass}>{error}</p>}
   </div>
 ));

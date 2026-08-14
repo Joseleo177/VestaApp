@@ -19,6 +19,10 @@ function serializeCharge(charge: import("../models/Charge").Charge) {
   const confirmed =
     charge.payments?.find((p) => p.status === PaymentStatus.CONFIRMED) ?? null;
 
+  // Pago registrado por el vecino y aún sin revisar por el administrador.
+  const pending =
+    charge.payments?.find((p) => p.status === PaymentStatus.PENDING) ?? null;
+
   // Recibo que cubre esta cuota (directo o cascade) — fuente de verdad para el PDF
   const cr = charge.coveringReceipt ?? null;
 
@@ -58,6 +62,17 @@ function serializeCharge(charge: import("../models/Charge").Charge) {
           currency: confirmed.currency,
           ownerName: confirmed.submittedBy?.fullName ?? null,
           receiptNumber: null,
+        }
+      : null,
+    pendingPayment: pending
+      ? {
+          id: pending.id,
+          amount: Number(pending.amount),
+          amountBs: pending.amountBs ? Number(pending.amountBs) : null,
+          currency: pending.currency,
+          reference: pending.reference,
+          bank: pending.bank,
+          paymentDate: pending.paymentDate,
         }
       : null,
     property: prop

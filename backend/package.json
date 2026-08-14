@@ -1,7 +1,7 @@
 {
   "name": "condo-backend",
   "version": "0.1.0",
-  "description": "API REST para el sistema de gestión y pagos de condominio",
+  "description": "API REST para el sistema de gestión y pagos de la asociación",
   "license": "MIT",
   "main": "dist/src/server.js",
   "scripts": {

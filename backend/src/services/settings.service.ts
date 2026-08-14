@@ -4,7 +4,7 @@ import { Setting } from "../models/Setting";
 const DEFAULTS: Record<string, string> = {
   receipt_prefix:   "RC",
   receipt_counter:  "0",
-  condo_name:       "Condominio",
+  condo_name:       "Asociación",
   condo_city:       "Caracas",
   condo_rif:        "",
   condo_phone:      "",

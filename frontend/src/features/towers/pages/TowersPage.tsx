@@ -29,11 +29,11 @@ export function TowersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-[28px] font-bold leading-tight text-ios-label">Torres</h1>
           <p className="text-sm text-ios-secondary">
-            Bloques o torres del condominio. Se usan para filtrar la emisión de cuotas.
+            Bloques o torres de la asociación. Se usan para filtrar la emisión de cuotas.
           </p>
         </div>
         <Button onClick={openCreate}>

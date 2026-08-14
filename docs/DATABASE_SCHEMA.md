@@ -84,7 +84,7 @@ qué endpoints puede consumir (middleware de roles).
 | created_at     | timestamptz    |                                        |
 
 ### `properties`
-Unidades del condominio (apartamentos/locales). Cada una pertenece a un
+Unidades de la asociación (apartamentos/locales). Cada una pertenece a un
 copropietario (`owner_id`). El `aliquot_percentage` define su cuota relativa.
 
 | Campo               | Tipo         | Notas                              |

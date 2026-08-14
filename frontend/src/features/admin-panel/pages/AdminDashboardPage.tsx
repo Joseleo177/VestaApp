@@ -36,12 +36,16 @@ const COLOR_MAP: Record<KpiCardProps["color"], { icon: string; value: string }> 
 function KpiCard({ icon, label, value, sub, color, loading }: KpiCardProps) {
   const c = COLOR_MAP[color];
   return (
-    <div className="flex items-center gap-4 rounded-2xl bg-ios-card p-5 shadow-ios">
+    // `min-w-0`: sin esto el ítem del grid no baja de su ancho de contenido y
+    // desborda la página en pantallas angostas.
+    <div className="flex min-w-0 items-center gap-4 rounded-2xl bg-ios-card p-5 shadow-ios">
       <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-xl", c.icon)}>
         {icon}
       </div>
       <div className="min-w-0">
-        <p className="text-xs font-medium uppercase tracking-wide text-ios-secondary">{label}</p>
+        <p className="truncate text-xs font-medium uppercase tracking-wide text-ios-secondary">
+          {label}
+        </p>
         {loading ? (
           <div className="mt-1 h-6 w-16 animate-pulse rounded bg-ios-separator" />
         ) : (
@@ -57,7 +61,7 @@ function KpiCard({ icon, label, value, sub, color, loading }: KpiCardProps) {
 
 export function AdminDashboardPage() {
   const { pending, loading: loadingPending, refetch } = usePendingPayments();
-  const { properties, loading: loadingProps } = useProperties();
+  const { properties, loading: loadingProps, refetch: refetchProperties } = useProperties();
   const [selected, setSelected] = useState<Payment | null>(null);
 
   const stats = useMemo(() => {
@@ -70,20 +74,23 @@ export function AdminDashboardPage() {
 
   const loading = loadingProps || loadingPending;
 
+  // Confirmar o rechazar mueve la cola de validación y también los saldos,
+  // así que hay que recargar ambas fuentes: KPIs y morosidad salen de properties.
   const handleResolved = () => {
     setSelected(null);
     void refetch();
+    void refetchProperties();
   };
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-[28px] font-bold leading-tight text-ios-label">Dashboard</h1>
-        <p className="text-sm text-ios-secondary">Resumen general del condominio</p>
+        <p className="text-sm text-ios-secondary">Resumen general de la asociación</p>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <KpiCard
           icon={<Building className="h-5 w-5" />}
           label="Departamentos"

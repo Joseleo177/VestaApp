@@ -50,7 +50,7 @@ export function TowersTable({ towers, loading, onEdit, onDeleted }: TowersTableP
         <EmptyState
           icon={<Building2 className="h-7 w-7" />}
           title="Sin torres registradas"
-          description="Crea la primera torre o bloque del condominio."
+          description="Crea la primera torre o bloque de la asociación."
         />
       </Card>
     );

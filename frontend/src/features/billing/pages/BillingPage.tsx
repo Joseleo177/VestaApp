@@ -12,7 +12,7 @@ export function BillingPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-[28px] font-bold leading-tight text-ios-label">Cuotas de condominio</h1>
+        <h1 className="text-[28px] font-bold leading-tight text-ios-label">Cuotas de la asociación</h1>
         <p className="text-sm text-ios-secondary">
           Emite la cuota fija del mes para todos los departamentos y gestiona
           exoneraciones.

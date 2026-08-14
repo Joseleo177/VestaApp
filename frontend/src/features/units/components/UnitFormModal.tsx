@@ -3,6 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { Modal } from "@/components/ui/Modal";
 import { Input, Select } from "@/components/ui/Input";
+import { SearchSelect, SearchOption } from "@/components/ui/SearchSelect";
 import { Button } from "@/components/ui/Button";
 import { User } from "@/types/domain";
 import { PropertyWithBalance } from "@/features/admin-panel/types";
@@ -51,6 +52,19 @@ export function UnitFormModal({
   const ownerId = watch("ownerId");
   const authorizedId = watch("authorizedId");
   const sameAsOwner = !!ownerId && authorizedId === ownerId;
+
+  // La cédula va como `hint`: se muestra bajo el nombre y también se busca por ella.
+  const ownerOptions: SearchOption[] = owners.map((o) => ({
+    value: o.id,
+    label: o.fullName,
+    hint: `C.I. ${o.cedula}`,
+  }));
+
+  const authorizedOptions: SearchOption[] = authorizedCandidates.map((u) => ({
+    value: u.id,
+    label: u.id === ownerId ? `${u.fullName} (titular)` : u.fullName,
+    hint: `C.I. ${u.cedula}`,
+  }));
 
   const onSubmit = async (values: UnitFormValues) => {
     try {
@@ -103,37 +117,26 @@ export function UnitFormModal({
           </Select>
         </div>
 
-        <Select
+        <SearchSelect
           id="ownerId"
           label="Copropietario"
+          value={ownerId}
+          onChange={(v) => setValue("ownerId", v, { shouldDirty: true, shouldValidate: true })}
+          options={ownerOptions}
           error={errors.ownerId?.message}
-          {...register("ownerId")}
-        >
-          <option value="" disabled>
-            Selecciona…
-          </option>
-          {owners.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.fullName}
-            </option>
-          ))}
-        </Select>
+        />
 
         <div className="space-y-2">
-          <Select
+          <SearchSelect
             id="authorizedId"
             label="Autorizado (opcional)"
+            value={authorizedId ?? ""}
+            onChange={(v) => setValue("authorizedId", v, { shouldDirty: true })}
+            options={authorizedOptions}
+            emptyLabel="Sin autorizado"
+            placeholder="Sin autorizado"
             error={errors.authorizedId?.message}
-            {...register("authorizedId")}
-          >
-            <option value="">Sin autorizado</option>
-            {authorizedCandidates.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.fullName}
-                {u.id === ownerId ? " (titular)" : ""}
-              </option>
-            ))}
-          </Select>
+          />
           <label className="flex items-center gap-2 text-xs text-ios-secondary">
             <input
               type="checkbox"

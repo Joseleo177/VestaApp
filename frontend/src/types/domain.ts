@@ -72,6 +72,17 @@ export interface ChargeConfirmedPayment {
   receiptNumber: string | null;
 }
 
+/** Pago registrado por el vecino que el administrador aún no ha revisado. */
+export interface ChargePendingPayment {
+  id: string;
+  amount: number;
+  amountBs: number | null;
+  currency: PaymentCurrency;
+  reference: string;
+  bank: string;
+  paymentDate: string;
+}
+
 export interface Charge {
   id: string;
   period: string;
@@ -86,6 +97,7 @@ export interface Charge {
   amountDue?: number;
   amountDueDivisas?: number;
   confirmedPayment?: ChargeConfirmedPayment | null;
+  pendingPayment?: ChargePendingPayment | null;
   property?: { id: string; code: string; tower?: { id: string; name: string } | null };
   createdAt?: string;
 }
@@ -97,6 +109,8 @@ export interface Receipt {
   receiptNumber: string;
   pdfFilePath: string;
   issuedAt: string;
+  /** Cuota que ampara este recibo (directa o cerrada en cascada). */
+  charge?: Charge | null;
 }
 
 export interface Payment {

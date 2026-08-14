@@ -7,6 +7,8 @@ const POLL_MS = 20_000;
 interface Result {
   properties: PropertyWithBalance[];
   loading: boolean;
+  /** Recarga inmediata: los saldos cambian al confirmar o rechazar un pago. */
+  refetch: () => Promise<void>;
 }
 
 /** Listado global de propiedades con saldo (control de morosidad). */
@@ -38,5 +40,5 @@ export function useProperties(): Result {
     };
   }, [fetch]);
 
-  return { properties, loading };
+  return { properties, loading, refetch: () => fetch(true) };
 }

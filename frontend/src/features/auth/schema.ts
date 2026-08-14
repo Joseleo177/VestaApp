@@ -1,7 +1,8 @@
 import { z } from "zod";
 
 export const loginSchema = z.object({
-  cedula: z.string().min(1, "La cédula es requerida"),
+  // El campo sigue viajando como `cedula` a la API; en la UI se llama "Usuario".
+  cedula: z.string().min(1, "El usuario es requerido"),
   password: z.string().min(1, "La contraseña es requerida"),
 });
 
