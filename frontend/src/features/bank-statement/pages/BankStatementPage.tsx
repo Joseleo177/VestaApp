@@ -1,7 +1,7 @@
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
-  CheckCircle2, AlertTriangle, XCircle, Upload,
+  CheckCircle2, AlertTriangle, Upload,
   Loader2, Database, Search, X, Trash2, RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -14,7 +14,6 @@ import {
   ReconciliationResult,
   ConfirmedMatch,
   ReviewMatch,
-  UnmatchedRow,
   BankEntry,
 } from "../services/reconciliation.service";
 import { paymentService } from "@/features/payments/services/payment.service";
