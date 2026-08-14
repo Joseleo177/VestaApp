@@ -1,13 +1,15 @@
-import { useState } from "react";
-import { Pencil, Power, PowerOff, Users as UsersIcon } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Pencil, Power, PowerOff, Search, Users as UsersIcon } from "lucide-react";
 import { toast } from "sonner";
 import { User } from "@/types/domain";
 import { Card } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { matchesTerm } from "@/lib/search";
 import { ApiError } from "@/services/api";
 import { userService } from "../services/user.service";
 import { ROLE_LABELS } from "../types";
@@ -21,6 +23,15 @@ interface UsersTableProps {
 
 export function UsersTable({ users, loading, onEdit, onChanged }: UsersTableProps) {
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+
+  const filtered = useMemo(
+    () =>
+      users.filter((user) =>
+        matchesTerm(search, [user.fullName, user.cedula, user.email, user.phone])
+      ),
+    [users, search]
+  );
 
   const handleToggle = async (user: User) => {
     setTogglingId(user.id);
@@ -35,28 +46,40 @@ export function UsersTable({ users, loading, onEdit, onChanged }: UsersTableProp
     }
   };
 
-  if (loading) {
-    return (
-      <Card className="overflow-hidden">
-        <TableSkeleton rows={5} cols={5} />
-      </Card>
-    );
-  }
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex flex-col gap-3 border-b border-ios-separator px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-ios-secondary">
+          {search.trim()
+            ? `${filtered.length} de ${users.length} usuarios`
+            : `${users.length} usuarios`}
+        </p>
+        <div className="relative sm:w-80">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ios-secondary" />
+          <Input
+            placeholder="Buscar por nombre, cédula, correo…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+      </div>
 
-  if (users.length === 0) {
-    return (
-      <Card>
+      {loading ? (
+        <TableSkeleton rows={5} cols={5} />
+      ) : users.length === 0 ? (
         <EmptyState
           icon={<UsersIcon className="h-7 w-7" />}
           title="Sin usuarios"
           description="Crea el primer usuario con el botón “Nuevo usuario”."
         />
-      </Card>
-    );
-  }
-
-  return (
-    <Card className="overflow-hidden">
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={<Search className="h-7 w-7" />}
+          title="Sin resultados"
+          description={`Ningún usuario coincide con “${search.trim()}”.`}
+        />
+      ) : (
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-ios-separator text-[11px] font-semibold uppercase tracking-wider text-ios-secondary">
@@ -69,7 +92,7 @@ export function UsersTable({ users, loading, onEdit, onChanged }: UsersTableProp
             </tr>
           </thead>
           <tbody className="divide-y divide-ios-separator">
-            {users.map((user) => (
+            {filtered.map((user) => (
               <tr key={user.id} className="hover:bg-ios-fill">
                 <td className="px-5 py-3.5">
                   <div className="font-medium text-ios-label">{user.fullName}</div>
@@ -116,6 +139,7 @@ export function UsersTable({ users, loading, onEdit, onChanged }: UsersTableProp
           </tbody>
         </table>
       </div>
+      )}
     </Card>
   );
 }
