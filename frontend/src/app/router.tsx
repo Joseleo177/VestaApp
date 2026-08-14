@@ -2,7 +2,7 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppLayout } from "@/components/AppLayout";
 import { AdminLayout } from "@/components/AdminLayout";
-import { UserRole } from "@/types/domain";
+import { RESIDENT_ROLES, UserRole } from "@/types/domain";
 import { LoginPage } from "@/features/auth/pages/LoginPage";
 import { OwnerDashboardPage } from "@/features/dashboard/pages/OwnerDashboardPage";
 import { AdminDashboardPage } from "@/features/admin-panel/pages/AdminDashboardPage";
@@ -23,7 +23,7 @@ export const router = createBrowserRouter([
   {
     path: "/",
     element: (
-      <ProtectedRoute requiredRole={UserRole.OWNER}>
+      <ProtectedRoute requiredRole={[...RESIDENT_ROLES]}>
         <AppLayout>
           <OwnerDashboardPage />
         </AppLayout>

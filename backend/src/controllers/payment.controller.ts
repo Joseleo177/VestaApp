@@ -32,10 +32,10 @@ export const PaymentController = {
     }
   },
 
-  // GET /api/payments/me  (copropietario) — su historial
+  // GET /api/payments/me  (titular o autorizado) — historial de sus unidades
   async listMine(req: Request, res: Response, next: NextFunction) {
     try {
-      const payments = await PaymentService.listForOwner(req.user!.sub);
+      const payments = await PaymentService.listForUser(req.user!.sub);
       res.json(payments);
     } catch (err) {
       next(err);

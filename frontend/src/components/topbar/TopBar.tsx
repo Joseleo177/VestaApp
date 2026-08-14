@@ -1,6 +1,6 @@
 import { Flame, LogOut } from "lucide-react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
-import { UserRole } from "@/types/domain";
+import { ROLE_LABELS } from "@/features/users/types";
 import { useState, useEffect } from "react";
 import { AppDrawer } from "./AppDrawer";
 import { ExchangeRatePill } from "./ExchangeRatePill";
@@ -12,7 +12,7 @@ export function TopBar() {
   const { user, logout, isAdmin, updateUser } = useAuth();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [condoName, setCondoName] = useState<string>("");
-  const roleLabel = user?.role === UserRole.ADMIN ? "Administrador" : "Copropietario";
+  const roleLabel = user ? ROLE_LABELS[user.role] ?? "Copropietario" : "Copropietario";
 
   useEffect(() => {
     api.get<{ condo_name: string }>("/settings")

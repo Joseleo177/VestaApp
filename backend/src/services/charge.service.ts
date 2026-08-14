@@ -40,9 +40,13 @@ export function amountDue(charge: Charge, currency?: PaymentCurrency, asOfDate?:
 }
 
 export const ChargeService = {
-  async listForOwner(ownerId: string): Promise<Charge[]> {
+  /** Cuotas de los departamentos donde el usuario es titular o autorizado. */
+  async listForUser(userId: string): Promise<Charge[]> {
     return repo().find({
-      where: { property: { owner: { id: ownerId } } },
+      where: [
+        { property: { owner: { id: userId } } },
+        { property: { authorized: { id: userId } } },
+      ],
       order: { period: "DESC" },
       relations: {
         payments: { submittedBy: true },
@@ -52,11 +56,13 @@ export const ChargeService = {
   },
 
   /** Saldo pendiente en EUR: PENDING (con mora) + PARTIAL (saldo restante). */
-  async balanceForOwner(ownerId: string): Promise<number> {
+  async balanceForUser(userId: string): Promise<number> {
     const charges = await repo().find({
       where: [
-        { property: { owner: { id: ownerId } }, status: ChargeStatus.PENDING },
-        { property: { owner: { id: ownerId } }, status: ChargeStatus.PARTIAL },
+        { property: { owner: { id: userId } }, status: ChargeStatus.PENDING },
+        { property: { owner: { id: userId } }, status: ChargeStatus.PARTIAL },
+        { property: { authorized: { id: userId } }, status: ChargeStatus.PENDING },
+        { property: { authorized: { id: userId } }, status: ChargeStatus.PARTIAL },
       ],
     });
     return charges.reduce((sum, c) => sum + amountDue(c), 0);

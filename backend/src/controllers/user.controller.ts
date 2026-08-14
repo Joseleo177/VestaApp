@@ -4,7 +4,9 @@ import { UserRole } from "../models/User";
 import { HttpError } from "../middlewares/error.middleware";
 
 function parseRole(value: unknown): UserRole {
-  return value === UserRole.ADMIN ? UserRole.ADMIN : UserRole.OWNER;
+  if (value === UserRole.ADMIN) return UserRole.ADMIN;
+  if (value === UserRole.AUTHORIZED) return UserRole.AUTHORIZED;
+  return UserRole.OWNER;
 }
 
 export const UserController = {

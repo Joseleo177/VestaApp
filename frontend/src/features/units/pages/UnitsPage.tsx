@@ -8,7 +8,7 @@ import { UnitFormModal } from "../components/UnitFormModal";
 import { PropertyChargesModal } from "../components/PropertyChargesModal";
 
 export function UnitsPage() {
-  const { units, owners, loading, refetch } = useUnits();
+  const { units, owners, authorizedCandidates, loading, refetch } = useUnits();
   const [editModal, setEditModal] = useState(false);
   const [chargesModal, setChargesModal] = useState(false);
   const [selected, setSelected] = useState<PropertyWithBalance | null>(null);
@@ -59,6 +59,7 @@ export function UnitsPage() {
         open={editModal}
         unit={selected}
         owners={owners}
+        authorizedCandidates={authorizedCandidates}
         onClose={() => setEditModal(false)}
         onSaved={handleSaved}
       />

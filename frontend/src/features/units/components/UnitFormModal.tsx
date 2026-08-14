@@ -15,17 +15,28 @@ interface UnitFormModalProps {
   open: boolean;
   unit?: PropertyWithBalance | null;
   owners: User[];
+  /** Usuarios que pueden figurar como autorizados (copropietarios + autorizados). */
+  authorizedCandidates: User[];
   onClose: () => void;
   onSaved: () => void;
 }
 
-export function UnitFormModal({ open, unit, owners, onClose, onSaved }: UnitFormModalProps) {
+export function UnitFormModal({
+  open,
+  unit,
+  owners,
+  authorizedCandidates,
+  onClose,
+  onSaved,
+}: UnitFormModalProps) {
   const isEditing = !!unit;
   const { towers } = useTowers();
 
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<UnitFormValues>({
     resolver: zodResolver(unitSchema),
@@ -33,12 +44,22 @@ export function UnitFormModal({ open, unit, owners, onClose, onSaved }: UnitForm
       code: unit?.code ?? "",
       towerId: unit?.tower?.id ?? "",
       ownerId: unit?.owner?.id ?? owners[0]?.id ?? "",
+      authorizedId: unit?.authorized?.id ?? "",
     },
   });
 
+  const ownerId = watch("ownerId");
+  const authorizedId = watch("authorizedId");
+  const sameAsOwner = !!ownerId && authorizedId === ownerId;
+
   const onSubmit = async (values: UnitFormValues) => {
     try {
-      const payload = { ...values, towerId: values.towerId || undefined };
+      // authorizedId siempre viaja: "" desasigna el autorizado en el backend.
+      const payload = {
+        ...values,
+        towerId: values.towerId || undefined,
+        authorizedId: values.authorizedId ?? "",
+      };
       if (isEditing && unit) {
         await unitService.update(unit.id, payload);
         toast.success("Departamento actualizado");
@@ -97,6 +118,37 @@ export function UnitFormModal({ open, unit, owners, onClose, onSaved }: UnitForm
             </option>
           ))}
         </Select>
+
+        <div className="space-y-2">
+          <Select
+            id="authorizedId"
+            label="Autorizado (opcional)"
+            error={errors.authorizedId?.message}
+            {...register("authorizedId")}
+          >
+            <option value="">Sin autorizado</option>
+            {authorizedCandidates.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.fullName}
+                {u.id === ownerId ? " (titular)" : ""}
+              </option>
+            ))}
+          </Select>
+          <label className="flex items-center gap-2 text-xs text-slate-500">
+            <input
+              type="checkbox"
+              className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+              checked={sameAsOwner}
+              disabled={!ownerId}
+              onChange={(e) =>
+                setValue("authorizedId", e.target.checked ? ownerId : "", {
+                  shouldDirty: true,
+                })
+              }
+            />
+            El titular es también el autorizado
+          </label>
+        </div>
 
         {owners.length === 0 && (
           <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">

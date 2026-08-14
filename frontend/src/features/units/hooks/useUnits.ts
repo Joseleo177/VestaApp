@@ -6,8 +6,10 @@ import { unitService } from "../services/unit.service";
 
 interface Result {
   units: PropertyWithBalance[];
-  /** Copropietarios activos disponibles para asignar. */
+  /** Copropietarios activos disponibles para asignar como titular. */
   owners: User[];
+  /** Candidatos a autorizado: copropietarios y usuarios con rol Autorizado. */
+  authorizedCandidates: User[];
   loading: boolean;
   refetch: () => Promise<void>;
 }
@@ -16,6 +18,7 @@ interface Result {
 export function useUnits(): Result {
   const [units, setUnits] = useState<PropertyWithBalance[]>([]);
   const [owners, setOwners] = useState<User[]>([]);
+  const [authorizedCandidates, setAuthorizedCandidates] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetch = useCallback(async () => {
@@ -26,7 +29,14 @@ export function useUnits(): Result {
         userService.list(),
       ]);
       setUnits(unitList);
-      setOwners(users.filter((u) => u.role === UserRole.OWNER && u.isActive));
+      const active = users.filter((u) => u.isActive);
+      setOwners(active.filter((u) => u.role === UserRole.OWNER));
+      // El titular también puede figurar como autorizado de su propia unidad.
+      setAuthorizedCandidates(
+        active.filter(
+          (u) => u.role === UserRole.OWNER || u.role === UserRole.AUTHORIZED
+        )
+      );
     } finally {
       setLoading(false);
     }
@@ -36,5 +46,5 @@ export function useUnits(): Result {
     void fetch();
   }, [fetch]);
 
-  return { units, owners, loading, refetch: fetch };
+  return { units, owners, authorizedCandidates, loading, refetch: fetch };
 }

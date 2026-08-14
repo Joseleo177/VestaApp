@@ -11,6 +11,13 @@ import { Payment } from "./Payment";
 export enum UserRole {
   ADMIN = "ADMIN",
   OWNER = "OWNER",
+  /**
+   * Persona autorizada a gestionar un departamento sin ser su titular.
+   * Un usuario OWNER también puede figurar como autorizado de una propiedad
+   * (incluida la suya): el rol define el panel de acceso, la relación
+   * `properties.authorized_id` define sobre qué unidades puede operar.
+   */
+  AUTHORIZED = "AUTHORIZED",
 }
 
 @Entity({ name: "users" })
@@ -46,6 +53,10 @@ export class User {
 
   @OneToMany(() => Property, (property) => property.owner)
   properties!: Property[];
+
+  /** Departamentos donde figura como autorizado (puede o no ser el titular). */
+  @OneToMany(() => Property, (property) => property.authorized)
+  authorizedProperties!: Property[];
 
   @OneToMany(() => Payment, (payment) => payment.submittedBy)
   payments!: Payment[];

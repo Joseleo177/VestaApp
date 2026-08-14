@@ -16,4 +16,5 @@ export type UpdateUserInput = Partial<Omit<CreateUserInput, "password">> & {
 export const ROLE_LABELS: Record<UserRole, string> = {
   [UserRole.ADMIN]: "Administrador",
   [UserRole.OWNER]: "Copropietario",
+  [UserRole.AUTHORIZED]: "Autorizado",
 };

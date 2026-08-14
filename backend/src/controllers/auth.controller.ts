@@ -9,6 +9,12 @@ import { AuthPayload } from "../middlewares/auth.middleware";
 
 const userRepo = () => AppDataSource.getRepository(User);
 
+function parseRole(value: unknown): UserRole {
+  if (value === UserRole.ADMIN) return UserRole.ADMIN;
+  if (value === UserRole.AUTHORIZED) return UserRole.AUTHORIZED;
+  return UserRole.OWNER;
+}
+
 export const AuthController = {
   // POST /api/auth/login
   async login(req: Request, res: Response, next: NextFunction) {
@@ -73,7 +79,7 @@ export const AuthController = {
         passwordHash,
         fullName,
         phone,
-        role: role === UserRole.ADMIN ? UserRole.ADMIN : UserRole.OWNER,
+        role: parseRole(role),
       });
       await userRepo().save(user);
 

@@ -41,6 +41,18 @@ export class Property {
   @JoinColumn({ name: "owner_id" })
   owner!: User;
 
+  /**
+   * Persona autorizada a operar el departamento (ver estado de cuenta,
+   * registrar pagos, descargar recibos). Puede ser el mismo titular.
+   */
+  @ManyToOne(() => User, (user) => user.authorizedProperties, {
+    nullable: true,
+    eager: true,
+    onDelete: "SET NULL",
+  })
+  @JoinColumn({ name: "authorized_id" })
+  authorized?: User | null;
+
   @OneToMany(() => Charge, (charge) => charge.property)
   charges!: Charge[];
 

@@ -1,4 +1,4 @@
-import { EntityManager } from "typeorm";
+import { EntityManager, In } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { Payment, PaymentStatus, PaymentCurrency } from "../models/Payment";
 import { Charge, ChargeStatus } from "../models/Charge";
@@ -7,6 +7,7 @@ import { BankEntry } from "../models/BankEntry";
 import { User } from "../models/User";
 import { HttpError } from "../middlewares/error.middleware";
 import { amountDue } from "./charge.service";
+import { PropertyService } from "./property.service";
 import { getRateForDate } from "./exchange-rate.service";
 import { ReconciliationService } from "./reconciliation.service";
 import { SettingsService } from "./settings.service";
@@ -150,11 +151,15 @@ export const PaymentService = {
   async create(userId: string, input: CreatePaymentInput): Promise<Payment> {
     const charge = await chargeRepo().findOne({
       where: { id: input.chargeId },
-      relations: { property: { owner: true } },
+      relations: { property: { owner: true, authorized: true } },
     });
     if (!charge) throw new HttpError(404, "Cuota no encontrada");
 
-    if (charge.property.owner.id !== userId) {
+    // Puede pagar el titular o el autorizado del departamento.
+    const canPay =
+      charge.property.owner?.id === userId ||
+      charge.property.authorized?.id === userId;
+    if (!canPay) {
       throw new HttpError(403, "No puedes pagar la cuota de otra propiedad");
     }
     if (charge.status === ChargeStatus.PAID) {
@@ -219,9 +224,16 @@ export const PaymentService = {
     return PaymentService.getById(saved.id);
   },
 
-  async listForOwner(userId: string): Promise<Payment[]> {
+  /**
+   * Historial de las unidades que el usuario gestiona (como titular o como
+   * autorizado), no solo de los pagos que él mismo registró: titular y
+   * autorizado ven el mismo movimiento del departamento.
+   */
+  async listForUser(userId: string): Promise<Payment[]> {
+    const propertyIds = await PropertyService.accessiblePropertyIds(userId);
+    if (propertyIds.length === 0) return [];
     return paymentRepo().find({
-      where: { submittedBy: { id: userId } },
+      where: { property: { id: In(propertyIds) } },
       order: { createdAt: "DESC" },
       relations: { receipts: true },
     });
@@ -553,12 +565,22 @@ export const PaymentService = {
     const receipt = await receiptRepo().findOne({
       where,
       relations: {
-        payment: { submittedBy: true, property: { tower: true }, charge: true },
+        payment: {
+          submittedBy: true,
+          property: { tower: true, owner: true, authorized: true },
+          charge: true,
+        },
         charge: { property: { tower: true } },
       },
     });
     if (!receipt) throw new HttpError(404, "Recibo no disponible aún");
-    if (!isAdmin && receipt.payment.submittedBy.id !== requesterId) {
+    // Lo descarga quien registró el pago, el titular o el autorizado de la unidad.
+    const property = receipt.payment.property;
+    const allowed =
+      receipt.payment.submittedBy?.id === requesterId ||
+      property?.owner?.id === requesterId ||
+      property?.authorized?.id === requesterId;
+    if (!isAdmin && !allowed) {
       throw new HttpError(403, "No autorizado");
     }
     return receipt;

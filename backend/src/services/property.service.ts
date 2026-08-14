@@ -11,6 +11,8 @@ export interface CreatePropertyInput {
   code: string;
   towerId?: string;
   ownerId: string;
+  /** Autorizado del departamento. `null` o "" lo desasigna. */
+  authorizedId?: string | null;
 }
 
 export interface PropertyWithBalance extends Property {
@@ -18,8 +20,22 @@ export interface PropertyWithBalance extends Property {
 }
 
 export const PropertyService = {
-  listForOwner(ownerId: string): Promise<Property[]> {
-    return repo().find({ where: { owner: { id: ownerId } } });
+  /** Departamentos donde el usuario es titular o autorizado. */
+  listForUser(userId: string): Promise<Property[]> {
+    return repo().find({
+      where: [{ owner: { id: userId } }, { authorized: { id: userId } }],
+      order: { code: "ASC" },
+    });
+  },
+
+  /** IDs de los departamentos que el usuario puede operar (titular o autorizado). */
+  async accessiblePropertyIds(userId: string): Promise<string[]> {
+    const rows = await repo().find({
+      where: [{ owner: { id: userId } }, { authorized: { id: userId } }],
+      select: { id: true },
+      loadEagerRelations: false,
+    });
+    return rows.map((r) => r.id);
   },
 
   async listAll(): Promise<PropertyWithBalance[]> {
@@ -65,6 +81,7 @@ export const PropertyService = {
       code: input.code,
       tower: input.towerId ? ({ id: input.towerId } as Tower) : null,
       owner: { id: input.ownerId } as User,
+      authorized: input.authorizedId ? ({ id: input.authorizedId } as User) : null,
     });
     return repo().save(property);
   },
@@ -72,7 +89,7 @@ export const PropertyService = {
   async update(id: string, input: Partial<CreatePropertyInput>): Promise<Property> {
     const property = await repo().findOne({
       where: { id },
-      relations: { owner: true, tower: true },
+      relations: { owner: true, tower: true, authorized: true },
     });
     if (!property) throw new HttpError(404, "Propiedad no encontrada");
 
@@ -85,6 +102,11 @@ export const PropertyService = {
       property.tower = input.towerId ? ({ id: input.towerId } as Tower) : null;
     }
     if (input.ownerId) property.owner = { id: input.ownerId } as User;
+    if (input.authorizedId !== undefined) {
+      property.authorized = input.authorizedId
+        ? ({ id: input.authorizedId } as User)
+        : null;
+    }
 
     return repo().save(property);
   },

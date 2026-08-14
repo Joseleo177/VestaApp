@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git --no-pager diff --stat)",
+      "Bash(git --no-pager diff backend/src/controllers/charge.controller.ts backend/src/services/property.service.ts)"
+    ]
+  }
+}

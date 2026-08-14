@@ -1,6 +1,9 @@
 import { Request, Response, NextFunction } from "express";
+import { In } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { ChargeService, amountDue, isOverdue } from "../services/charge.service";
+import { PropertyService } from "../services/property.service";
+import { User } from "../models/User";
 import { Charge, ChargeStatus, ChargeType } from "../models/Charge";
 import { PaymentCurrency, PaymentStatus } from "../models/Payment";
 import { HttpError } from "../middlewares/error.middleware";
@@ -68,19 +71,40 @@ function serializeCharge(charge: import("../models/Charge").Charge) {
 }
 
 export const ChargeController = {
-  // GET /api/charges/me
+  // GET /api/charges/me — cuotas de las unidades propias y de las autorizadas
   async listMine(req: Request, res: Response, next: NextFunction) {
     try {
-      const { AppDataSource } = await import("../config/data-source");
-      const { User } = await import("../models/User");
-      const [charges, balance, user] = await Promise.all([
-        ChargeService.listForOwner(req.user!.sub),
-        ChargeService.balanceForOwner(req.user!.sub),
-        AppDataSource.getRepository(User).findOneBy({ id: req.user!.sub }),
+      const userId = req.user!.sub;
+      const [charges, balance, self, properties] = await Promise.all([
+        ChargeService.listForUser(userId),
+        ChargeService.balanceForUser(userId),
+        AppDataSource.getRepository(User).findOneBy({ id: userId }),
+        PropertyService.listForUser(userId),
       ]);
+
+      // El saldo a favor vive en el titular de cada unidad. Un autorizado que no
+      // es el titular ve el crédito del titular de las unidades que gestiona.
+      let creditBalance = Number(self?.creditBalance ?? 0);
+      const otherOwnerIds = [
+        ...new Set(
+          properties
+            .map((p) => p.owner?.id)
+            .filter((id): id is string => !!id && id !== userId)
+        ),
+      ];
+      if (otherOwnerIds.length > 0) {
+        const owners = await AppDataSource.getRepository(User).findBy({
+          id: In(otherOwnerIds),
+        });
+        creditBalance += owners.reduce(
+          (sum, o) => sum + Number(o.creditBalance ?? 0),
+          0
+        );
+      }
+
       res.json({
         balance,
-        creditBalance: Number(user?.creditBalance ?? 0),
+        creditBalance: Math.round(creditBalance * 100) / 100,
         charges: charges.map(serializeCharge),
       });
     } catch (err) {

@@ -1,7 +1,12 @@
 export enum UserRole {
   ADMIN = "ADMIN",
   OWNER = "OWNER",
+  /** Autorizado de uno o más departamentos (un OWNER también puede serlo). */
+  AUTHORIZED = "AUTHORIZED",
 }
+
+/** Roles que acceden al panel de residente (titular o autorizado). */
+export const RESIDENT_ROLES = [UserRole.OWNER, UserRole.AUTHORIZED] as const;
 
 export enum PaymentStatus {
   PENDING = "PENDING",
@@ -50,6 +55,8 @@ export interface Property {
   tower?: Tower | null;
   aliquotPercentage: number;
   owner?: User;
+  /** Persona autorizada a operar la unidad; puede ser el mismo titular. */
+  authorized?: User | null;
   createdAt?: string;
 }
 

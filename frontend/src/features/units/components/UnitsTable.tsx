@@ -16,7 +16,7 @@ export function UnitsTable({ units, loading, onEdit, onViewCharges }: UnitsTable
   if (loading) {
     return (
       <Card className="overflow-hidden">
-        <TableSkeleton rows={5} cols={3} />
+        <TableSkeleton rows={5} cols={4} />
       </Card>
     );
   }
@@ -41,6 +41,7 @@ export function UnitsTable({ units, loading, onEdit, onViewCharges }: UnitsTable
             <tr>
               <th className="px-5 py-3 font-medium">Departamento</th>
               <th className="px-5 py-3 font-medium">Copropietario</th>
+              <th className="px-5 py-3 font-medium">Autorizado</th>
               <th className="px-5 py-3 text-right font-medium">Acciones</th>
             </tr>
           </thead>
@@ -54,6 +55,18 @@ export function UnitsTable({ units, loading, onEdit, onViewCharges }: UnitsTable
                   )}
                 </td>
                 <td className="px-5 py-3.5 text-slate-600">{unit.owner?.fullName ?? "—"}</td>
+                <td className="px-5 py-3.5 text-slate-600">
+                  {unit.authorized ? (
+                    <>
+                      {unit.authorized.fullName}
+                      {unit.authorized.id === unit.owner?.id && (
+                        <div className="text-xs text-slate-400">mismo titular</div>
+                      )}
+                    </>
+                  ) : (
+                    "—"
+                  )}
+                </td>
                 <td className="px-5 py-3.5 text-right">
                   <div className="flex justify-end gap-2">
                     <Button size="sm" variant="outline" onClick={() => onViewCharges(unit)}>

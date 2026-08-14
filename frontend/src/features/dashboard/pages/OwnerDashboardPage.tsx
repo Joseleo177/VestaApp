@@ -32,6 +32,13 @@ interface ChargesTableProps {
 function ChargesTable({ charges, loading, onPay }: ChargesTableProps) {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
+  // Quien gestiona varias unidades (titular de una, autorizado de otra) necesita
+  // ver a qué departamento pertenece cada cuota.
+  const showUnit = useMemo(
+    () => new Set(charges.map((c) => c.property?.id ?? "")).size > 1,
+    [charges]
+  );
+
   const handleDownload = async (paymentId: string, receiptNumber: string) => {
     setDownloadingId(paymentId);
     try {
@@ -82,6 +89,11 @@ function ChargesTable({ charges, loading, onPay }: ChargesTableProps) {
                       </span>
                     )}
                   </div>
+                  {showUnit && c.property && (
+                    <p className="mt-0.5 text-xs font-medium text-brand-600">
+                      {c.property.code}
+                    </p>
+                  )}
                   {c.description && (
                     <p className="mt-0.5 text-xs text-slate-400 truncate">{c.description}</p>
                   )}
@@ -156,6 +168,9 @@ function ChargesTable({ charges, loading, onPay }: ChargesTableProps) {
                 <tr key={c.id} className="hover:bg-slate-50/60">
                   <td className="px-5 py-3.5">
                     <div className="font-medium text-slate-800">{formatPeriod(c.period)}</div>
+                    {showUnit && c.property && (
+                      <div className="text-xs font-medium text-brand-600">{c.property.code}</div>
+                    )}
                     {c.type === ChargeType.SPECIAL && (
                       <span className="inline-flex rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-600 ring-1 ring-inset ring-violet-500/20">
                         Especial

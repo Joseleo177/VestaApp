@@ -6,7 +6,8 @@ import { UserRole } from "@/types/domain";
 
 interface ProtectedRouteProps {
   children: ReactNode;
-  requiredRole?: UserRole;
+  /** Rol o roles admitidos en la ruta. */
+  requiredRole?: UserRole | UserRole[];
 }
 
 /** Bloquea rutas según sesión y rol. Redirige al login o al panel correcto. */
@@ -26,7 +27,13 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (requiredRole && role !== requiredRole) {
+  const allowed = requiredRole
+    ? (Array.isArray(requiredRole) ? requiredRole : [requiredRole]).some(
+        (r) => r === role
+      )
+    : true;
+
+  if (!allowed) {
     // Rol incorrecto: enviar a su panel por defecto.
     return <Navigate to={role === UserRole.ADMIN ? "/admin" : "/"} replace />;
   }

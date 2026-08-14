@@ -1,9 +1,11 @@
+import { useMemo } from "react";
 import { Payment, PaymentCurrency, PaymentStatus } from "@/types/domain";
 import { Card } from "@/components/ui/Card";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Receipt } from "lucide-react";
 import { formatCurrency, formatDate, formatPeriod } from "@/lib/format";
+import { useAuth } from "@/features/auth/hooks/useAuth";
 import { StatusBadge } from "./StatusBadge";
 
 interface PaymentHistoryTableProps {
@@ -12,6 +14,15 @@ interface PaymentHistoryTableProps {
 }
 
 export function PaymentHistoryTable({ payments, loading }: PaymentHistoryTableProps) {
+  const { user } = useAuth();
+
+  // El historial incluye las unidades donde el usuario es autorizado, así que
+  // se identifica el departamento y quién registró cada pago cuando no fue él.
+  const showUnit = useMemo(
+    () => new Set(payments.map((p) => p.property?.id ?? "")).size > 1,
+    [payments]
+  );
+
   if (loading) {
     return (
       <Card className="overflow-hidden">
@@ -44,6 +55,9 @@ export function PaymentHistoryTable({ payments, loading }: PaymentHistoryTablePr
                   {payment.charge ? formatPeriod(payment.charge.period) : "—"}
                 </p>
                 <p className="text-xs text-slate-400">{formatDate(payment.paymentDate)}</p>
+                {showUnit && payment.property && (
+                  <p className="text-xs font-medium text-brand-600">{payment.property.code}</p>
+                )}
               </div>
               <StatusBadge status={payment.status} />
             </div>
@@ -59,6 +73,11 @@ export function PaymentHistoryTable({ payments, loading }: PaymentHistoryTablePr
               <div className="text-right">
                 <p className="text-sm text-slate-600">{payment.reference}</p>
                 <p className="text-xs text-slate-400">{payment.bank}</p>
+                {payment.submittedBy && payment.submittedBy.id !== user?.id && (
+                  <p className="text-xs text-slate-400">
+                    Registró: {payment.submittedBy.fullName}
+                  </p>
+                )}
               </div>
             </div>
             {payment.status === PaymentStatus.REJECTED && payment.rejectReason && (
@@ -89,6 +108,11 @@ export function PaymentHistoryTable({ payments, loading }: PaymentHistoryTablePr
                   <div className="text-xs text-slate-400">
                     {formatDate(payment.paymentDate)}
                   </div>
+                  {showUnit && payment.property && (
+                    <div className="text-xs font-medium text-brand-600">
+                      {payment.property.code}
+                    </div>
+                  )}
                 </td>
                 <td className="px-5 py-3.5">
                   <div className="font-semibold text-slate-700">
@@ -103,6 +127,11 @@ export function PaymentHistoryTable({ payments, loading }: PaymentHistoryTablePr
                 <td className="px-5 py-3.5">
                   <div className="text-slate-700">{payment.reference}</div>
                   <div className="text-xs text-slate-400">{payment.bank}</div>
+                  {payment.submittedBy && payment.submittedBy.id !== user?.id && (
+                    <div className="text-xs text-slate-400">
+                      Registró: {payment.submittedBy.fullName}
+                    </div>
+                  )}
                 </td>
                 <td className="px-5 py-3.5">
                   <StatusBadge status={payment.status} />

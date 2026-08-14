@@ -79,7 +79,7 @@ qué endpoints puede consumir (middleware de roles).
 | password_hash  | varchar        | bcrypt                                 |
 | full_name      | varchar        |                                        |
 | phone          | varchar null   |                                        |
-| role           | enum           | `ADMIN` \| `OWNER`                      |
+| role           | enum           | `ADMIN` \| `OWNER` \| `AUTHORIZED`      |
 | is_active      | boolean        | default true                           |
 | created_at     | timestamptz    |                                        |
 
@@ -90,11 +90,28 @@ copropietario (`owner_id`). El `aliquot_percentage` define su cuota relativa.
 | Campo               | Tipo         | Notas                              |
 |---------------------|--------------|------------------------------------|
 | id                  | uuid PK      |                                    |
-| owner_id            | uuid FK      | -> users.id                        |
+| owner_id            | uuid FK      | -> users.id (titular)              |
+| authorized_id       | uuid FK null | -> users.id (autorizado)           |
 | code                | varchar UQ   | identificador "Apt 4B"             |
 | tower               | varchar null | torre/bloque                       |
 | aliquot_percentage  | numeric(5,2) | % de la alícuota                   |
 | created_at          | timestamptz  |                                    |
+
+**Autorizado.** Persona habilitada para operar la unidad (ver estado de cuenta,
+registrar pagos, descargar recibos) sin ser necesariamente su titular. Puede ser
+el mismo `owner_id` — es válido y frecuente — o un usuario distinto, típicamente
+con rol `AUTHORIZED`. El ledger financiero (saldo a favor, cascada de excedentes)
+siempre se ancla al **titular**, aunque el pago lo registre el autorizado.
+
+En desarrollo `synchronize` crea la columna al arrancar. En producción
+(`DB_SYNCHRONIZE=false`) hay que aplicarla a mano:
+
+```sql
+ALTER TYPE users_role_enum ADD VALUE IF NOT EXISTS 'AUTHORIZED';
+ALTER TABLE properties
+  ADD COLUMN IF NOT EXISTS authorized_id uuid NULL
+  REFERENCES users(id) ON DELETE SET NULL;
+```
 
 ### `charges` (alícuota / deuda mensual)
 Cargo que el **administrador** emite cada mes por propiedad. Es la "deuda" que
