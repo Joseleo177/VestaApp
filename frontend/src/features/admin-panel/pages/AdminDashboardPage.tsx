@@ -24,30 +24,31 @@ interface KpiCardProps {
   loading?: boolean;
 }
 
-const COLOR_MAP: Record<KpiCardProps["color"], { bg: string; icon: string; value: string }> = {
-  slate:   { bg: "bg-slate-50",   icon: "bg-slate-100 text-slate-500",   value: "text-slate-800"  },
-  emerald: { bg: "bg-emerald-50", icon: "bg-emerald-100 text-emerald-600",value: "text-emerald-700"},
-  rose:    { bg: "bg-rose-50",    icon: "bg-rose-100 text-rose-600",      value: "text-rose-700"   },
-  amber:   { bg: "bg-amber-50",   icon: "bg-amber-100 text-amber-600",    value: "text-amber-700"  },
-  brand:   { bg: "bg-brand-50",   icon: "bg-brand-100 text-brand-700",    value: "text-brand-700"  },
+// Tarjetas blancas sobre el fondo agrupado: el color vive solo en el ícono y la cifra.
+const COLOR_MAP: Record<KpiCardProps["color"], { icon: string; value: string }> = {
+  slate:   { icon: "bg-ios-fill text-ios-secondary",      value: "text-ios-label"  },
+  emerald: { icon: "bg-ios-green/10 text-ios-green",      value: "text-ios-green"  },
+  rose:    { icon: "bg-ios-red/10 text-ios-red",          value: "text-ios-red"    },
+  amber:   { icon: "bg-ios-orange/10 text-ios-orange",    value: "text-ios-orange" },
+  brand:   { icon: "bg-brand-50 text-brand-600",          value: "text-brand-600"  },
 };
 
 function KpiCard({ icon, label, value, sub, color, loading }: KpiCardProps) {
   const c = COLOR_MAP[color];
   return (
-    <div className={cn("flex items-center gap-4 rounded-2xl p-5", c.bg)}>
+    <div className="flex items-center gap-4 rounded-2xl bg-ios-card p-5 shadow-ios">
       <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-xl", c.icon)}>
         {icon}
       </div>
       <div className="min-w-0">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-ios-secondary">{label}</p>
         {loading ? (
-          <div className="mt-1 h-6 w-16 animate-pulse rounded bg-slate-200" />
+          <div className="mt-1 h-6 w-16 animate-pulse rounded bg-ios-separator" />
         ) : (
           <p className={cn("text-2xl font-bold leading-tight", c.value)}>{value}</p>
         )}
         {sub && !loading && (
-          <p className="mt-0.5 text-xs text-slate-400 truncate">{sub}</p>
+          <p className="mt-0.5 text-xs text-ios-secondary truncate">{sub}</p>
         )}
       </div>
     </div>
@@ -77,8 +78,8 @@ export function AdminDashboardPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
-        <p className="text-sm text-slate-500">Resumen general del condominio</p>
+        <h1 className="text-[28px] font-bold leading-tight text-ios-label">Dashboard</h1>
+        <p className="text-sm text-ios-secondary">Resumen general del condominio</p>
       </div>
 
       {/* KPI Cards */}
@@ -127,7 +128,7 @@ export function AdminDashboardPage() {
       {/* Pagos por validar */}
       <section>
         <div className="mb-3 flex items-center gap-2">
-          <h2 className="text-lg font-semibold text-slate-800">Pagos por validar</h2>
+          <h2 className="text-lg font-semibold text-ios-label">Pagos por validar</h2>
           {pending.length > 0 && (
             <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-700">
               {pending.length}
@@ -143,7 +144,7 @@ export function AdminDashboardPage() {
 
       {/* Control de morosidad */}
       <section>
-        <h2 className="mb-3 text-lg font-semibold text-slate-800">Control de morosidad</h2>
+        <h2 className="mb-3 text-lg font-semibold text-ios-label">Control de morosidad</h2>
         <DelinquencyTable properties={properties} loading={loadingProps} />
       </section>
 

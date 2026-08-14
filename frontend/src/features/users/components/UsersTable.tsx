@@ -59,7 +59,7 @@ export function UsersTable({ users, loading, onEdit, onChanged }: UsersTableProp
     <Card className="overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+          <thead className="border-b border-ios-separator text-[11px] font-semibold uppercase tracking-wider text-ios-secondary">
             <tr>
               <th className="px-5 py-3 font-medium">Usuario</th>
               <th className="px-5 py-3 font-medium">Rol</th>
@@ -68,27 +68,27 @@ export function UsersTable({ users, loading, onEdit, onChanged }: UsersTableProp
               <th className="px-5 py-3 text-right font-medium">Acciones</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-ios-separator">
             {users.map((user) => (
-              <tr key={user.id} className="hover:bg-slate-50/60">
+              <tr key={user.id} className="hover:bg-ios-fill">
                 <td className="px-5 py-3.5">
-                  <div className="font-medium text-slate-800">{user.fullName}</div>
-                  <div className="text-xs text-slate-400">C.I. {user.cedula}</div>
+                  <div className="font-medium text-ios-label">{user.fullName}</div>
+                  <div className="text-xs text-ios-secondary">C.I. {user.cedula}</div>
                 </td>
-                <td className="px-5 py-3.5 text-slate-600">{ROLE_LABELS[user.role]}</td>
+                <td className="px-5 py-3.5 text-ios-label">{ROLE_LABELS[user.role]}</td>
                 <td className="px-5 py-3.5">
                   <span
                     className={cn(
-                      "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset",
+                      "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium",
                       user.isActive
-                        ? "bg-emerald-50 text-emerald-700 ring-emerald-600/20"
-                        : "bg-slate-100 text-slate-500 ring-slate-400/20"
+                        ? "bg-ios-green/10 text-ios-green"
+                        : "bg-ios-fill text-ios-secondary"
                     )}
                   >
                     {user.isActive ? "Activo" : "Inactivo"}
                   </span>
                 </td>
-                <td className="px-5 py-3.5 text-slate-500">
+                <td className="px-5 py-3.5 text-ios-secondary">
                   {user.createdAt ? formatDate(user.createdAt) : "—"}
                 </td>
                 <td className="px-5 py-3.5">

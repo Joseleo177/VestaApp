@@ -5,10 +5,11 @@ export function Skeleton({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-md bg-slate-200/70",
+        "relative overflow-hidden rounded-full bg-ios-separator",
         "after:absolute after:inset-0 after:-translate-x-full",
         "after:animate-shimmer after:bg-gradient-to-r",
-        "after:from-transparent after:via-white/60 after:to-transparent",
+        "after:from-transparent after:to-transparent",
+        "after:via-white/60 dark:after:via-white/10",
         className
       )}
     />
@@ -18,7 +19,7 @@ export function Skeleton({ className }: { className?: string }) {
 /** Skeleton para filas de tabla. */
 export function TableSkeleton({ rows = 5, cols = 5 }: { rows?: number; cols?: number }) {
   return (
-    <div className="divide-y divide-slate-100">
+    <div className="divide-y divide-ios-separator">
       {Array.from({ length: rows }).map((_, r) => (
         <div key={r} className="flex items-center gap-4 px-5 py-4">
           {Array.from({ length: cols }).map((_, c) => (

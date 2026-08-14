@@ -61,18 +61,18 @@ export function TowersTable({ towers, loading, onEdit, onDeleted }: TowersTableP
     <Card className="overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+          <thead className="border-b border-ios-separator text-[11px] font-semibold uppercase tracking-wider text-ios-secondary">
             <tr>
               <th className="px-5 py-3 font-medium">Torre / Bloque</th>
               <th className="px-5 py-3 font-medium">Descripción</th>
               <th className="px-5 py-3 text-right font-medium">Acciones</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-ios-separator">
             {towers.map((tower) => (
-              <tr key={tower.id} className="hover:bg-slate-50/60">
-                <td className="px-5 py-3.5 font-medium text-slate-800">{tower.name}</td>
-                <td className="px-5 py-3.5 text-slate-500">{tower.description ?? "—"}</td>
+              <tr key={tower.id} className="hover:bg-ios-fill">
+                <td className="px-5 py-3.5 font-medium text-ios-label">{tower.name}</td>
+                <td className="px-5 py-3.5 text-ios-secondary">{tower.description ?? "—"}</td>
                 <td className="px-5 py-3.5 text-right">
                   <div className="flex justify-end gap-2">
                     <Button size="sm" variant="outline" onClick={() => onEdit(tower)}>
@@ -83,7 +83,7 @@ export function TowersTable({ towers, loading, onEdit, onDeleted }: TowersTableP
                       variant="outline"
                       onClick={() => setDeleteTarget(tower)}
                       disabled={deletingId === tower.id}
-                      className="text-rose-600 hover:border-rose-300 hover:bg-rose-50"
+                      className="text-ios-red hover:border-ios-red/30 hover:bg-ios-red/10"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

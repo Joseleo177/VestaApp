@@ -44,7 +44,7 @@ export function FileDropzone({
 
   return (
     <div className="space-y-1.5">
-      <span className="block text-sm font-medium text-slate-700">Comprobante</span>
+      <span className="block text-sm font-medium text-ios-label">Comprobante</span>
 
       {!value ? (
         <label
@@ -59,15 +59,15 @@ export function FileDropzone({
             dragging
               ? "border-brand-500 bg-brand-50"
               : error
-              ? "border-rose-300 bg-rose-50/50"
-              : "border-slate-300 bg-slate-50 hover:border-brand-400 hover:bg-brand-50/40"
+              ? "border-ios-red/30 bg-ios-red/10"
+              : "border-ios-separator bg-ios-fill/50 hover:border-brand-500 hover:bg-brand-50/40"
           )}
         >
-          <UploadCloud className="h-8 w-8 text-slate-400" />
-          <span className="text-sm font-medium text-slate-600">
+          <UploadCloud className="h-8 w-8 text-ios-secondary" />
+          <span className="text-sm font-medium text-ios-label">
             Arrastra el comprobante o haz clic para subir
           </span>
-          <span className="text-xs text-slate-400">PNG, JPG o PDF · máx. 5MB</span>
+          <span className="text-xs text-ios-secondary">PNG, JPG o PDF · máx. 5MB</span>
           <input
             type="file"
             accept={accept}
@@ -76,7 +76,7 @@ export function FileDropzone({
           />
         </label>
       ) : (
-        <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="flex items-center gap-3 rounded-2xl bg-ios-fill p-3">
           {previewUrl ? (
             <img
               src={previewUrl}
@@ -84,20 +84,20 @@ export function FileDropzone({
               className="h-16 w-16 rounded-lg object-cover"
             />
           ) : (
-            <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+            <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-ios-fill text-ios-secondary">
               <FileText className="h-7 w-7" />
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-slate-700">{value.name}</p>
-            <p className="text-xs text-slate-400">
+            <p className="truncate text-sm font-medium text-ios-label">{value.name}</p>
+            <p className="text-xs text-ios-secondary">
               {(value.size / 1024 / 1024).toFixed(2)} MB
             </p>
           </div>
           <button
             type="button"
             onClick={() => onChange(undefined)}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-rose-600"
+            className="rounded-lg p-1.5 text-ios-secondary hover:bg-ios-fill hover:text-ios-red"
             aria-label="Quitar archivo"
           >
             <X className="h-4 w-4" />
@@ -105,7 +105,7 @@ export function FileDropzone({
         </div>
       )}
 
-      {error && <p className="text-xs font-medium text-rose-600">{error}</p>}
+      {error && <p className="text-xs font-medium text-ios-red">{error}</p>}
     </div>
   );
 }

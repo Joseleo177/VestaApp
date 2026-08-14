@@ -31,8 +31,8 @@ export function TowersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Torres</h1>
-          <p className="text-sm text-slate-500">
+          <h1 className="text-[28px] font-bold leading-tight text-ios-label">Torres</h1>
+          <p className="text-sm text-ios-secondary">
             Bloques o torres del condominio. Se usan para filtrar la emisión de cuotas.
           </p>
         </div>

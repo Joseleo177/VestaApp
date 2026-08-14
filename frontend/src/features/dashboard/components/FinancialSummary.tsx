@@ -52,25 +52,25 @@ export function FinancialSummary({ statement, lastConfirmed, loading, creditBala
     <div className={`grid grid-cols-1 gap-4 ${cols}`}>
       {/* Monto pendiente */}
       <Card className="p-5">
-        <div className="flex items-center gap-2 text-sm font-medium text-slate-500">
+        <div className="flex items-center gap-2 text-sm font-medium text-ios-secondary">
           <Wallet className="h-4 w-4" /> Monto pendiente
         </div>
         <p
           className={cn(
             "mt-2 text-3xl font-bold",
-            balance > 0 ? "text-slate-800" : "text-emerald-600"
+            balance > 0 ? "text-ios-label" : "text-ios-green"
           )}
         >
           {formatCurrency(balance)}
         </p>
-        <p className="mt-1 text-xs text-slate-400">
+        <p className="mt-1 text-xs text-ios-secondary">
           {balance > 0
             ? (
               <span className="space-y-0.5 flex flex-col">
                 {rate && <span>≈ {formatBs(balance, rate.rate)}</span>}
                 <span>
                   {pendingCount} cuota{pendingCount !== 1 ? "s" : ""} pendiente{pendingCount !== 1 ? "s" : ""}
-                  {hasOverdue && <span className="ml-1 text-rose-500 font-medium">· incluye mora</span>}
+                  {hasOverdue && <span className="ml-1 text-ios-red font-medium">· incluye mora</span>}
                 </span>
               </span>
             )
@@ -80,19 +80,19 @@ export function FinancialSummary({ statement, lastConfirmed, loading, creditBala
 
       {/* Fecha límite */}
       <Card className="p-5">
-        <div className="flex items-center gap-2 text-sm font-medium text-slate-500">
+        <div className="flex items-center gap-2 text-sm font-medium text-ios-secondary">
           <CalendarClock className="h-4 w-4" /> Fecha límite
         </div>
-        <p className="mt-2 text-3xl font-bold text-slate-800">
+        <p className="mt-2 text-3xl font-bold text-ios-label">
           {due ? formatDate(due.dueDate) : "—"}
         </p>
         {due && (
           <span
             className={cn(
-              "mt-2 inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset",
+              "mt-2 inline-flex rounded-full px-2 py-0.5 text-xs font-medium",
               overdue
-                ? "bg-rose-50 text-rose-700 ring-rose-600/20"
-                : "bg-slate-100 text-slate-600 ring-slate-500/20"
+                ? "bg-ios-red/10 text-ios-red"
+                : "bg-ios-fill text-ios-label"
             )}
           >
             {overdue ? "Vencido" : "Al día"}
@@ -102,27 +102,27 @@ export function FinancialSummary({ statement, lastConfirmed, loading, creditBala
 
       {/* Último pago confirmado */}
       <Card className="p-5">
-        <div className="flex items-center gap-2 text-sm font-medium text-slate-500">
+        <div className="flex items-center gap-2 text-sm font-medium text-ios-secondary">
           <CheckCircle2 className="h-4 w-4" /> Último pago confirmado
         </div>
-        <p className="mt-2 text-3xl font-bold text-emerald-600">
+        <p className="mt-2 text-3xl font-bold text-ios-green">
           {lastConfirmed ? formatCurrency(lastConfirmed.amount) : "—"}
         </p>
-        <p className="mt-1 text-xs text-slate-400">
+        <p className="mt-1 text-xs text-ios-secondary">
           {lastConfirmed ? formatDate(lastConfirmed.paymentDate) : "Sin pagos confirmados"}
         </p>
       </Card>
 
       {/* Saldo a favor — solo visible si hay crédito */}
       {creditBalance > 0 && (
-        <Card className="p-5 border-violet-200 bg-violet-50/40">
-          <div className="flex items-center gap-2 text-sm font-medium text-violet-600">
+        <Card className="p-5 bg-ios-purple/10">
+          <div className="flex items-center gap-2 text-sm font-medium text-ios-purple">
             <PiggyBank className="h-4 w-4" /> Saldo a favor
           </div>
-          <p className="mt-2 text-3xl font-bold text-violet-700">
+          <p className="mt-2 text-3xl font-bold text-ios-purple">
             {formatCurrency(creditBalance)}
           </p>
-          <p className="mt-1 text-xs text-violet-400">
+          <p className="mt-1 text-xs text-ios-purple">
             Se aplicará automáticamente a tu próxima cuota
           </p>
         </Card>

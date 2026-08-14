@@ -5,6 +5,20 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>VestaApp — Gestión de Condominio</title>
+    <script>
+      // Aplica el tema antes del primer pintado para evitar el destello blanco.
+      (function () {
+        try {
+          var stored = localStorage.getItem("vesta.theme");
+          var dark =
+            stored === "dark" ||
+            (!stored && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          if (dark) document.documentElement.classList.add("dark");
+        } catch (e) {
+          /* localStorage bloqueado: se queda en modo día */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

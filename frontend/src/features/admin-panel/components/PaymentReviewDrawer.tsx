@@ -28,12 +28,12 @@ function InfoRow({
   highlight?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-3 py-2.5 border-b border-slate-100 last:border-0">
-      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100">
-        <Icon className="h-3.5 w-3.5 text-slate-500" />
+    <div className="flex items-center gap-3 py-2.5 border-b border-ios-separator last:border-0">
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-ios-fill">
+        <Icon className="h-3.5 w-3.5 text-ios-secondary" />
       </div>
-      <span className="flex-1 text-sm text-slate-500">{label}</span>
-      <span className={cn("text-sm font-semibold text-right", highlight ? "text-indigo-700" : "text-slate-800")}>
+      <span className="flex-1 text-sm text-ios-secondary">{label}</span>
+      <span className={cn("text-sm font-semibold text-right", highlight ? "text-indigo-700" : "text-ios-label")}>
         {value}
       </span>
     </div>
@@ -92,13 +92,13 @@ export function PaymentReviewDrawer({ payment, open, onClose, onResolved }: Paym
       <div className="space-y-5">
 
         {/* Cabecera propietario */}
-        <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-4">
+        <div className="flex items-center gap-3 rounded-2xl bg-ios-fill p-4">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-700">
             {initials}
           </div>
           <div>
-            <p className="font-semibold text-slate-800">{payment.submittedBy.fullName}</p>
-            <p className="text-xs text-slate-500">
+            <p className="font-semibold text-ios-label">{payment.submittedBy.fullName}</p>
+            <p className="text-xs text-ios-secondary">
               {payment.property.code}
               {payment.property.tower ? ` · ${payment.property.tower.name}` : ""}
             </p>
@@ -106,7 +106,7 @@ export function PaymentReviewDrawer({ payment, open, onClose, onResolved }: Paym
         </div>
 
         {/* Detalle del pago */}
-        <div className="rounded-xl border border-slate-200 px-4">
+        <div className="rounded-xl border border-ios-separator px-4">
           {payment.charge?.period && (
             <InfoRow icon={Calendar} label="Período" value={formatPeriod(payment.charge.period)} />
           )}
@@ -140,13 +140,13 @@ export function PaymentReviewDrawer({ payment, open, onClose, onResolved }: Paym
         {/* Motivo de rechazo */}
         {rejecting && (
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-600">Motivo del rechazo</label>
+            <label className="text-xs font-medium text-ios-label">Motivo del rechazo</label>
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Describe el motivo del rechazo…"
               rows={3}
-              className="w-full rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-sm placeholder-rose-300 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-100"
+              className="w-full rounded-xl border-0 bg-ios-red/10 px-3.5 py-2.5 text-[15px] placeholder:text-ios-red/50 focus:outline-none focus:ring-2 focus:ring-ios-red/60"
             />
           </div>
         )}

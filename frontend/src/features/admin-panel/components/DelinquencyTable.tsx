@@ -40,8 +40,8 @@ export function DelinquencyTable({ properties, loading }: DelinquencyTableProps)
 
   return (
     <Card className="overflow-hidden">
-      <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="inline-flex rounded-lg bg-slate-100 p-1">
+      <div className="flex flex-col gap-3 border-b border-ios-separator px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="inline-flex rounded-lg bg-ios-fill p-1">
           {FILTERS.map((f) => (
             <button
               key={f.value}
@@ -49,8 +49,8 @@ export function DelinquencyTable({ properties, loading }: DelinquencyTableProps)
               className={cn(
                 "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
                 filter === f.value
-                  ? "bg-white text-slate-800 shadow-sm"
-                  : "text-slate-500 hover:text-slate-700"
+                  ? "bg-ios-card text-ios-label shadow-ios"
+                  : "text-ios-secondary hover:text-ios-label"
               )}
             >
               {f.label}
@@ -58,7 +58,7 @@ export function DelinquencyTable({ properties, loading }: DelinquencyTableProps)
           ))}
         </div>
         <div className="relative sm:w-72">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ios-secondary" />
           <Input
             placeholder="Buscar por apto o propietario…"
             value={search}
@@ -79,22 +79,22 @@ export function DelinquencyTable({ properties, loading }: DelinquencyTableProps)
       ) : (
         <>
           {/* Vista móvil: tarjetas */}
-          <div className="sm:hidden divide-y divide-slate-100">
+          <div className="sm:hidden divide-y divide-ios-separator">
             {filtered.map((p) => (
               <div key={p.id} className="flex items-center justify-between gap-3 px-4 py-3.5">
                 <div className="min-w-0">
-                  <p className="font-semibold text-slate-800">{p.code}</p>
-                  {p.tower && <p className="text-xs text-slate-400">{p.tower.name}</p>}
-                  <p className="text-sm text-slate-500 truncate">{p.owner?.fullName ?? "—"}</p>
+                  <p className="font-semibold text-ios-label">{p.code}</p>
+                  {p.tower && <p className="text-xs text-ios-secondary">{p.tower.name}</p>}
+                  <p className="text-sm text-ios-secondary truncate">{p.owner?.fullName ?? "—"}</p>
                 </div>
                 <div className="shrink-0 text-right">
-                  <p className="font-bold text-slate-700">{formatCurrency(p.balance)}</p>
+                  <p className="font-bold text-ios-label">{formatCurrency(p.balance)}</p>
                   <span
                     className={cn(
-                      "mt-1 inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset",
+                      "mt-1 inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium",
                       p.balance > 0
-                        ? "bg-rose-50 text-rose-700 ring-rose-600/20"
-                        : "bg-emerald-50 text-emerald-700 ring-emerald-600/20"
+                        ? "bg-ios-red/10 text-ios-red"
+                        : "bg-ios-green/10 text-ios-green"
                     )}
                   >
                     {p.balance > 0 ? "Moroso" : "Al día"}
@@ -107,7 +107,7 @@ export function DelinquencyTable({ properties, loading }: DelinquencyTableProps)
           {/* Vista desktop: tabla */}
           <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+              <thead className="border-b border-ios-separator text-[11px] font-semibold uppercase tracking-wider text-ios-secondary">
                 <tr>
                   <th className="px-5 py-3 font-medium">Propiedad</th>
                   <th className="px-5 py-3 font-medium">Propietario</th>
@@ -115,24 +115,24 @@ export function DelinquencyTable({ properties, loading }: DelinquencyTableProps)
                   <th className="px-5 py-3 text-right font-medium">Estado</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-ios-separator">
                 {filtered.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50/60">
+                  <tr key={p.id} className="hover:bg-ios-fill">
                     <td className="px-5 py-3.5">
-                      <div className="font-medium text-slate-800">{p.code}</div>
-                      {p.tower && <div className="text-xs text-slate-400">{p.tower.name}</div>}
+                      <div className="font-medium text-ios-label">{p.code}</div>
+                      {p.tower && <div className="text-xs text-ios-secondary">{p.tower.name}</div>}
                     </td>
-                    <td className="px-5 py-3.5 text-slate-600">{p.owner?.fullName ?? "—"}</td>
-                    <td className="px-5 py-3.5 font-semibold text-slate-700">
+                    <td className="px-5 py-3.5 text-ios-label">{p.owner?.fullName ?? "—"}</td>
+                    <td className="px-5 py-3.5 font-semibold text-ios-label">
                       {formatCurrency(p.balance)}
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <span
                         className={cn(
-                          "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset",
+                          "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium",
                           p.balance > 0
-                            ? "bg-rose-50 text-rose-700 ring-rose-600/20"
-                            : "bg-emerald-50 text-emerald-700 ring-emerald-600/20"
+                            ? "bg-ios-red/10 text-ios-red"
+                            : "bg-ios-green/10 text-ios-green"
                         )}
                       >
                         {p.balance > 0 ? "Moroso" : "Al día"}

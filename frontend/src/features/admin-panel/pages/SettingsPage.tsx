@@ -50,12 +50,12 @@ export function SettingsPage() {
   return (
     <div className="max-w-lg space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">Ajustes</h1>
-        <p className="text-sm text-slate-500">Configuración general de la aplicación</p>
+        <h1 className="text-[28px] font-bold leading-tight text-ios-label">Ajustes</h1>
+        <p className="text-sm text-ios-secondary">Configuración general de la aplicación</p>
       </div>
 
       <Card className="p-6 space-y-5">
-        <h2 className="font-semibold text-slate-700">Recibos</h2>
+        <h2 className="font-semibold text-ios-label">Recibos</h2>
         <Input
           id="receipt_prefix"
           label="Prefijo"
@@ -74,14 +74,14 @@ export function SettingsPage() {
           value={values.receipt_counter}
           onChange={set("receipt_counter")}
         />
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-ios-secondary">
           El próximo recibo será <strong>{values.receipt_prefix || "RC"}-{String(Number(values.receipt_counter || 0) + 1).padStart(8, "0")}</strong>.
           Cambia el contador si ya tienes recibos emitidos fuera del sistema.
         </p>
       </Card>
 
       <Card className="p-6 space-y-5">
-        <h2 className="font-semibold text-slate-700">Datos del condominio</h2>
+        <h2 className="font-semibold text-ios-label">Datos del condominio</h2>
         <Input
           id="condo_name"
           label="Nombre del condominio"
@@ -119,8 +119,8 @@ export function SettingsPage() {
       </Card>
 
       <Card className="p-6 space-y-5">
-        <h2 className="font-semibold text-slate-700">Cuenta bancaria para recaudación</h2>
-        <p className="text-xs text-slate-400 -mt-2">Se muestra a los propietarios en el formulario de pago.</p>
+        <h2 className="font-semibold text-ios-label">Cuenta bancaria para recaudación</h2>
+        <p className="text-xs text-ios-secondary -mt-2">Se muestra a los propietarios en el formulario de pago.</p>
         <Input
           id="bank_name"
           label="Banco"

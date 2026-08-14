@@ -9,9 +9,9 @@ import { TopBar } from "./topbar/TopBar";
 export function AppLayout({ children }: { children: ReactNode }) {
   return (
     <ExchangeRateProvider>
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-ios-bg">
         <TopBar />
-        <main className="mx-auto max-w-6xl px-4 py-4 sm:px-6 sm:py-8">{children}</main>
+        <main className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-8">{children}</main>
       </div>
     </ExchangeRateProvider>
   );

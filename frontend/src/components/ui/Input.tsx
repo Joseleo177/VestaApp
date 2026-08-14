@@ -6,8 +6,18 @@ interface FieldProps {
   error?: string;
 }
 
+/** Campo iOS: relleno gris sin borde, esquinas amplias y altura táctil de 44 pt. */
 const baseField =
-  "w-full rounded-lg border bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition-colors placeholder:text-slate-400 focus:outline-none focus:ring-2";
+  "h-11 w-full rounded-xl border-0 bg-ios-fill px-3.5 text-[15px] text-ios-label " +
+  "transition-shadow placeholder:text-ios-secondary focus:outline-none focus:ring-2";
+
+const fieldState = (error?: string) =>
+  error
+    ? "ring-1 ring-ios-red/50 focus:ring-ios-red"
+    : "focus:ring-brand-500/70";
+
+const labelClass = "block text-[13px] font-medium text-ios-secondary";
+const errorClass = "text-[13px] font-medium text-ios-red";
 
 export const Input = forwardRef<
   HTMLInputElement,
@@ -15,23 +25,17 @@ export const Input = forwardRef<
 >(({ label, error, className, id, ...props }, ref) => (
   <div className="space-y-1.5">
     {label && (
-      <label htmlFor={id} className="block text-sm font-medium text-slate-700">
+      <label htmlFor={id} className={labelClass}>
         {label}
       </label>
     )}
     <input
       ref={ref}
       id={id}
-      className={cn(
-        baseField,
-        error
-          ? "border-rose-400 focus:border-rose-500 focus:ring-rose-200"
-          : "border-slate-300 focus:border-brand-500 focus:ring-brand-100",
-        className
-      )}
+      className={cn(baseField, fieldState(error), className)}
       {...props}
     />
-    {error && <p className="text-xs font-medium text-rose-600">{error}</p>}
+    {error && <p className={errorClass}>{error}</p>}
   </div>
 ));
 Input.displayName = "Input";
@@ -42,25 +46,19 @@ export const Select = forwardRef<
 >(({ label, error, className, id, children, ...props }, ref) => (
   <div className="space-y-1.5">
     {label && (
-      <label htmlFor={id} className="block text-sm font-medium text-slate-700">
+      <label htmlFor={id} className={labelClass}>
         {label}
       </label>
     )}
     <select
       ref={ref}
       id={id}
-      className={cn(
-        baseField,
-        error
-          ? "border-rose-400 focus:border-rose-500 focus:ring-rose-200"
-          : "border-slate-300 focus:border-brand-500 focus:ring-brand-100",
-        className
-      )}
+      className={cn(baseField, fieldState(error), className)}
       {...props}
     >
       {children}
     </select>
-    {error && <p className="text-xs font-medium text-rose-600">{error}</p>}
+    {error && <p className={errorClass}>{error}</p>}
   </div>
 ));
 Select.displayName = "Select";

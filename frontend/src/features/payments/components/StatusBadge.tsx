@@ -3,9 +3,9 @@ import { PAYMENT_STATUS_META } from "../types";
 import { cn } from "@/lib/cn";
 
 const tones: Record<string, string> = {
-  warning: "bg-amber-50 text-amber-700 ring-amber-600/20",
-  success: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
-  danger: "bg-rose-50 text-rose-700 ring-rose-600/20",
+  warning: "bg-ios-orange/10 text-ios-orange",
+  success: "bg-ios-green/10 text-ios-green",
+  danger: "bg-ios-red/10 text-ios-red",
 };
 
 /** Badge de color por estado de pago: Amarillo / Verde / Rojo. */
@@ -14,15 +14,15 @@ export function StatusBadge({ status }: { status: PaymentStatus }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset",
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
         tones[meta.tone]
       )}
     >
       <span
         className={cn("h-1.5 w-1.5 rounded-full", {
-          "bg-amber-500": meta.tone === "warning",
-          "bg-emerald-500": meta.tone === "success",
-          "bg-rose-500": meta.tone === "danger",
+          "bg-ios-orange": meta.tone === "warning",
+          "bg-ios-green": meta.tone === "success",
+          "bg-ios-red": meta.tone === "danger",
         })}
       />
       {meta.label}

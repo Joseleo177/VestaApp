@@ -17,10 +17,10 @@ import { PaymentHistoryTable } from "@/features/payments/components/PaymentHisto
 import { PaymentForm } from "@/features/payments/components/PaymentForm";
 
 const STATUS_META: Record<ChargeStatus, { label: string; cls: string }> = {
-  [ChargeStatus.PENDING]:    { label: "Pendiente",  cls: "bg-amber-50 text-amber-700 ring-amber-600/20" },
-  [ChargeStatus.PAID]:       { label: "Pagada",     cls: "bg-emerald-50 text-emerald-700 ring-emerald-600/20" },
-  [ChargeStatus.EXONERATED]: { label: "Exonerada",  cls: "bg-slate-100 text-slate-500 ring-slate-400/20" },
-  [ChargeStatus.PARTIAL]:    { label: "Parcial",    cls: "bg-orange-50 text-orange-700 ring-orange-600/20" },
+  [ChargeStatus.PENDING]:    { label: "Pendiente",  cls: "bg-ios-orange/10 text-ios-orange" },
+  [ChargeStatus.PAID]:       { label: "Pagada",     cls: "bg-ios-green/10 text-ios-green" },
+  [ChargeStatus.EXONERATED]: { label: "Exonerada",  cls: "bg-ios-fill text-ios-secondary" },
+  [ChargeStatus.PARTIAL]:    { label: "Parcial",    cls: "bg-ios-orange/10 text-ios-orange" },
 };
 
 interface ChargesTableProps {
@@ -69,7 +69,7 @@ function ChargesTable({ charges, loading, onPay }: ChargesTableProps) {
   return (
     <Card className="overflow-hidden">
       {/* Vista móvil: tarjetas */}
-      <div className="sm:hidden divide-y divide-slate-100">
+      <div className="sm:hidden divide-y divide-ios-separator">
         {sorted.map((c) => {
           const overdue   = c.status === ChargeStatus.PENDING && isOverdue(c.dueDate);
           const isPartial = c.status === ChargeStatus.PARTIAL;
@@ -82,9 +82,9 @@ function ChargesTable({ charges, loading, onPay }: ChargesTableProps) {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-slate-800">{formatPeriod(c.period)}</span>
+                    <span className="font-semibold text-ios-label">{formatPeriod(c.period)}</span>
                     {c.type === ChargeType.SPECIAL && (
-                      <span className="inline-flex rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-600 ring-1 ring-inset ring-violet-500/20">
+                      <span className="inline-flex rounded-full bg-ios-purple/10 px-2 py-0.5 text-xs font-medium text-ios-purple">
                         Especial
                       </span>
                     )}
@@ -95,12 +95,12 @@ function ChargesTable({ charges, loading, onPay }: ChargesTableProps) {
                     </p>
                   )}
                   {c.description && (
-                    <p className="mt-0.5 text-xs text-slate-400 truncate">{c.description}</p>
+                    <p className="mt-0.5 text-xs text-ios-secondary truncate">{c.description}</p>
                   )}
                 </div>
                 <span
                   className={cn(
-                    "shrink-0 inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset",
+                    "shrink-0 inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium",
                     STATUS_META[c.status].cls
                   )}
                 >
@@ -110,14 +110,14 @@ function ChargesTable({ charges, loading, onPay }: ChargesTableProps) {
 
               <div className="mt-3 flex items-end justify-between gap-3">
                 <div>
-                  <p className="text-lg font-bold text-slate-800">{amount}</p>
-                  {overdue && <p className="text-xs text-rose-500">mora incluida</p>}
+                  <p className="text-lg font-bold text-ios-label">{amount}</p>
+                  {overdue && <p className="text-xs text-ios-red">mora incluida</p>}
                   {isPartial && (c.amountPaid ?? 0) > 0 && (
-                    <p className="text-xs text-orange-500">pagado: {formatCurrency(c.amountPaid ?? 0)}</p>
+                    <p className="text-xs text-ios-orange">pagado: {formatCurrency(c.amountPaid ?? 0)}</p>
                   )}
-                  <p className="text-xs text-slate-400">Vence {formatDate(c.dueDate)}</p>
+                  <p className="text-xs text-ios-secondary">Vence {formatDate(c.dueDate)}</p>
                   {c.confirmedPayment && (
-                    <p className="mt-0.5 font-mono text-xs text-slate-400">
+                    <p className="mt-0.5 font-mono text-xs text-ios-secondary">
                       {c.confirmedPayment.reference} · {c.confirmedPayment.bank}
                     </p>
                   )}
@@ -149,7 +149,7 @@ function ChargesTable({ charges, loading, onPay }: ChargesTableProps) {
       {/* Vista desktop: tabla */}
       <div className="hidden sm:block overflow-x-auto">
         <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+          <thead className="border-b border-ios-separator text-[11px] font-semibold uppercase tracking-wider text-ios-secondary">
             <tr>
               <th className="px-5 py-3 font-medium">Período</th>
               <th className="px-5 py-3 font-medium">Concepto</th>
@@ -159,52 +159,52 @@ function ChargesTable({ charges, loading, onPay }: ChargesTableProps) {
               <th className="px-5 py-3" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-ios-separator">
             {sorted.map((c) => {
               const overdue  = c.status === ChargeStatus.PENDING && isOverdue(c.dueDate);
               const isPartial = c.status === ChargeStatus.PARTIAL;
               const canPay   = c.status === ChargeStatus.PENDING || isPartial;
               return (
-                <tr key={c.id} className="hover:bg-slate-50/60">
+                <tr key={c.id} className="hover:bg-ios-fill">
                   <td className="px-5 py-3.5">
-                    <div className="font-medium text-slate-800">{formatPeriod(c.period)}</div>
+                    <div className="font-medium text-ios-label">{formatPeriod(c.period)}</div>
                     {showUnit && c.property && (
                       <div className="text-xs font-medium text-brand-600">{c.property.code}</div>
                     )}
                     {c.type === ChargeType.SPECIAL && (
-                      <span className="inline-flex rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-600 ring-1 ring-inset ring-violet-500/20">
+                      <span className="inline-flex rounded-full bg-ios-purple/10 px-2 py-0.5 text-xs font-medium text-ios-purple">
                         Especial
                       </span>
                     )}
                   </td>
-                  <td className="px-5 py-3.5 text-xs text-slate-500 max-w-[180px] truncate">
+                  <td className="px-5 py-3.5 text-xs text-ios-secondary max-w-[180px] truncate">
                     {c.description || "—"}
                   </td>
-                  <td className="px-5 py-3.5 font-semibold text-slate-700">
+                  <td className="px-5 py-3.5 font-semibold text-ios-label">
                     {c.status === ChargeStatus.PAID
                       ? formatCurrency(c.amountPaid ?? c.amount)
                       : formatCurrency(c.amountDue ?? c.amount)}
                     {overdue && (
-                      <div className="text-xs font-normal text-rose-500">mora incluida</div>
+                      <div className="text-xs font-normal text-ios-red">mora incluida</div>
                     )}
                     {isPartial && (c.amountPaid ?? 0) > 0 && (
-                      <div className="text-xs font-normal text-orange-500">
+                      <div className="text-xs font-normal text-ios-orange">
                         pagado: {formatCurrency(c.amountPaid ?? 0)}
                       </div>
                     )}
                   </td>
-                  <td className="px-5 py-3.5 text-xs text-slate-500">{formatDate(c.dueDate)}</td>
+                  <td className="px-5 py-3.5 text-xs text-ios-secondary">{formatDate(c.dueDate)}</td>
                   <td className="px-5 py-3.5">
                     <span
                       className={cn(
-                        "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset",
+                        "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium",
                         STATUS_META[c.status].cls
                       )}
                     >
                       {STATUS_META[c.status].label}
                     </span>
                     {c.confirmedPayment && (
-                      <div className="mt-1 font-mono text-xs text-slate-400">
+                      <div className="mt-1 font-mono text-xs text-ios-secondary">
                         {c.confirmedPayment.reference} · {c.confirmedPayment.bank}
                         <br />{formatDate(c.confirmedPayment.paymentDate)}
                       </div>
@@ -268,8 +268,8 @@ export function OwnerDashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">Mi estado de cuenta</h1>
-        <p className="text-sm text-slate-500">Resumen financiero e historial de pagos</p>
+        <h1 className="text-[28px] font-bold leading-tight text-ios-label">Mi estado de cuenta</h1>
+        <p className="text-sm text-ios-secondary">Resumen financiero e historial de pagos</p>
       </div>
 
       <FinancialSummary
@@ -280,7 +280,7 @@ export function OwnerDashboardPage() {
       />
 
       <div>
-        <h2 className="mb-3 text-lg font-semibold text-slate-800">Mis cuotas</h2>
+        <h2 className="mb-3 text-lg font-semibold text-ios-label">Mis cuotas</h2>
         <ChargesTable
           charges={statement?.charges ?? []}
           loading={loadingStatement}
@@ -289,7 +289,7 @@ export function OwnerDashboardPage() {
       </div>
 
       <div>
-        <h2 className="mb-3 text-lg font-semibold text-slate-800">Historial de pagos</h2>
+        <h2 className="mb-3 text-lg font-semibold text-ios-label">Historial de pagos</h2>
         <PaymentHistoryTable payments={payments} loading={loadingPayments} />
       </div>
 
@@ -306,7 +306,7 @@ export function OwnerDashboardPage() {
             onCancel={() => setPayCharge(null)}
           />
         ) : (
-          <p className="py-4 text-center text-sm text-slate-500">
+          <p className="py-4 text-center text-sm text-ios-secondary">
             No tienes cuotas pendientes por pagar.
           </p>
         )}

@@ -32,19 +32,19 @@ export function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-ios-bg px-4">
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center text-center">
           <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600 text-white">
             <Flame className="h-6 w-6" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-800">VestaApp</h1>
-          <p className="text-sm text-slate-500">Gestión y pagos de cuotas</p>
+          <h1 className="text-[28px] font-bold leading-tight text-ios-label">VestaApp</h1>
+          <p className="text-sm text-ios-secondary">Gestión y pagos de cuotas</p>
         </div>
 
         <form
           onSubmit={handleSubmit(onSubmit)}
-          className="space-y-5 rounded-2xl border border-slate-200 bg-white px-6 py-7 shadow-sm sm:p-8"
+          className="space-y-5 rounded-3xl bg-ios-card px-6 py-7 shadow-ios-md sm:p-8"
         >
           <Input
             id="cedula"

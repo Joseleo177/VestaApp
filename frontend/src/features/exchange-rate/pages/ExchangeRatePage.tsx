@@ -78,8 +78,8 @@ export function ExchangeRatePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">Tasa de cambio</h1>
-        <p className="text-sm text-slate-500">
+        <h1 className="text-[28px] font-bold leading-tight text-ios-label">Tasa de cambio</h1>
+        <p className="text-sm text-ios-secondary">
           La tasa del día se guarda en la base de datos y se usa al registrar pagos en Bs.
         </p>
       </div>
@@ -90,14 +90,14 @@ export function ExchangeRatePage() {
           <CardBody>
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                <p className="text-xs font-medium uppercase tracking-wide text-ios-secondary">
                   Tasa activa hoy
                 </p>
-                <p className="mt-1 text-3xl font-bold text-slate-900">
+                <p className="mt-1 text-3xl font-bold text-ios-label">
                   {current ? `Bs. ${formatRate(current.rate)}` : "—"}
                 </p>
                 {current && (
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-ios-secondary">
                     Fuente: {current.source} · {todayRecord ? "guardada en DB" : "en caché"}
                   </p>
                 )}
@@ -112,7 +112,7 @@ export function ExchangeRatePage() {
         {/* Acciones */}
         <Card>
           <CardHeader>
-            <p className="text-sm font-semibold text-slate-700">Registrar tasa</p>
+            <p className="text-sm font-semibold text-ios-label">Registrar tasa</p>
           </CardHeader>
           <CardBody className="space-y-3">
             <Button
@@ -159,18 +159,18 @@ export function ExchangeRatePage() {
 
       {/* Historial */}
       <div>
-        <h2 className="mb-3 text-lg font-semibold text-slate-800">Historial de tasas</h2>
+        <h2 className="mb-3 text-lg font-semibold text-ios-label">Historial de tasas</h2>
         <Card className="overflow-hidden">
           {loadingHistory ? (
             <TableSkeleton rows={5} cols={4} />
           ) : history.length === 0 ? (
             <CardBody>
-              <p className="text-sm text-slate-400">Aún no hay tasas guardadas.</p>
+              <p className="text-sm text-ios-secondary">Aún no hay tasas guardadas.</p>
             </CardBody>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <thead className="border-b border-ios-separator text-[11px] font-semibold uppercase tracking-wider text-ios-secondary">
                   <tr>
                     <th className="px-5 py-3 font-medium">Fecha</th>
                     <th className="px-5 py-3 font-medium">Tasa (Bs/EUR)</th>
@@ -178,34 +178,34 @@ export function ExchangeRatePage() {
                     <th className="px-5 py-3 font-medium">Actualizado</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-ios-separator">
                   {history.map((r) => {
                     const isToday = r.date === todayStr;
                     return (
                       <tr key={r.id} className={isToday ? "bg-brand-50/40" : ""}>
                         <td className="px-5 py-3.5">
-                          <span className="font-medium text-slate-800">{formatDate(r.date)}</span>
+                          <span className="font-medium text-ios-label">{formatDate(r.date)}</span>
                           {isToday && (
                             <span className="ml-2 inline-flex rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-700">
                               Hoy
                             </span>
                           )}
                         </td>
-                        <td className="px-5 py-3.5 font-semibold text-slate-700">
+                        <td className="px-5 py-3.5 font-semibold text-ios-label">
                           {formatRate(r.rate)}
                         </td>
                         <td className="px-5 py-3.5">
                           <span
                             className={
                               r.source === "MANUAL"
-                                ? "inline-flex rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700 ring-1 ring-inset ring-violet-500/20"
-                                : "inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-500/20"
+                                ? "inline-flex rounded-full bg-ios-purple/10 px-2 py-0.5 text-xs font-medium text-ios-purple"
+                                : "inline-flex rounded-full bg-ios-green/10 px-2 py-0.5 text-xs font-medium text-ios-green"
                             }
                           >
                             {r.source}
                           </span>
                         </td>
-                        <td className="px-5 py-3.5 text-slate-500">
+                        <td className="px-5 py-3.5 text-ios-secondary">
                           {formatDate(r.updatedAt)}
                         </td>
                       </tr>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Download, Loader2, Receipt, Trash2 } from "lucide-react";
+import { Loader2, Receipt, Trash2 } from "lucide-react";
 import { Payment, PaymentStatus } from "@/types/domain";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -84,30 +84,16 @@ export function AllPaymentsPage() {
     }
   };
 
-  const handleDownload = async (payment: Payment) => {
-    const firstReceipt = payment.receipts?.[0];
-    if (!firstReceipt) return;
-    setBusyId(payment.id);
-    try {
-      await paymentService.downloadReceipt(payment.id, firstReceipt.receiptNumber);
-      toast.success("Recibo descargado");
-    } catch {
-      toast.error("No se pudo descargar el recibo");
-    } finally {
-      setBusyId(null);
-    }
-  };
-
   return (
     <>
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">Pagos</h1>
-        <p className="text-sm text-slate-500">Historial completo de pagos registrados por copropietarios</p>
+        <h1 className="text-[28px] font-bold leading-tight text-ios-label">Pagos</h1>
+        <p className="text-sm text-ios-secondary">Historial completo de pagos registrados por copropietarios</p>
       </div>
 
       {/* Tabs de filtro */}
-      <div className="flex gap-1 border-b border-slate-200">
+      <div className="flex gap-1 border-b border-ios-separator">
         {TABS.map((t) => (
           <button
             key={t.value}
@@ -116,7 +102,7 @@ export function AllPaymentsPage() {
               "border-b-2 px-4 py-2 text-sm font-medium transition-colors",
               tab === t.value
                 ? "border-brand-600 text-brand-700"
-                : "border-transparent text-slate-500 hover:text-slate-700"
+                : "border-transparent text-ios-secondary hover:text-ios-label"
             )}
           >
             {t.label}
@@ -140,7 +126,7 @@ export function AllPaymentsPage() {
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+              <thead className="border-b border-ios-separator text-[11px] font-semibold uppercase tracking-wider text-ios-secondary">
                 <tr>
                   <th className="px-5 py-3 font-medium">Copropietario</th>
                   <th className="px-5 py-3 font-medium">Período / Depa</th>
@@ -151,48 +137,39 @@ export function AllPaymentsPage() {
                   <th className="px-5 py-3 text-right font-medium">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-ios-separator">
                 {payments.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50/60">
+                  <tr key={p.id} className="hover:bg-ios-fill">
                     <td className="px-5 py-3.5">
-                      <div className="font-medium text-slate-800">{p.submittedBy?.fullName ?? "—"}</div>
-                      <div className="text-xs text-slate-400">C.I. {p.submittedBy?.cedula ?? "—"}</div>
+                      <div className="font-medium text-ios-label">{p.submittedBy?.fullName ?? "—"}</div>
+                      <div className="text-xs text-ios-secondary">C.I. {p.submittedBy?.cedula ?? "—"}</div>
                     </td>
                     <td className="px-5 py-3.5">
-                      <div className="font-medium text-slate-700">
+                      <div className="font-medium text-ios-label">
                         {p.charge ? formatPeriod(p.charge.period) : "—"}
                       </div>
-                      <div className="text-xs text-slate-400">{p.property?.code ?? "—"}</div>
+                      <div className="text-xs text-ios-secondary">{p.property?.code ?? "—"}</div>
                     </td>
                     <td className="px-5 py-3.5">
-                      <div className="font-semibold text-slate-700">{formatCurrency(p.amount)}</div>
+                      <div className="font-semibold text-ios-label">{formatCurrency(p.amount)}</div>
                       {p.amountBs && (
-                        <div className="text-xs text-slate-400">Bs. {Number(p.amountBs).toLocaleString("es-VE")}</div>
+                        <div className="text-xs text-ios-secondary">Bs. {Number(p.amountBs).toLocaleString("es-VE")}</div>
                       )}
                     </td>
                     <td className="px-5 py-3.5">
-                      <div className="font-mono text-xs text-slate-700">{p.reference}</div>
-                      <div className="text-xs text-slate-400">{p.bank}</div>
+                      <div className="font-mono text-xs text-ios-label">{p.reference}</div>
+                      <div className="text-xs text-ios-secondary">{p.bank}</div>
                     </td>
-                    <td className="px-5 py-3.5 text-xs text-slate-500">{formatDate(p.paymentDate)}</td>
+                    <td className="px-5 py-3.5 text-xs text-ios-secondary">{formatDate(p.paymentDate)}</td>
                     <td className="px-5 py-3.5">
                       <StatusBadge status={p.status} />
                       {p.status === PaymentStatus.REJECTED && p.rejectReason && (
-                        <div className="mt-1 text-xs text-rose-500">{p.rejectReason}</div>
+                        <div className="mt-1 text-xs text-ios-red">{p.rejectReason}</div>
                       )}
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex justify-end gap-1.5">
-                        {p.status === PaymentStatus.CONFIRMED && p.receipts?.[0] ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleDownload(p)}
-                            disabled={busyId === p.id}
-                          >
-                            {busyId === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                          </Button>
-                        ) : p.status === PaymentStatus.PENDING ? (
+                        {p.status === PaymentStatus.PENDING ? (
                           <>
                             <Button
                               size="sm"
@@ -218,7 +195,7 @@ export function AllPaymentsPage() {
                           onClick={() => setDeleteTarget(p)}
                           disabled={busyId === p.id}
                           title="Eliminar pago"
-                          className="text-rose-400 hover:bg-rose-50 hover:text-rose-600"
+                          className="text-ios-red hover:bg-ios-red/10 hover:text-ios-red"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>

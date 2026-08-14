@@ -58,7 +58,7 @@ export function PeriodsTable({ periods, loading, onSelect, onDeleted }: PeriodsT
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+            <thead className="border-b border-ios-separator text-[11px] font-semibold uppercase tracking-wider text-ios-secondary">
               <tr>
                 <th className="px-5 py-3 font-medium">Período</th>
                 <th className="px-5 py-3 font-medium">Cuotas</th>
@@ -67,7 +67,7 @@ export function PeriodsTable({ periods, loading, onSelect, onDeleted }: PeriodsT
                 <th className="px-5 py-3 font-medium"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-ios-separator">
               {periods.map((p) => (
                 <tr
                   key={p.period}
@@ -75,18 +75,18 @@ export function PeriodsTable({ periods, loading, onSelect, onDeleted }: PeriodsT
                   className="cursor-pointer hover:bg-brand-50/50"
                 >
                   <td className="px-5 py-3.5">
-                    <div className="font-medium text-slate-800">{formatPeriod(p.period)}</div>
+                    <div className="font-medium text-ios-label">{formatPeriod(p.period)}</div>
                     {p.hasSpecial && (
-                      <span className="mt-0.5 inline-flex rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-600 ring-1 ring-inset ring-violet-500/20">
+                      <span className="mt-0.5 inline-flex rounded-full bg-ios-purple/10 px-2 py-0.5 text-xs font-medium text-ios-purple">
                         + especial
                       </span>
                     )}
                   </td>
-                  <td className="px-5 py-3.5 text-slate-600">{p.count}</td>
-                  <td className="px-5 py-3.5 font-semibold text-slate-700">
+                  <td className="px-5 py-3.5 text-ios-label">{p.count}</td>
+                  <td className="px-5 py-3.5 font-semibold text-ios-label">
                     {formatCurrency(p.total)}
                   </td>
-                  <td className="px-5 py-3.5 text-slate-500">
+                  <td className="px-5 py-3.5 text-ios-secondary">
                     {rate ? formatBs(p.total, rate.rate) : "—"}
                   </td>
                   <td className="px-5 py-3.5 text-right">
@@ -97,7 +97,7 @@ export function PeriodsTable({ periods, loading, onSelect, onDeleted }: PeriodsT
                       disabled={deletingPeriod === p.period}
                       title="Eliminar período"
                     >
-                      <Trash2 className="h-3.5 w-3.5 text-rose-500" />
+                      <Trash2 className="h-3.5 w-3.5 text-ios-red" />
                     </Button>
                   </td>
                 </tr>

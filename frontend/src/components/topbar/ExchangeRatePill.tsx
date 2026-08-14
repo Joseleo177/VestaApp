@@ -16,15 +16,15 @@ export function ExchangeRatePill() {
   });
 
   return (
-    <div className="flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-sm">
-      <span className="flex items-center gap-1.5 text-slate-300">
+    <div className="flex items-center gap-3 rounded-full bg-ios-fill px-4 py-1.5 text-[13px]">
+      <span className="flex items-center gap-1.5 text-ios-secondary">
         <CalendarDays className="h-4 w-4" />
         {today}
       </span>
-      <span className="h-4 w-px bg-white/15" />
-      <span className="flex items-center gap-1.5 text-slate-200">
-        <span className="text-slate-400">Bs./Ref.:</span>
-        <span className="font-semibold text-emerald-400">
+      <span className="h-3.5 w-px bg-ios-tertiary" />
+      <span className="flex items-center gap-1.5">
+        <span className="text-ios-secondary">Bs./Ref.:</span>
+        <span className="font-semibold text-ios-green">
           {data ? formatRate(data.rate) : "—"}
         </span>
       </span>
@@ -32,7 +32,7 @@ export function ExchangeRatePill() {
         <button
           onClick={() => void refresh()}
           disabled={loading}
-          className="text-slate-400 transition-colors hover:text-white disabled:opacity-50"
+          className="text-ios-secondary transition-colors hover:text-ios-label disabled:opacity-50"
           aria-label="Actualizar tasa"
           title="Actualizar tasa BCV"
         >

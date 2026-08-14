@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Download, Loader2 } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { TableSkeleton } from "@/components/ui/Skeleton";
@@ -8,6 +9,7 @@ import { formatCurrency, formatDate, formatPeriod } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { ApiError } from "@/services/api";
 import { billingService } from "../services/billing.service";
+import { paymentService } from "@/features/payments/services/payment.service";
 
 interface PeriodChargesModalProps {
   period: string | null;
@@ -16,16 +18,17 @@ interface PeriodChargesModalProps {
 }
 
 const STATUS_META: Record<ChargeStatus, { label: string; cls: string }> = {
-  [ChargeStatus.PENDING]: { label: "Pendiente", cls: "bg-amber-50 text-amber-700 ring-amber-600/20" },
-  [ChargeStatus.PAID]: { label: "Pagada", cls: "bg-emerald-50 text-emerald-700 ring-emerald-600/20" },
-  [ChargeStatus.EXONERATED]: { label: "Exonerada", cls: "bg-slate-100 text-slate-500 ring-slate-400/20" },
-  [ChargeStatus.PARTIAL]: { label: "Parcial", cls: "bg-orange-50 text-orange-700 ring-orange-600/20" },
+  [ChargeStatus.PENDING]: { label: "Pendiente", cls: "bg-ios-orange/10 text-ios-orange" },
+  [ChargeStatus.PAID]: { label: "Pagada", cls: "bg-ios-green/10 text-ios-green" },
+  [ChargeStatus.EXONERATED]: { label: "Exonerada", cls: "bg-ios-fill text-ios-secondary" },
+  [ChargeStatus.PARTIAL]: { label: "Parcial", cls: "bg-ios-orange/10 text-ios-orange" },
 };
 
 export function PeriodChargesModal({ period, open, onClose }: PeriodChargesModalProps) {
   const [charges, setCharges] = useState<Charge[]>([]);
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open || !period) return;
@@ -51,6 +54,20 @@ export function PeriodChargesModal({ period, open, onClose }: PeriodChargesModal
     }
   };
 
+  /** El recibo se pide por su número: es el que cubre esta cuota concreta. */
+  const handleDownload = async (charge: Charge) => {
+    const cp = charge.confirmedPayment;
+    if (!cp?.id || !cp.receiptNumber) return;
+    setDownloadingId(charge.id);
+    try {
+      await paymentService.downloadReceipt(cp.id, cp.receiptNumber);
+    } catch {
+      toast.error("No se pudo descargar el recibo");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   return (
     <Modal
       open={open}
@@ -63,7 +80,7 @@ export function PeriodChargesModal({ period, open, onClose }: PeriodChargesModal
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="text-xs uppercase tracking-wide text-slate-500">
+            <thead className="text-xs uppercase tracking-wide text-ios-secondary">
               <tr>
                 <th className="py-2 font-medium">Departamento</th>
                 <th className="py-2 font-medium">Concepto</th>
@@ -72,32 +89,32 @@ export function PeriodChargesModal({ period, open, onClose }: PeriodChargesModal
                 <th className="py-2 text-right font-medium">Acción</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-ios-separator">
               {charges.map((c) => (
                 <tr key={c.id}>
                   <td className="py-2.5">
-                    <div className="font-medium text-slate-800">
+                    <div className="font-medium text-ios-label">
                       {c.property?.code ?? "—"}
                     </div>
                     {c.property?.tower && (
-                      <div className="text-xs text-slate-400">{c.property.tower.name}</div>
+                      <div className="text-xs text-ios-secondary">{c.property.tower.name}</div>
                     )}
                   </td>
                   <td className="py-2.5">
-                    <div className="text-slate-600 text-xs">{c.description}</div>
+                    <div className="text-ios-label text-xs">{c.description}</div>
                     {c.type === ChargeType.SPECIAL && (
-                      <span className="mt-0.5 inline-flex rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-600 ring-1 ring-inset ring-violet-500/20">
+                      <span className="mt-0.5 inline-flex rounded-full bg-ios-purple/10 px-2 py-0.5 text-xs font-medium text-ios-purple">
                         Especial
                       </span>
                     )}
                   </td>
-                  <td className="py-2.5 text-slate-600">
+                  <td className="py-2.5 text-ios-label">
                     {formatCurrency(c.amountDue ?? c.amount)}
                     {c.overdue && c.status === ChargeStatus.PENDING && (
-                      <span className="ml-1 text-xs text-rose-500">(mora)</span>
+                      <span className="ml-1 text-xs text-ios-red">(mora)</span>
                     )}
                     {c.confirmedPayment && (
-                      <div className="mt-0.5 font-mono text-xs text-emerald-600">
+                      <div className="mt-0.5 font-mono text-xs text-ios-green">
                         {c.confirmedPayment.reference} · {c.confirmedPayment.bank} · {formatDate(c.confirmedPayment.paymentDate)}
                       </div>
                     )}
@@ -105,7 +122,7 @@ export function PeriodChargesModal({ period, open, onClose }: PeriodChargesModal
                   <td className="py-2.5">
                     <span
                       className={cn(
-                        "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset",
+                        "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium",
                         STATUS_META[c.status].cls
                       )}
                     >
@@ -114,7 +131,24 @@ export function PeriodChargesModal({ period, open, onClose }: PeriodChargesModal
                   </td>
                   <td className="py-2.5 text-right">
                     {c.status === ChargeStatus.PAID ? (
-                      <span className="text-xs text-slate-300">—</span>
+                      c.confirmedPayment?.receiptNumber ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDownload(c)}
+                          disabled={downloadingId === c.id}
+                          title={`Descargar ${c.confirmedPayment.receiptNumber}`}
+                        >
+                          {downloadingId === c.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Download className="h-3.5 w-3.5" />
+                          )}
+                          PDF
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-ios-tertiary">—</span>
+                      )
                     ) : (
                       <Button
                         size="sm"

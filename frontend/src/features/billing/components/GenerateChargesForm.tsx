@@ -59,8 +59,8 @@ export function GenerateChargesForm({ onGenerated }: GenerateChargesFormProps) {
   return (
     <Card>
       <CardHeader>
-        <h2 className="text-base font-semibold text-slate-800">Emitir cuota</h2>
-        <p className="text-sm text-slate-500">
+        <h2 className="text-base font-semibold text-ios-label">Emitir cuota</h2>
+        <p className="text-sm text-ios-secondary">
           Regular: cuota mensual fija. Especial: mantenimiento o cargo puntual.
         </p>
       </CardHeader>
@@ -74,7 +74,7 @@ export function GenerateChargesForm({ onGenerated }: GenerateChargesFormProps) {
                 className={`flex cursor-pointer items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
                   type === t
                     ? "border-brand-600 bg-brand-50 text-brand-700"
-                    : "border-slate-200 text-slate-600 hover:border-slate-300"
+                    : "border-ios-separator text-ios-label hover:border-ios-separator"
                 }`}
               >
                 <input
@@ -142,9 +142,9 @@ export function GenerateChargesForm({ onGenerated }: GenerateChargesFormProps) {
           {/* Selección de torres */}
           {towers.length > 0 && (
             <div>
-              <p className="mb-2 text-sm font-medium text-slate-700">
+              <p className="mb-2 text-sm font-medium text-ios-label">
                 Torres destino{" "}
-                <span className="font-normal text-slate-400">
+                <span className="font-normal text-ios-secondary">
                   (sin selección = todas las torres)
                 </span>
               </p>
@@ -161,12 +161,12 @@ export function GenerateChargesForm({ onGenerated }: GenerateChargesFormProps) {
                           className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
                             checked
                               ? "border-brand-600 bg-brand-50 text-brand-700"
-                              : "border-slate-200 text-slate-600 hover:border-slate-300"
+                              : "border-ios-separator text-ios-label hover:border-ios-separator"
                           }`}
                         >
                           <input
                             type="checkbox"
-                            className="h-4 w-4 rounded border-slate-300 text-brand-600"
+                            className="h-4 w-4 rounded border-ios-separator text-brand-600"
                             checked={checked}
                             onChange={(e) => {
                               if (e.target.checked) {
@@ -184,7 +184,7 @@ export function GenerateChargesForm({ onGenerated }: GenerateChargesFormProps) {
                 )}
               />
               {filteringTowers && (
-                <p className="mt-1.5 text-xs text-slate-400">
+                <p className="mt-1.5 text-xs text-ios-secondary">
                   Solo se emitirá a los departamentos de{" "}
                   {towers
                     .filter((t) => towerIds.includes(t.id))
@@ -197,9 +197,9 @@ export function GenerateChargesForm({ onGenerated }: GenerateChargesFormProps) {
           )}
 
           {amount > 0 && rate && (
-            <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+            <p className="rounded-xl bg-ios-fill px-3 py-2 text-sm text-ios-label">
               La cuota equivale a{" "}
-              <span className="font-semibold text-slate-800">
+              <span className="font-semibold text-ios-label">
                 {formatBs(amount, rate.rate)}
               </span>{" "}
               a la tasa BCV de hoy.

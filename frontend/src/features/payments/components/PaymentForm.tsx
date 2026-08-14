@@ -128,16 +128,16 @@ export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: P
     const confirmed = result.status === PaymentStatus.CONFIRMED;
     return (
       <div className="flex flex-col items-center gap-5 py-4 text-center">
-        <div className={`flex h-16 w-16 items-center justify-center rounded-full ${confirmed ? "bg-emerald-50" : "bg-amber-50"}`}>
+        <div className={`flex h-16 w-16 items-center justify-center rounded-full ${confirmed ? "bg-ios-green/10" : "bg-ios-orange/10"}`}>
           {confirmed
-            ? <CheckCircle2 className="h-8 w-8 text-emerald-500" />
-            : <Clock className="h-8 w-8 text-amber-500" />}
+            ? <CheckCircle2 className="h-8 w-8 text-ios-green" />
+            : <Clock className="h-8 w-8 text-ios-orange" />}
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-slate-800">
+          <h3 className="text-lg font-semibold text-ios-label">
             {confirmed ? "¡Pago verificado!" : "Pago en revisión"}
           </h3>
-          <p className="mt-1.5 text-sm text-slate-500 max-w-xs">
+          <p className="mt-1.5 text-sm text-ios-secondary max-w-xs">
             {confirmed
               ? "Tu pago coincidió con el extracto bancario y fue confirmado automáticamente. Puedes descargar tu recibo desde el historial."
               : "Tu pago fue registrado. El administrador lo revisará y confirmará en breve."}
@@ -169,64 +169,64 @@ export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: P
 
       {/* Resumen del monto */}
       {selected && (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm space-y-1">
+        <div className="rounded-2xl bg-ios-fill p-4 text-sm space-y-1">
           {isPartial ? (
             <>
               <div className="flex items-center justify-between">
-                <span className="text-slate-500"> Monto Cuota</span>
-                <span className="text-slate-400">{formatCurrency(selected.amount)}</span>
+                <span className="text-ios-secondary"> Monto Cuota</span>
+                <span className="text-ios-secondary">{formatCurrency(selected.amount)}</span>
               </div>
               {overdueAtPaymentDate && (selected.moraAmount ?? 0) > 0 && (
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Mora (vencida)</span>
-                  <span className="font-medium text-rose-500">{formatCurrency(selected.moraAmount ?? 0)}</span>
+                  <span className="text-ios-secondary">Mora (vencida)</span>
+                  <span className="font-medium text-ios-red">{formatCurrency(selected.moraAmount ?? 0)}</span>
                 </div>
               )}
               <div className="flex items-center justify-between">
-                <span className="text-slate-500">Ya pagado</span>
-                <span className="text-emerald-600">– {formatCurrency(selected.amountPaid ?? 0)}</span>
+                <span className="text-ios-secondary">Ya pagado</span>
+                <span className="text-ios-green">– {formatCurrency(selected.amountPaid ?? 0)}</span>
               </div>
-              <div className="flex items-center justify-between border-t border-slate-200 pt-2 mt-1">
-                <span className="font-semibold text-slate-700">Pendiente</span>
-                <span className="text-lg font-bold text-slate-900">{formatCurrency(amountEurRef)}</span>
+              <div className="flex items-center justify-between border-t border-ios-separator pt-2 mt-1">
+                <span className="font-semibold text-ios-label">Pendiente</span>
+                <span className="text-lg font-bold text-ios-label">{formatCurrency(amountEurRef)}</span>
               </div>
             </>
           ) : (
             <>
               <div className="flex items-center justify-between">
-                <span className="text-slate-500">Monto Cuota</span>
-                <span className="font-medium text-slate-700">{formatCurrency(selected.amount)}</span>
+                <span className="text-ios-secondary">Monto Cuota</span>
+                <span className="font-medium text-ios-label">{formatCurrency(selected.amount)}</span>
               </div>
               {overdueAtPaymentDate && (selected.moraAmount ?? 0) > 0 && (
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Mora (vencida)</span>
-                  <span className={moraAnnulled ? "text-emerald-600 line-through" : "font-medium text-rose-600"}>
+                  <span className="text-ios-secondary">Mora (vencida)</span>
+                  <span className={moraAnnulled ? "text-ios-green line-through" : "font-medium text-ios-red"}>
                     {formatCurrency(selected.moraAmount ?? 0)}
                   </span>
                 </div>
               )}
-              <div className="flex items-center justify-between border-t border-slate-200 pt-2 mt-1">
-                <span className="font-semibold text-slate-700">Total a pagar</span>
-                <span className="text-lg font-bold text-slate-900">
+              <div className="flex items-center justify-between border-t border-ios-separator pt-2 mt-1">
+                <span className="font-semibold text-ios-label">Total a pagar</span>
+                <span className="text-lg font-bold text-ios-label">
                   {formatCurrency(isBS ? amountEurForBs : amountEurRef)}
                 </span>
               </div>
               {moraAnnulled && (
-                <p className="mt-2 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-700">
+                <p className="mt-2 rounded-lg bg-ios-green/10 px-2.5 py-1.5 text-xs text-ios-green">
                   Pagando en divisas se anula la mora.
                 </p>
               )}
             </>
           )}
           {isBS && dateRate && (
-            <div className="mt-2 rounded-lg bg-blue-50 px-3 py-2.5 text-xs text-blue-700 space-y-1">
+            <div className="mt-2 rounded-lg bg-ios-blue/10 px-3 py-2.5 text-xs text-ios-blue space-y-1">
               <div className="flex items-center justify-between">
                 <span>Tasa EURO {formatDate(dateRate.updatedAt)}</span>
                 <span className="font-medium">Bs. {dateRate.rate.toLocaleString("es-VE", { minimumFractionDigits: 2 })}/EUR</span>
               </div>
-              <div className="flex items-center justify-between border-t border-blue-200 pt-1.5">
+              <div className="flex items-center justify-between border-t border-ios-blue/30 pt-1.5">
                 <span className="font-semibold">Debes transferir</span>
-                <span className="text-base font-bold text-blue-900">
+                <span className="text-base font-bold text-ios-blue">
                   Bs. {(amountEurForBs * dateRate.rate).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
@@ -237,34 +237,34 @@ export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: P
 
       {/* Datos bancarios para transferencia */}
       {!isEfectivo && bankInfo && (bankInfo.bank_name || bankInfo.bank_account) && (
-        <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
+        <div className="rounded-xl border border-ios-blue/30 bg-ios-blue/10 p-4">
           <div className="flex items-center gap-2 mb-2">
-            <Building2 className="h-4 w-4 text-blue-600 shrink-0" />
-            <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Datos para transferencia</span>
+            <Building2 className="h-4 w-4 text-ios-blue shrink-0" />
+            <span className="text-xs font-semibold text-ios-blue uppercase tracking-wide">Datos para transferencia</span>
           </div>
           <div className="space-y-1 text-sm">
             {bankInfo.bank_name && (
               <div className="flex justify-between">
-                <span className="text-blue-600">Banco</span>
-                <span className="font-semibold text-blue-900">{bankInfo.bank_name}</span>
+                <span className="text-ios-blue">Banco</span>
+                <span className="font-semibold text-ios-blue">{bankInfo.bank_name}</span>
               </div>
             )}
             {bankInfo.bank_beneficiary && (
               <div className="flex justify-between gap-4">
-                <span className="text-blue-600 shrink-0">Beneficiario</span>
-                <span className="font-medium text-blue-900 text-right">{bankInfo.bank_beneficiary}</span>
+                <span className="text-ios-blue shrink-0">Beneficiario</span>
+                <span className="font-medium text-ios-blue text-right">{bankInfo.bank_beneficiary}</span>
               </div>
             )}
             {bankInfo.condo_rif && (
               <div className="flex justify-between">
-                <span className="text-blue-600">RIF</span>
-                <span className="font-medium text-blue-900">{bankInfo.condo_rif}</span>
+                <span className="text-ios-blue">RIF</span>
+                <span className="font-medium text-ios-blue">{bankInfo.condo_rif}</span>
               </div>
             )}
             {bankInfo.bank_account && (
               <div className="flex justify-between">
-                <span className="text-blue-600">Cuenta</span>
-                <span className="font-bold text-blue-900 tracking-wide">{bankInfo.bank_account}</span>
+                <span className="text-ios-blue">Cuenta</span>
+                <span className="font-bold text-ios-blue tracking-wide">{bankInfo.bank_account}</span>
               </div>
             )}
           </div>
@@ -285,7 +285,7 @@ export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: P
             {...register("amountBs")}
           />
           {eurFromBs !== null && (
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-ios-secondary">
               Equivalente estimado: {formatCurrency(eurFromBs)}
             </p>
           )}
@@ -313,7 +313,7 @@ export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: P
       />
 
       {submitError && (
-        <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">{submitError}</p>
+        <p className="rounded-lg bg-ios-red/10 px-3 py-2 text-sm text-ios-red">{submitError}</p>
       )}
 
       <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end sm:gap-3">

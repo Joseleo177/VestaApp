@@ -37,7 +37,7 @@ export function UnitsTable({ units, loading, onEdit, onViewCharges }: UnitsTable
     <Card className="overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+          <thead className="border-b border-ios-separator text-[11px] font-semibold uppercase tracking-wider text-ios-secondary">
             <tr>
               <th className="px-5 py-3 font-medium">Departamento</th>
               <th className="px-5 py-3 font-medium">Copropietario</th>
@@ -45,22 +45,22 @@ export function UnitsTable({ units, loading, onEdit, onViewCharges }: UnitsTable
               <th className="px-5 py-3 text-right font-medium">Acciones</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-ios-separator">
             {units.map((unit) => (
-              <tr key={unit.id} className="hover:bg-slate-50/60">
+              <tr key={unit.id} className="hover:bg-ios-fill">
                 <td className="px-5 py-3.5">
-                  <div className="font-medium text-slate-800">{unit.code}</div>
+                  <div className="font-medium text-ios-label">{unit.code}</div>
                   {unit.tower && (
-                    <div className="text-xs text-slate-400">{unit.tower.name}</div>
+                    <div className="text-xs text-ios-secondary">{unit.tower.name}</div>
                   )}
                 </td>
-                <td className="px-5 py-3.5 text-slate-600">{unit.owner?.fullName ?? "—"}</td>
-                <td className="px-5 py-3.5 text-slate-600">
+                <td className="px-5 py-3.5 text-ios-label">{unit.owner?.fullName ?? "—"}</td>
+                <td className="px-5 py-3.5 text-ios-label">
                   {unit.authorized ? (
                     <>
                       {unit.authorized.fullName}
                       {unit.authorized.id === unit.owner?.id && (
-                        <div className="text-xs text-slate-400">mismo titular</div>
+                        <div className="text-xs text-ios-secondary">mismo titular</div>
                       )}
                     </>
                   ) : (

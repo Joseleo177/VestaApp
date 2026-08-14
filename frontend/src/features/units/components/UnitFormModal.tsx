@@ -134,10 +134,10 @@ export function UnitFormModal({
               </option>
             ))}
           </Select>
-          <label className="flex items-center gap-2 text-xs text-slate-500">
+          <label className="flex items-center gap-2 text-xs text-ios-secondary">
             <input
               type="checkbox"
-              className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+              className="h-3.5 w-3.5 rounded border-ios-separator text-brand-600 focus:ring-brand-500"
               checked={sameAsOwner}
               disabled={!ownerId}
               onChange={(e) =>
@@ -151,7 +151,7 @@ export function UnitFormModal({
         </div>
 
         {owners.length === 0 && (
-          <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          <p className="rounded-lg bg-ios-orange/10 px-3 py-2 text-xs text-ios-orange">
             No hay copropietarios activos. Crea uno en el módulo de Usuarios.
           </p>
         )}

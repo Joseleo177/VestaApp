@@ -5,10 +5,79 @@
 @tailwind utilities;
 
 @layer base {
+  /* Modo día — colores de sistema iOS (light). */
+  :root {
+    --brand-50: 238 242 255;
+    --brand-100: 224 231 255;
+    --brand-200: 199 210 254;
+    --brand-500: 99 102 241;
+    --brand-600: 79 70 229;
+    --brand-700: 67 56 202;
+
+    --ios-bg: 242 242 247; /* #F2F2F7 */
+    --ios-card: 255 255 255;
+    --ios-fill: 239 239 244; /* #EFEFF4 */
+    --ios-separator: 229 229 234; /* #E5E5EA */
+    --ios-label: 28 28 30; /* #1C1C1E */
+    --ios-secondary: 142 142 147; /* #8E8E93 */
+    --ios-tertiary: 199 199 204; /* #C7C7CC */
+
+    --ios-blue: 0 122 255;
+    --ios-green: 52 199 89;
+    --ios-red: 255 59 48;
+    --ios-orange: 255 149 0;
+    --ios-yellow: 255 204 0;
+    --ios-purple: 175 82 222;
+  }
+
+  /* Modo noche — fondo agrupado negro, celdas grises y semánticos vivos. */
+  .dark {
+    --brand-50: 30 27 75;
+    --brand-100: 49 46 129;
+    --brand-200: 67 56 202;
+    --brand-500: 129 140 248;
+    --brand-600: 99 102 241;
+    --brand-700: 165 180 252;
+
+    --ios-bg: 0 0 0;
+    --ios-card: 28 28 30; /* #1C1C1E */
+    --ios-fill: 44 44 46; /* #2C2C2E */
+    --ios-separator: 56 56 58; /* #38383A */
+    --ios-label: 242 242 247;
+    --ios-secondary: 152 152 159; /* #98989F */
+    --ios-tertiary: 99 99 102;
+
+    --ios-blue: 10 132 255;
+    --ios-green: 48 209 88;
+    --ios-red: 255 69 58;
+    --ios-orange: 255 159 10;
+    --ios-yellow: 255 214 10;
+    --ios-purple: 191 90 242;
+  }
+
   html {
     @apply antialiased;
+    -webkit-text-size-adjust: 100%;
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
   }
   body {
-    @apply bg-slate-50 text-slate-800;
+    @apply bg-ios-bg text-ios-label;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  /* Sin destello gris al tocar en móvil: los estados táctiles los da cada control. */
+  button,
+  a,
+  [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Títulos con tracking ceñido, como los large titles de iOS. */
+  h1,
+  h2,
+  h3 {
+    @apply tracking-tight;
   }
 }

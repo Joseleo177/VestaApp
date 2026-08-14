@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
   LayoutGrid,
@@ -70,16 +71,18 @@ export function AppDrawer() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
+        className="flex h-9 w-9 items-center justify-center rounded-xl text-ios-secondary transition-colors hover:bg-ios-fill hover:text-ios-label"
         aria-label="Aplicaciones"
       >
         <LayoutGrid className="h-5 w-5" />
       </button>
 
-      {open && (
+      {/* Portal al body: la barra superior tiene backdrop-filter y se convertiría
+          en el bloque contenedor de este overlay `fixed`, descentrándolo. */}
+      {open && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
-            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/30 backdrop-blur-md"
             onClick={() => setOpen(false)}
             aria-hidden
           />
@@ -88,18 +91,18 @@ export function AppDrawer() {
             role="dialog"
             aria-modal="true"
             aria-label="Aplicaciones"
-            className="relative z-10 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl sm:p-8"
+            className="relative z-10 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-ios-card p-6 shadow-ios-lg sm:p-8"
           >
             <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-sm font-bold uppercase tracking-widest text-slate-800">
+              <h2 className="text-[13px] font-semibold uppercase tracking-widest text-ios-secondary">
                 Aplicaciones
               </h2>
               <button
                 onClick={() => setOpen(false)}
-                className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-ios-fill text-ios-secondary transition-colors hover:bg-ios-separator hover:text-ios-label"
                 aria-label="Cerrar"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" strokeWidth={2.5} />
               </button>
             </div>
 
@@ -122,7 +125,8 @@ export function AppDrawer() {
               ))}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

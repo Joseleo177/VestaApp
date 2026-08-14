@@ -46,15 +46,15 @@ export function PaymentHistoryTable({ payments, loading }: PaymentHistoryTablePr
   return (
     <Card className="overflow-hidden">
       {/* Vista móvil: tarjetas */}
-      <div className="sm:hidden divide-y divide-slate-100">
+      <div className="sm:hidden divide-y divide-ios-separator">
         {payments.map((payment) => (
           <div key={payment.id} className="p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="font-semibold text-slate-800">
+                <p className="font-semibold text-ios-label">
                   {payment.charge ? formatPeriod(payment.charge.period) : "—"}
                 </p>
-                <p className="text-xs text-slate-400">{formatDate(payment.paymentDate)}</p>
+                <p className="text-xs text-ios-secondary">{formatDate(payment.paymentDate)}</p>
                 {showUnit && payment.property && (
                   <p className="text-xs font-medium text-brand-600">{payment.property.code}</p>
                 )}
@@ -63,25 +63,25 @@ export function PaymentHistoryTable({ payments, loading }: PaymentHistoryTablePr
             </div>
             <div className="mt-2 flex items-end justify-between gap-3">
               <div>
-                <p className="text-lg font-bold text-slate-800">{formatCurrency(payment.amount)}</p>
-                <p className="text-xs text-slate-400">
+                <p className="text-lg font-bold text-ios-label">{formatCurrency(payment.amount)}</p>
+                <p className="text-xs text-ios-secondary">
                   {payment.currency === PaymentCurrency.BS && payment.amountBs
                     ? `Bs. ${payment.amountBs.toLocaleString("es-VE")}`
                     : "Divisas (€)"}
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-sm text-slate-600">{payment.reference}</p>
-                <p className="text-xs text-slate-400">{payment.bank}</p>
+                <p className="text-sm text-ios-label">{payment.reference}</p>
+                <p className="text-xs text-ios-secondary">{payment.bank}</p>
                 {payment.submittedBy && payment.submittedBy.id !== user?.id && (
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-ios-secondary">
                     Registró: {payment.submittedBy.fullName}
                   </p>
                 )}
               </div>
             </div>
             {payment.status === PaymentStatus.REJECTED && payment.rejectReason && (
-              <p className="mt-2 text-xs text-rose-500">{payment.rejectReason}</p>
+              <p className="mt-2 text-xs text-ios-red">{payment.rejectReason}</p>
             )}
           </div>
         ))}
@@ -90,7 +90,7 @@ export function PaymentHistoryTable({ payments, loading }: PaymentHistoryTablePr
       {/* Vista desktop: tabla */}
       <div className="hidden sm:block overflow-x-auto">
         <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+          <thead className="border-b border-ios-separator text-[11px] font-semibold uppercase tracking-wider text-ios-secondary">
             <tr>
               <th className="px-5 py-3 font-medium">Período</th>
               <th className="px-5 py-3 font-medium">Monto</th>
@@ -98,14 +98,14 @@ export function PaymentHistoryTable({ payments, loading }: PaymentHistoryTablePr
               <th className="px-5 py-3 font-medium">Estado</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-ios-separator">
             {payments.map((payment) => (
-              <tr key={payment.id} className="hover:bg-slate-50/60">
+              <tr key={payment.id} className="hover:bg-ios-fill">
                 <td className="px-5 py-3.5">
-                  <div className="font-medium text-slate-800">
+                  <div className="font-medium text-ios-label">
                     {payment.charge ? formatPeriod(payment.charge.period) : "—"}
                   </div>
-                  <div className="text-xs text-slate-400">
+                  <div className="text-xs text-ios-secondary">
                     {formatDate(payment.paymentDate)}
                   </div>
                   {showUnit && payment.property && (
@@ -115,20 +115,20 @@ export function PaymentHistoryTable({ payments, loading }: PaymentHistoryTablePr
                   )}
                 </td>
                 <td className="px-5 py-3.5">
-                  <div className="font-semibold text-slate-700">
+                  <div className="font-semibold text-ios-label">
                     {formatCurrency(payment.amount)}
                   </div>
-                  <div className="text-xs text-slate-400">
+                  <div className="text-xs text-ios-secondary">
                     {payment.currency === PaymentCurrency.BS && payment.amountBs
                       ? `Bs. ${payment.amountBs.toLocaleString("es-VE")}`
                       : "Divisas (€)"}
                   </div>
                 </td>
                 <td className="px-5 py-3.5">
-                  <div className="text-slate-700">{payment.reference}</div>
-                  <div className="text-xs text-slate-400">{payment.bank}</div>
+                  <div className="text-ios-label">{payment.reference}</div>
+                  <div className="text-xs text-ios-secondary">{payment.bank}</div>
                   {payment.submittedBy && payment.submittedBy.id !== user?.id && (
-                    <div className="text-xs text-slate-400">
+                    <div className="text-xs text-ios-secondary">
                       Registró: {payment.submittedBy.fullName}
                     </div>
                   )}
@@ -136,7 +136,7 @@ export function PaymentHistoryTable({ payments, loading }: PaymentHistoryTablePr
                 <td className="px-5 py-3.5">
                   <StatusBadge status={payment.status} />
                   {payment.status === PaymentStatus.REJECTED && payment.rejectReason && (
-                    <div className="mt-1 text-xs text-rose-500">{payment.rejectReason}</div>
+                    <div className="mt-1 text-xs text-ios-red">{payment.rejectReason}</div>
                   )}
                 </td>
               </tr>

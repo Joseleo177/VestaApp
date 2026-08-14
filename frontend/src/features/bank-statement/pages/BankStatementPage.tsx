@@ -38,10 +38,10 @@ function ResultSection<T>({
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+            <thead className="border-b border-ios-separator text-[11px] font-semibold uppercase tracking-wider text-ios-secondary">
               <tr>{cols.map((c) => <th key={c} className="px-4 py-2.5 font-medium">{c}</th>)}</tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-ios-separator">
               {items.map((item, i) => renderRow(item, i))}
             </tbody>
           </table>
@@ -187,8 +187,8 @@ export function BankStatementPage() {
       {/* Encabezado + botón subir */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Extracto bancario</h1>
-          <p className="text-sm text-slate-500">
+          <h1 className="text-[28px] font-bold leading-tight text-ios-label">Extracto bancario</h1>
+          <p className="text-sm text-ios-secondary">
             Sube el extracto del banco (.xlsx) para conciliar automáticamente los pagos pendientes
           </p>
         </div>
@@ -218,28 +218,28 @@ export function BankStatementPage() {
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
             {[
-              { label: "Filas totales",    value: result.totalRows,          cls: "text-slate-700" },
+              { label: "Filas totales",    value: result.totalRows,          cls: "text-ios-label" },
               { label: "Entradas nuevas",  value: result.newEntries,         cls: "text-brand-600" },
-              { label: "Duplicadas",       value: result.duplicates,         cls: "text-slate-400" },
-              { label: "Confirmados",      value: result.confirmed.length,   cls: "text-emerald-600" },
-              { label: "Por revisar",      value: result.review.length,      cls: "text-amber-600" },
+              { label: "Duplicadas",       value: result.duplicates,         cls: "text-ios-secondary" },
+              { label: "Confirmados",      value: result.confirmed.length,   cls: "text-ios-green" },
+              { label: "Por revisar",      value: result.review.length,      cls: "text-ios-orange" },
             ].map((s) => (
               <Card key={s.label} className="p-4 text-center">
                 <div className={cn("text-2xl font-bold", s.cls)}>{s.value}</div>
-                <div className="text-xs text-slate-400 mt-0.5">{s.label}</div>
+                <div className="text-xs text-ios-secondary mt-0.5">{s.label}</div>
               </Card>
             ))}
           </div>
 
           <ResultSection<ConfirmedMatch>
             title="Confirmados automáticamente" icon={<CheckCircle2 className="h-5 w-5" />}
-            color="text-emerald-600" items={result.confirmed}
+            color="text-ios-green" items={result.confirmed}
             cols={["Referencia", "Monto banco", "Fecha", "Copropietario", "Depa"]}
             renderRow={(m, i) => (
-              <tr key={i} className="hover:bg-slate-50/60">
+              <tr key={i} className="hover:bg-ios-fill">
                 <td className="px-4 py-2.5 font-mono text-xs">{m.bankRef}</td>
-                <td className="px-4 py-2.5 text-slate-700">{formatAmt(m.bankAmount)}</td>
-                <td className="px-4 py-2.5 text-xs text-slate-500">{m.bankDate ? formatDate(m.bankDate) : "—"}</td>
+                <td className="px-4 py-2.5 text-ios-label">{formatAmt(m.bankAmount)}</td>
+                <td className="px-4 py-2.5 text-xs text-ios-secondary">{m.bankDate ? formatDate(m.bankDate) : "—"}</td>
                 <td className="px-4 py-2.5">{m.ownerName}</td>
                 <td className="px-4 py-2.5">{m.propertyCode}</td>
               </tr>
@@ -248,27 +248,27 @@ export function BankStatementPage() {
 
           {result.review.length > 0 && (
             <div className="space-y-2">
-              <div className="flex items-center gap-2 font-semibold text-amber-600">
+              <div className="flex items-center gap-2 font-semibold text-ios-orange">
                 <AlertTriangle className="h-5 w-5" />Por revisar ({result.review.length})
               </div>
               <Card className="overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
-                    <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                    <thead className="border-b border-ios-separator text-[11px] font-semibold uppercase tracking-wider text-ios-secondary">
                       <tr>
                         {["Referencia", "Monto banco", "Copropietario", "Depa", "Motivo", "Acciones"].map((c) => (
                           <th key={c} className={cn("px-4 py-2.5 font-medium", c === "Acciones" && "text-right")}>{c}</th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-ios-separator">
                       {result.review.map((m, i) => (
-                        <tr key={i} className="hover:bg-amber-50/40">
+                        <tr key={i} className="hover:bg-ios-orange/10">
                           <td className="px-4 py-2.5 font-mono text-xs">{m.bankRef}</td>
-                          <td className="px-4 py-2.5 font-semibold text-slate-700">{formatAmt(m.bankAmount)}</td>
+                          <td className="px-4 py-2.5 font-semibold text-ios-label">{formatAmt(m.bankAmount)}</td>
                           <td className="px-4 py-2.5">{m.ownerName}</td>
                           <td className="px-4 py-2.5">{m.propertyCode}</td>
-                          <td className="px-4 py-2.5 text-xs text-amber-700 max-w-[180px]">{m.reason}</td>
+                          <td className="px-4 py-2.5 text-xs text-ios-orange max-w-[180px]">{m.reason}</td>
                           <td className="px-4 py-2.5">
                             <div className="flex justify-end gap-1.5">
                               <Button size="sm" variant="success" disabled={busyId === m.paymentId}
@@ -299,7 +299,7 @@ export function BankStatementPage() {
         {/* Cabecera con conteo y filtros */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 font-semibold text-slate-700">
+            <div className="flex items-center gap-2 font-semibold text-ios-label">
               <Database className="h-5 w-5" />
               Entradas bancarias guardadas ({entries.length})
             </div>
@@ -309,7 +309,7 @@ export function BankStatementPage() {
                 variant="outline"
                 onClick={handleDelete}
                 loading={deleting}
-                className="border-rose-200 text-rose-600 hover:bg-rose-50"
+                className="border-ios-red/30 text-ios-red hover:bg-ios-red/10"
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 Eliminar ({selected.size})
@@ -319,16 +319,16 @@ export function BankStatementPage() {
           <div className="flex items-center gap-2">
             {/* Buscador por referencia */}
             <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ios-secondary" />
               <input
                 type="text"
                 placeholder="Buscar referencia…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-9 w-48 rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100"
+                className="h-9 w-48 rounded-xl border-0 bg-ios-fill pl-8 pr-3 text-sm text-ios-label placeholder:text-ios-secondary focus:outline-none focus:ring-2 focus:ring-brand-500/70"
               />
               {search && (
-                <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-ios-secondary hover:text-ios-label">
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
@@ -340,13 +340,13 @@ export function BankStatementPage() {
                 value={filterDate}
                 onChange={(e) => setFilterDate(e.target.value)}
                 className={cn(
-                  "h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100",
-                  filterDate ? "border-brand-400 text-brand-700" : ""
+                  "h-9 rounded-xl border-0 bg-ios-fill px-3 text-sm text-ios-label focus:outline-none focus:ring-2 focus:ring-brand-500/70",
+                  filterDate ? "border-brand-500 text-brand-700" : ""
                 )}
               />
             </div>
             {filterDate && (
-              <button onClick={() => setFilterDate("")} className="text-xs text-slate-400 hover:text-slate-600">
+              <button onClick={() => setFilterDate("")} className="text-xs text-ios-secondary hover:text-ios-label">
                 <X className="h-4 w-4" />
               </button>
             )}
@@ -354,7 +354,7 @@ export function BankStatementPage() {
             <select
               value={filterMatched}
               onChange={(e) => setFilterMatched(e.target.value as "all" | "matched" | "free")}
-              className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100"
+              className="h-9 rounded-xl border-0 bg-ios-fill px-3 text-sm text-ios-label focus:outline-none focus:ring-2 focus:ring-brand-500/70"
             >
               <option value="all">Todos</option>
               <option value="matched">Conciliado</option>
@@ -366,23 +366,23 @@ export function BankStatementPage() {
         {loadingEntries ? (
           <Card className="overflow-hidden"><TableSkeleton rows={4} cols={5} /></Card>
         ) : entries.length === 0 ? (
-          <Card className="p-6 text-center text-sm text-slate-400">
+          <Card className="p-6 text-center text-sm text-ios-secondary">
             Aún no se han subido extractos. Las entradas aparecerán aquí después de procesar un archivo.
           </Card>
         ) : filteredEntries.length === 0 ? (
-          <Card className="p-6 text-center text-sm text-slate-400">
+          <Card className="p-6 text-center text-sm text-ios-secondary">
             No hay entradas que coincidan con los filtros aplicados.
           </Card>
         ) : (
           <Card className="overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <thead className="border-b border-ios-separator text-[11px] font-semibold uppercase tracking-wider text-ios-secondary">
                   <tr>
                     <th className="px-3 py-2.5 w-8">
                       <input
                         type="checkbox"
-                        className="rounded border-slate-300"
+                        className="rounded border-ios-separator"
                         checked={selected.size === filteredEntries.length && filteredEntries.length > 0}
                         onChange={toggleAll}
                       />
@@ -395,27 +395,27 @@ export function BankStatementPage() {
                     <th className="px-4 py-2.5 font-medium">Estado</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-ios-separator">
                   {filteredEntries.map((e) => (
-                    <tr key={e.id} className={cn("hover:bg-slate-50/60 cursor-pointer", e.matched && "bg-emerald-50/40", selected.has(e.id) && "bg-brand-50/60")}
+                    <tr key={e.id} className={cn("hover:bg-ios-fill cursor-pointer", e.matched && "bg-ios-green/10", selected.has(e.id) && "bg-brand-50/60")}
                       onClick={() => toggleOne(e.id)}>
                       <td className="px-3 py-2.5" onClick={(ev) => ev.stopPropagation()}>
-                        <input type="checkbox" className="rounded border-slate-300"
+                        <input type="checkbox" className="rounded border-ios-separator"
                           checked={selected.has(e.id)} onChange={() => toggleOne(e.id)} />
                       </td>
-                      <td className="px-4 py-2.5 font-mono text-xs text-slate-700">{e.referencia}</td>
-                      <td className="px-4 py-2.5 font-semibold text-slate-700">{formatAmt(e.monto)}</td>
-                      <td className="px-4 py-2.5 text-xs text-slate-500">{e.fecha ? formatDate(e.fecha) : "—"}</td>
-                      <td className="px-4 py-2.5 text-xs text-slate-400 max-w-xs truncate">{e.descripcion ?? "—"}</td>
-                      <td className="px-4 py-2.5 text-xs text-slate-400">{formatDate(e.uploadedAt)}</td>
+                      <td className="px-4 py-2.5 font-mono text-xs text-ios-label">{e.referencia}</td>
+                      <td className="px-4 py-2.5 font-semibold text-ios-label">{formatAmt(e.monto)}</td>
+                      <td className="px-4 py-2.5 text-xs text-ios-secondary">{e.fecha ? formatDate(e.fecha) : "—"}</td>
+                      <td className="px-4 py-2.5 text-xs text-ios-secondary max-w-xs truncate">{e.descripcion ?? "—"}</td>
+                      <td className="px-4 py-2.5 text-xs text-ios-secondary">{formatDate(e.uploadedAt)}</td>
                       <td className="px-4 py-2.5">
                         {e.matched ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500 px-2 py-0.5 text-xs font-semibold text-white">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-ios-green px-2 py-0.5 text-xs font-semibold text-white">
                             <span className="h-1.5 w-1.5 rounded-full bg-white" />
                             Conciliado
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-400">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-ios-fill px-2 py-0.5 text-xs font-medium text-ios-secondary">
                             Libre
                           </span>
                         )}
@@ -426,7 +426,7 @@ export function BankStatementPage() {
               </table>
             </div>
             {(search || filterDate) && (
-              <div className="border-t border-slate-100 px-4 py-2 text-xs text-slate-400">
+              <div className="border-t border-ios-separator px-4 py-2 text-xs text-ios-secondary">
                 Mostrando {filteredEntries.length} de {entries.length} entradas
               </div>
             )}

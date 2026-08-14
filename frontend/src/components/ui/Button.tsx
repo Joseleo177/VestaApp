@@ -11,22 +11,29 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean;
 }
 
+/**
+ * Botones al estilo iOS: relleno sólido para la acción principal, relleno gris
+ * para la secundaria (`outline`) y texto teñido sin fondo para la terciaria
+ * (`ghost`). Los nombres de variante se conservan para no tocar las páginas.
+ */
 const variants: Record<Variant, string> = {
   primary:
-    "bg-brand-600 text-white hover:bg-brand-700 focus-visible:ring-brand-500",
+    "bg-brand-600 text-white hover:brightness-95 focus-visible:ring-brand-500",
   success:
-    "bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-500",
+    "bg-ios-green text-white hover:brightness-95 focus-visible:ring-ios-green",
   danger:
-    "bg-rose-600 text-white hover:bg-rose-700 focus-visible:ring-rose-500",
-  ghost: "text-slate-600 hover:bg-slate-100 focus-visible:ring-slate-300",
+    "bg-ios-red text-white hover:brightness-95 focus-visible:ring-ios-red",
+  ghost:
+    "text-brand-600 hover:bg-brand-50 focus-visible:ring-brand-500",
   outline:
-    "border border-slate-300 text-slate-700 hover:bg-slate-50 focus-visible:ring-slate-300",
+    "bg-ios-fill text-ios-label hover:bg-ios-separator focus-visible:ring-ios-tertiary",
 };
 
+// Altura mínima táctil de 44 pt en el tamaño por defecto.
 const sizes: Record<Size, string> = {
-  sm: "h-8 px-3 text-sm",
-  md: "h-10 px-4 text-sm",
-  lg: "h-12 px-6 text-base",
+  sm: "h-9 px-3.5 text-[13px]",
+  md: "h-11 px-5 text-[15px]",
+  lg: "h-12 px-6 text-[17px]",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -35,9 +42,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       ref={ref}
       disabled={disabled || loading}
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors",
+        "inline-flex items-center justify-center gap-1.5 rounded-xl font-semibold",
+        "transition-all duration-150 active:scale-[0.97]",
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
-        "disabled:cursor-not-allowed disabled:opacity-60",
+        "disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100",
         variants[variant],
         sizes[size],
         className

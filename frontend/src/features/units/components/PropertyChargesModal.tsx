@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Trash2 } from "lucide-react";
+import { Download, Loader2, Trash2 } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -12,6 +12,7 @@ import { cn } from "@/lib/cn";
 import { Receipt } from "lucide-react";
 import { ApiError } from "@/services/api";
 import { billingService } from "@/features/billing/services/billing.service";
+import { paymentService } from "@/features/payments/services/payment.service";
 import { PropertyWithBalance } from "@/features/admin-panel/types";
 
 interface PropertyChargesModalProps {
@@ -21,16 +22,17 @@ interface PropertyChargesModalProps {
 }
 
 const STATUS_META: Record<ChargeStatus, { label: string; cls: string }> = {
-  [ChargeStatus.PENDING]:    { label: "Pendiente",  cls: "bg-amber-50 text-amber-700 ring-amber-600/20" },
-  [ChargeStatus.PAID]:       { label: "Pagada",     cls: "bg-emerald-50 text-emerald-700 ring-emerald-600/20" },
-  [ChargeStatus.EXONERATED]: { label: "Exonerada",  cls: "bg-slate-100 text-slate-500 ring-slate-400/20" },
-  [ChargeStatus.PARTIAL]:    { label: "Parcial",    cls: "bg-orange-50 text-orange-700 ring-orange-600/20" },
+  [ChargeStatus.PENDING]:    { label: "Pendiente",  cls: "bg-ios-orange/10 text-ios-orange" },
+  [ChargeStatus.PAID]:       { label: "Pagada",     cls: "bg-ios-green/10 text-ios-green" },
+  [ChargeStatus.EXONERATED]: { label: "Exonerada",  cls: "bg-ios-fill text-ios-secondary" },
+  [ChargeStatus.PARTIAL]:    { label: "Parcial",    cls: "bg-ios-orange/10 text-ios-orange" },
 };
 
 export function PropertyChargesModal({ property, open, onClose }: PropertyChargesModalProps) {
   const [charges, setCharges]         = useState<Charge[]>([]);
   const [loading, setLoading]         = useState(false);
   const [busyId, setBusyId]           = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Charge | null>(null);
 
   useEffect(() => {
@@ -54,6 +56,20 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
       toast.error(err instanceof ApiError ? err.message : "No se pudo actualizar");
     } finally {
       setBusyId(null);
+    }
+  };
+
+  /** El recibo se pide por su número: es el que cubre esta cuota concreta. */
+  const handleDownload = async (charge: Charge) => {
+    const cp = charge.confirmedPayment;
+    if (!cp?.id || !cp.receiptNumber) return;
+    setDownloadingId(charge.id);
+    try {
+      await paymentService.downloadReceipt(cp.id, cp.receiptNumber);
+    } catch {
+      toast.error("No se pudo descargar el recibo");
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -89,7 +105,7 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
           />
         ) : (
           <table className="w-full text-left text-sm">
-            <thead className="text-xs uppercase tracking-wide text-slate-500 border-b border-slate-100">
+            <thead className="text-xs uppercase tracking-wide text-ios-secondary border-b border-ios-separator">
               <tr>
                 <th className="pb-2 font-medium">Período</th>
                 <th className="pb-2 font-medium">Monto</th>
@@ -98,37 +114,37 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
                 <th className="pb-2 text-right font-medium">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-ios-separator">
               {charges.map((c) => (
-                <tr key={c.id} className="hover:bg-slate-50/50">
+                <tr key={c.id} className="hover:bg-ios-fill/60">
                   {/* Período + concepto */}
                   <td className="py-3 pr-4">
-                    <div className="whitespace-nowrap font-medium text-slate-800">
+                    <div className="whitespace-nowrap font-medium text-ios-label">
                       {formatPeriod(c.period)}
                     </div>
-                    <div className="text-xs text-slate-400 truncate max-w-[140px]">{c.description}</div>
+                    <div className="text-xs text-ios-secondary truncate max-w-[140px]">{c.description}</div>
                     {c.type === ChargeType.SPECIAL && (
-                      <span className="mt-0.5 inline-flex rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-600 ring-1 ring-inset ring-violet-500/20">
+                      <span className="mt-0.5 inline-flex rounded-full bg-ios-purple/10 px-2 py-0.5 text-xs font-medium text-ios-purple">
                         Especial
                       </span>
                     )}
                   </td>
 
                   {/* Monto */}
-                  <td className="py-3 pr-4 font-semibold text-slate-700 whitespace-nowrap">
+                  <td className="py-3 pr-4 font-semibold text-ios-label whitespace-nowrap">
                     {c.status === ChargeStatus.PAID
                       ? formatCurrency(c.amountPaid ?? c.amount)
                       : formatCurrency(c.amountDue ?? c.amount)}
                     {c.overdue && c.status === ChargeStatus.PENDING && (
-                      <div className="text-xs font-normal text-rose-500">mora incluida</div>
+                      <div className="text-xs font-normal text-ios-red">mora incluida</div>
                     )}
                     {c.status === ChargeStatus.PARTIAL && (c.amountPaid ?? 0) > 0 && (
-                      <div className="text-xs font-normal text-orange-500">
+                      <div className="text-xs font-normal text-ios-orange">
                         pagado {formatCurrency(c.amountPaid ?? 0)}
                       </div>
                     )}
                     {c.confirmedPayment && (
-                      <div className="mt-0.5 font-mono text-xs text-emerald-600 whitespace-nowrap">
+                      <div className="mt-0.5 font-mono text-xs text-ios-green whitespace-nowrap">
                         {c.confirmedPayment.reference} · {c.confirmedPayment.bank}
                         <br />{formatDate(c.confirmedPayment.paymentDate)}
                       </div>
@@ -136,14 +152,14 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
                   </td>
 
                   {/* Vence */}
-                  <td className="py-3 pr-4 text-xs text-slate-500 whitespace-nowrap">
+                  <td className="py-3 pr-4 text-xs text-ios-secondary whitespace-nowrap">
                     {formatDate(c.dueDate)}
                   </td>
 
                   {/* Estado */}
                   <td className="py-3 pr-4">
                     <span className={cn(
-                      "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset whitespace-nowrap",
+                      "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap",
                       STATUS_META[c.status].cls
                     )}>
                       {STATUS_META[c.status].label}
@@ -170,14 +186,30 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
                           onClick={() => setDeleteTarget(c)}
                           disabled={busyId === c.id}
                           title="Eliminar cuota"
-                          className="text-rose-400 hover:bg-rose-50 hover:text-rose-600"
+                          className="text-ios-red hover:bg-ios-red/10 hover:text-ios-red"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       )}
-                      {c.status === ChargeStatus.PAID && (
-                        <span className="text-xs text-slate-300">—</span>
-                      )}
+                      {c.status === ChargeStatus.PAID &&
+                        (c.confirmedPayment?.receiptNumber ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDownload(c)}
+                            disabled={downloadingId === c.id}
+                            title={`Descargar ${c.confirmedPayment.receiptNumber}`}
+                          >
+                            {downloadingId === c.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Download className="h-3.5 w-3.5" />
+                            )}
+                            PDF
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-ios-tertiary">—</span>
+                        ))}
                     </div>
                   </td>
                 </tr>
