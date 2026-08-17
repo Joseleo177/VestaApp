@@ -3,8 +3,10 @@ import { Payment, PaymentCurrency, PaymentStatus } from "@/types/domain";
 import { Card } from "@/components/ui/Card";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Pagination } from "@/components/ui/Pagination";
 import { Receipt } from "lucide-react";
 import { formatCurrency, formatDate, formatPeriod } from "@/lib/format";
+import { usePagination } from "@/lib/usePagination";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { StatusBadge } from "./StatusBadge";
 
@@ -22,6 +24,8 @@ export function PaymentHistoryTable({ payments, loading }: PaymentHistoryTablePr
     () => new Set(payments.map((p) => p.property?.id ?? "")).size > 1,
     [payments]
   );
+
+  const paged = usePagination(payments, 25);
 
   if (loading) {
     return (
@@ -47,7 +51,7 @@ export function PaymentHistoryTable({ payments, loading }: PaymentHistoryTablePr
     <Card className="overflow-hidden">
       {/* Vista móvil: tarjetas */}
       <div className="sm:hidden divide-y divide-ios-separator">
-        {payments.map((payment) => (
+        {paged.items.map((payment) => (
           <div key={payment.id} className="p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -99,7 +103,7 @@ export function PaymentHistoryTable({ payments, loading }: PaymentHistoryTablePr
             </tr>
           </thead>
           <tbody className="divide-y divide-ios-separator">
-            {payments.map((payment) => (
+            {paged.items.map((payment) => (
               <tr key={payment.id} className="hover:bg-ios-fill">
                 <td className="px-5 py-3.5">
                   <div className="font-medium text-ios-label">
@@ -144,6 +148,16 @@ export function PaymentHistoryTable({ payments, loading }: PaymentHistoryTablePr
           </tbody>
         </table>
       </div>
+
+      <Pagination
+        page={paged.page}
+        totalPages={paged.totalPages}
+        total={paged.total}
+        from={paged.from}
+        to={paged.to}
+        onPageChange={paged.setPage}
+        label="pagos"
+      />
     </Card>
   );
 }

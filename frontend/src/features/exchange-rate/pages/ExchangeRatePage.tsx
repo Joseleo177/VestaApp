@@ -5,6 +5,8 @@ import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { TableSkeleton } from "@/components/ui/Skeleton";
+import { Pagination } from "@/components/ui/Pagination";
+import { usePagination } from "@/lib/usePagination";
 import { formatRate, formatDate } from "@/lib/format";
 import { useExchangeRate } from "../hooks/useExchangeRate";
 import { exchangeRateService, ExchangeRateRecord } from "../services/exchange-rate.service";
@@ -74,6 +76,7 @@ export function ExchangeRatePage() {
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const todayRecord = history.find((r) => r.date === todayStr);
+  const paged = usePagination(history, 25);
 
   return (
     <div className="space-y-6">
@@ -179,7 +182,7 @@ export function ExchangeRatePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-ios-separator">
-                  {history.map((r) => {
+                  {paged.items.map((r) => {
                     const isToday = r.date === todayStr;
                     return (
                       <tr key={r.id} className={isToday ? "bg-brand-50/40" : ""}>
@@ -214,6 +217,17 @@ export function ExchangeRatePage() {
                 </tbody>
               </table>
             </div>
+          )}
+          {!loadingHistory && history.length > 0 && (
+            <Pagination
+              page={paged.page}
+              totalPages={paged.totalPages}
+              total={paged.total}
+              from={paged.from}
+              to={paged.to}
+              onPageChange={paged.setPage}
+              label="tasas"
+            />
           )}
         </Card>
       </div>

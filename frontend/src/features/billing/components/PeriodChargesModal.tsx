@@ -4,9 +4,11 @@ import { Download, Loader2 } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { TableSkeleton } from "@/components/ui/Skeleton";
+import { Pagination } from "@/components/ui/Pagination";
 import { Charge, ChargeStatus, ChargeType } from "@/types/domain";
 import { formatCurrency, formatDate, formatPeriod } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { usePagination } from "@/lib/usePagination";
 import { ApiError } from "@/services/api";
 import { billingService } from "../services/billing.service";
 import { paymentService } from "@/features/payments/services/payment.service";
@@ -39,6 +41,8 @@ export function PeriodChargesModal({ period, open, onClose }: PeriodChargesModal
       .catch(() => toast.error("No se pudieron cargar las cuotas"))
       .finally(() => setLoading(false));
   }, [open, period]);
+
+  const paged = usePagination(charges, 20);
 
   const toggle = async (charge: Charge) => {
     const exonerate = charge.status !== ChargeStatus.EXONERATED;
@@ -90,7 +94,7 @@ export function PeriodChargesModal({ period, open, onClose }: PeriodChargesModal
               </tr>
             </thead>
             <tbody className="divide-y divide-ios-separator">
-              {charges.map((c) => (
+              {paged.items.map((c) => (
                 <tr key={c.id}>
                   <td className="py-2.5">
                     <div className="font-medium text-ios-label">
@@ -164,6 +168,16 @@ export function PeriodChargesModal({ period, open, onClose }: PeriodChargesModal
               ))}
             </tbody>
           </table>
+          <Pagination
+            page={paged.page}
+            totalPages={paged.totalPages}
+            total={paged.total}
+            from={paged.from}
+            to={paged.to}
+            onPageChange={paged.setPage}
+            label="cuotas"
+            className="px-0"
+          />
         </div>
       )}
     </Modal>

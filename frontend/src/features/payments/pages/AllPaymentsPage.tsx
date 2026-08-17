@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/Button";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { Pagination } from "@/components/ui/Pagination";
+import { usePagination } from "@/lib/usePagination";
 import { StatusBadge } from "../components/StatusBadge";
 import { paymentService } from "../services/payment.service";
 import { formatCurrency, formatDate, formatPeriod } from "@/lib/format";
@@ -62,6 +64,8 @@ export function AllPaymentsPage() {
   }, []);
 
   useEffect(() => { void load(tab); }, [tab, load]);
+
+  const paged = usePagination(payments, 25);
 
   const handleConfirm = async (payment: Payment) => {
     setBusyId(payment.id);
@@ -148,7 +152,7 @@ export function AllPaymentsPage() {
         <Card className="overflow-hidden">
           {/* Vista móvil: tarjetas. La tabla de 7 columnas no cabe en un teléfono. */}
           <div className="divide-y divide-ios-separator sm:hidden">
-            {payments.map((p) => (
+            {paged.items.map((p) => (
               <div key={p.id} className="p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -244,7 +248,7 @@ export function AllPaymentsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-ios-separator">
-                {payments.map((p) => (
+                {paged.items.map((p) => (
                   <tr key={p.id} className="hover:bg-ios-fill">
                     <td className="px-5 py-3.5">
                       <div className="font-medium text-ios-label">{p.submittedBy?.fullName ?? "—"}</div>
@@ -313,6 +317,16 @@ export function AllPaymentsPage() {
               </tbody>
             </table>
           </div>
+
+          <Pagination
+            page={paged.page}
+            totalPages={paged.totalPages}
+            total={paged.total}
+            from={paged.from}
+            to={paged.to}
+            onPageChange={paged.setPage}
+            label="pagos"
+          />
         </Card>
       )}
     </div>

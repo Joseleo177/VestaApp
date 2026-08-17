@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/Input";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
+import { Pagination } from "@/components/ui/Pagination";
 import { matchesTerm } from "@/lib/search";
+import { usePagination } from "@/lib/usePagination";
 
 interface UnitsTableProps {
   units: PropertyWithBalance[];
@@ -30,6 +32,8 @@ export function UnitsTable({ units, loading, onEdit, onViewCharges }: UnitsTable
       ),
     [units, search]
   );
+
+  const paged = usePagination(filtered, 25);
 
   return (
     <Card className="overflow-hidden">
@@ -76,7 +80,7 @@ export function UnitsTable({ units, loading, onEdit, onViewCharges }: UnitsTable
               </tr>
             </thead>
             <tbody className="divide-y divide-ios-separator">
-              {filtered.map((unit) => (
+              {paged.items.map((unit) => (
                 <tr key={unit.id} className="hover:bg-ios-fill">
                   <td className="px-5 py-3.5">
                     <div className="font-medium text-ios-label">{unit.code}</div>
@@ -112,6 +116,18 @@ export function UnitsTable({ units, loading, onEdit, onViewCharges }: UnitsTable
             </tbody>
           </table>
         </div>
+      )}
+
+      {!loading && filtered.length > 0 && (
+        <Pagination
+          page={paged.page}
+          totalPages={paged.totalPages}
+          total={paged.total}
+          from={paged.from}
+          to={paged.to}
+          onPageChange={paged.setPage}
+          label="departamentos"
+        />
       )}
     </Card>
   );

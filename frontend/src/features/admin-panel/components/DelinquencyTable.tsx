@@ -4,8 +4,10 @@ import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Pagination } from "@/components/ui/Pagination";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { usePagination } from "@/lib/usePagination";
 import { DelinquencyFilter, PropertyWithBalance } from "../types";
 
 interface DelinquencyTableProps {
@@ -37,6 +39,8 @@ export function DelinquencyTable({ properties, loading }: DelinquencyTableProps)
       return matchesFilter && matchesSearch;
     });
   }, [properties, filter, search]);
+
+  const paged = usePagination(filtered, 25);
 
   return (
     <Card className="overflow-hidden">
@@ -80,7 +84,7 @@ export function DelinquencyTable({ properties, loading }: DelinquencyTableProps)
         <>
           {/* Vista móvil: tarjetas */}
           <div className="sm:hidden divide-y divide-ios-separator">
-            {filtered.map((p) => (
+            {paged.items.map((p) => (
               <div key={p.id} className="flex items-center justify-between gap-3 px-4 py-3.5">
                 <div className="min-w-0">
                   <p className="font-semibold text-ios-label">{p.code}</p>
@@ -116,7 +120,7 @@ export function DelinquencyTable({ properties, loading }: DelinquencyTableProps)
                 </tr>
               </thead>
               <tbody className="divide-y divide-ios-separator">
-                {filtered.map((p) => (
+                {paged.items.map((p) => (
                   <tr key={p.id} className="hover:bg-ios-fill">
                     <td className="px-5 py-3.5">
                       <div className="font-medium text-ios-label">{p.code}</div>
@@ -143,6 +147,16 @@ export function DelinquencyTable({ properties, loading }: DelinquencyTableProps)
               </tbody>
             </table>
           </div>
+
+          <Pagination
+            page={paged.page}
+            totalPages={paged.totalPages}
+            total={paged.total}
+            from={paged.from}
+            to={paged.to}
+            onPageChange={paged.setPage}
+            label="propiedades"
+          />
         </>
       )}
     </Card>

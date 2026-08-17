@@ -7,9 +7,11 @@ import { Input } from "@/components/ui/Input";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
+import { Pagination } from "@/components/ui/Pagination";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { matchesTerm } from "@/lib/search";
+import { usePagination } from "@/lib/usePagination";
 import { ApiError } from "@/services/api";
 import { userService } from "../services/user.service";
 import { ROLE_LABELS } from "../types";
@@ -32,6 +34,8 @@ export function UsersTable({ users, loading, onEdit, onChanged }: UsersTableProp
       ),
     [users, search]
   );
+
+  const paged = usePagination(filtered, 25);
 
   const handleToggle = async (user: User) => {
     setTogglingId(user.id);
@@ -92,7 +96,7 @@ export function UsersTable({ users, loading, onEdit, onChanged }: UsersTableProp
             </tr>
           </thead>
           <tbody className="divide-y divide-ios-separator">
-            {filtered.map((user) => (
+            {paged.items.map((user) => (
               <tr key={user.id} className="hover:bg-ios-fill">
                 <td className="px-5 py-3.5">
                   <div className="font-medium text-ios-label">{user.fullName}</div>
@@ -139,6 +143,18 @@ export function UsersTable({ users, loading, onEdit, onChanged }: UsersTableProp
           </tbody>
         </table>
       </div>
+      )}
+
+      {!loading && filtered.length > 0 && (
+        <Pagination
+          page={paged.page}
+          totalPages={paged.totalPages}
+          total={paged.total}
+          from={paged.from}
+          to={paged.to}
+          onPageChange={paged.setPage}
+          label="usuarios"
+        />
       )}
     </Card>
   );

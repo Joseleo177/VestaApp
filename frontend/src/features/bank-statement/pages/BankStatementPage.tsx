@@ -7,7 +7,9 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { TableSkeleton } from "@/components/ui/Skeleton";
+import { Pagination } from "@/components/ui/Pagination";
 import { cn } from "@/lib/cn";
+import { usePagination } from "@/lib/usePagination";
 import { ApiError } from "@/services/api";
 import {
   reconciliationService,
@@ -93,6 +95,10 @@ export function BankStatementPage() {
       return matchRef && matchDate && matchStatus;
     }),
   [entries, search, filterDate, filterMatched]);
+
+  // Solo se pagina lo que se dibuja: "seleccionar todo" sigue operando sobre
+  // todas las entradas filtradas, no sobre la página visible.
+  const paged = usePagination(filteredEntries, 50);
 
   const toggleOne = (id: string) =>
     setSelected((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
@@ -419,7 +425,7 @@ export function BankStatementPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-ios-separator">
-                  {filteredEntries.map((e) => (
+                  {paged.items.map((e) => (
                     <tr key={e.id} className={cn("hover:bg-ios-fill cursor-pointer", e.matched && "bg-ios-green/10", selected.has(e.id) && "bg-brand-50/60")}
                       onClick={() => toggleOne(e.id)}>
                       <td className="px-3 py-2.5" onClick={(ev) => ev.stopPropagation()}>
@@ -448,6 +454,15 @@ export function BankStatementPage() {
                 </tbody>
               </table>
             </div>
+            <Pagination
+              page={paged.page}
+              totalPages={paged.totalPages}
+              total={paged.total}
+              from={paged.from}
+              to={paged.to}
+              onPageChange={paged.setPage}
+              label="entradas"
+            />
             {(search || filterDate) && (
               <div className="border-t border-ios-separator px-4 py-2 text-xs text-ios-secondary">
                 Mostrando {filteredEntries.length} de {entries.length} entradas
