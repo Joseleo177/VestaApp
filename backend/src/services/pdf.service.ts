@@ -24,7 +24,14 @@ function bs(n: number): string {
 export function generateReceiptPdf(
   payment: Payment,
   receiptNumber: string,
-  opts?: { condoName?: string; condoCity?: string; condoRif?: string; condoPhone?: string; issuedAt?: Date },
+  opts?: {
+    condoName?: string;
+    condoCity?: string;
+    condoAddress?: string;
+    condoRif?: string;
+    condoPhone?: string;
+    issuedAt?: Date;
+  },
   chargeOverride?: import("../models/Charge").Charge | null
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -36,6 +43,7 @@ export function generateReceiptPdf(
 
     const condoName = opts?.condoName ?? "Centro Residencial Plaza Mayor";
     const city = opts?.condoCity ?? "Barquisimeto";
+    const condoAddress = (opts?.condoAddress ?? "").trim();
     const condoRif = opts?.condoRif ?? "";
     const condoPhone = opts?.condoPhone ?? "";
     const charge = chargeOverride ?? payment.charge;
@@ -79,10 +87,16 @@ export function generateReceiptPdf(
     const col2X = 55 + (hasLogo ? logoSize + 10 : 0);
     const col2W = col3X - col2X - 8;
 
-    // Centrar verticalmente el bloque de texto dentro de la altura del logo
+    // Centrar verticalmente el bloque de texto dentro de la altura del logo.
+    // La dirección puede ocupar más de una línea, así que su alto se mide en
+    // vez de asumirse: si no, el bloque queda descentrado con direcciones largas.
     const lineH = 18;
-    const infoLines = condoRif || condoPhone ? 3 : 2;
-    const textBlockH = infoLines * lineH;
+    const meta = [condoRif ? `RIF ${condoRif}` : "", condoPhone ? `Tlf. ${condoPhone}` : ""]
+      .filter(Boolean).join("  ·  ");
+    const addrH = condoAddress
+      ? doc.fontSize(8).font("Helvetica").heightOfString(condoAddress, { width: col2W, align: "center" })
+      : 0;
+    const textBlockH = lineH * (meta ? 3 : 2) + (condoAddress ? addrH + 3 : 0);
     const textStartY = headerY + Math.round((logoSize - textBlockH) / 2);
 
     // Info empresa — centrada en columna central
@@ -90,11 +104,15 @@ export function generateReceiptPdf(
       .text("RECIBO DE PAGO", col2X, textStartY, { width: col2W, align: "center" });
     doc.fontSize(10).fillColor("#000000").font("Helvetica-Bold")
       .text(condoName, col2X, textStartY + lineH, { width: col2W, align: "center" });
-    if (condoRif || condoPhone) {
-      const meta = [condoRif ? `RIF ${condoRif}` : "", condoPhone ? `Tlf. ${condoPhone}` : ""]
-        .filter(Boolean).join("  ·  ");
+    if (meta) {
       doc.fontSize(9).fillColor("#000000").font("Helvetica-Bold")
         .text(meta, col2X, textStartY + lineH * 2, { width: col2W, align: "center" });
+    }
+    if (condoAddress) {
+      // En regular y un punto más chica: es dato de contacto, no encabezado.
+      doc.fontSize(8).fillColor("#000000").font("Helvetica")
+        .text(condoAddress, col2X, textStartY + lineH * (meta ? 3 : 2) + 3,
+          { width: col2W, align: "center" });
     }
 
     // RECIBO N° — columna derecha, alineado con el bloque de empresa

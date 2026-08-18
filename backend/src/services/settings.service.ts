@@ -6,6 +6,7 @@ const DEFAULTS: Record<string, string> = {
   receipt_counter:  "0",
   condo_name:       "Asociación",
   condo_city:       "Caracas",
+  condo_address:    "",
   condo_rif:        "",
   condo_phone:      "",
   bank_name:        "",

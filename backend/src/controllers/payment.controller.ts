@@ -134,9 +134,10 @@ export const PaymentController = {
         rn
       );
       const { SettingsService } = await import("../services/settings.service");
-      const [condoName, condoCity, condoRif, condoPhone] = await Promise.all([
+      const [condoName, condoCity, condoAddress, condoRif, condoPhone] = await Promise.all([
         SettingsService.get("condo_name"),
         SettingsService.get("condo_city"),
+        SettingsService.get("condo_address"),
         SettingsService.get("condo_rif"),
         SettingsService.get("condo_phone"),
       ]);
@@ -144,7 +145,7 @@ export const PaymentController = {
       const pdfBuffer = await generateReceiptPdf(
         receipt.payment,
         receipt.receiptNumber,
-        { condoName, condoCity, condoRif, condoPhone, issuedAt: receipt.issuedAt },
+        { condoName, condoCity, condoAddress, condoRif, condoPhone, issuedAt: receipt.issuedAt },
         receipt.charge
       );
       res.setHeader("Content-Type", "application/pdf");

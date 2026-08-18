@@ -11,6 +11,7 @@ interface Settings {
   receipt_counter:  string;
   condo_name:       string;
   condo_city:       string;
+  condo_address:    string;
   condo_rif:        string;
   condo_phone:      string;
   bank_name:        string;
@@ -21,7 +22,7 @@ interface Settings {
 export function SettingsPage() {
   const [values, setValues] = useState<Settings>({
     receipt_prefix: "RC", receipt_counter: "0",
-    condo_name: "", condo_city: "Caracas",
+    condo_name: "", condo_city: "Caracas", condo_address: "",
     condo_rif: "", condo_phone: "",
     bank_name: "", bank_beneficiary: "", bank_account: "",
   });
@@ -115,6 +116,14 @@ export function SettingsPage() {
           disabled={loading}
           value={values.condo_city}
           onChange={set("condo_city")}
+        />
+        <Input
+          id="condo_address"
+          label="Dirección"
+          placeholder="Ej. Av. Principal, Urb. Los Naranjos, Caracas"
+          disabled={loading}
+          value={values.condo_address}
+          onChange={set("condo_address")}
         />
       </Card>
 
