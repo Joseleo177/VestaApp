@@ -49,7 +49,18 @@ function KpiCard({ icon, label, value, sub, color, loading }: KpiCardProps) {
         {loading ? (
           <div className="mt-1 h-6 w-16 animate-pulse rounded bg-ios-separator" />
         ) : (
-          <p className={cn("text-2xl font-bold leading-tight", c.value)}>{value}</p>
+          // Los conteos son cortos, pero un monto como "€16.170,00" no cabe a
+          // text-2xl en la columna del grid: se baja un escalón y se permite
+          // que parta de línea antes que recortar una cifra de dinero.
+          <p
+            className={cn(
+              "font-bold leading-tight tabular-nums break-words",
+              String(value).length > 9 ? "text-xl" : "text-2xl",
+              c.value
+            )}
+          >
+            {value}
+          </p>
         )}
         {sub && !loading && (
           <p className="mt-0.5 text-xs text-ios-secondary truncate">{sub}</p>

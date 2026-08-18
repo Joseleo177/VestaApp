@@ -1,8 +1,12 @@
 /** Formateadores reutilizables de moneda y fechas. */
 
+// `narrowSymbol` da "€16.170,00" en vez de "EUR 16.170,00": tres caracteres
+// menos, que es la diferencia entre caber o no en las tarjetas del dashboard.
+// Además coincide con las etiquetas "(€)" de los formularios.
 const currencyFmt = new Intl.NumberFormat("es-VE", {
   style: "currency",
   currency: "EUR",
+  currencyDisplay: "narrowSymbol",
 });
 
 export function formatCurrency(value: number | string): string {

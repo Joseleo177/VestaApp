@@ -12,10 +12,13 @@ export const ExchangeRateController = {
     }
   },
 
-  /** GET /api/exchange-rate/history — historial de tasas (admin). */
-  async list(_req: Request, res: Response, next: NextFunction) {
+  /** GET /api/exchange-rate/history[?limit=N] — historial de tasas (admin). */
+  async list(req: Request, res: Response, next: NextFunction) {
     try {
-      const records = await listRates();
+      // Sin ?limit devuelve todo el historial; el frontend pagina en cliente.
+      const parsed = Number(req.query.limit);
+      const limit = Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+      const records = await listRates(limit);
       res.json(records.map((r) => ({
         id: r.id,
         date: r.date,

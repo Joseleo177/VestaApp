@@ -63,9 +63,14 @@ export async function saveRate(
   return saved;
 }
 
-/** Lista las tasas guardadas ordenadas de más reciente a más antigua. */
-export async function listRates(limit = 60): Promise<ExchangeRateRecord[]> {
-  return repo().find({ order: { date: "DESC" }, take: limit });
+/**
+ * Lista las tasas guardadas ordenadas de más reciente a más antigua.
+ * Sin `limit` devuelve el historial completo: la tabla crece ~250 filas al
+ * año (solo días hábiles) y el frontend pagina en cliente, así que recortar
+ * aquí solo lograba esconder registros que la paginación nunca mostraba.
+ */
+export async function listRates(limit?: number): Promise<ExchangeRateRecord[]> {
+  return repo().find({ order: { date: "DESC" }, ...(limit ? { take: limit } : {}) });
 }
 
 /**
