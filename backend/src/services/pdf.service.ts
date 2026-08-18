@@ -87,39 +87,47 @@ export function generateReceiptPdf(
     const col2X = 55 + (hasLogo ? logoSize + 10 : 0);
     const col2W = col3X - col2X - 8;
 
-    // Centrar verticalmente el bloque de texto dentro de la altura del logo.
-    // La dirección puede ocupar más de una línea, así que su alto se mide en
-    // vez de asumirse: si no, el bloque queda descentrado con direcciones largas.
-    const lineH = 18;
+    // Encabezado central: se apilan las líneas midiendo el alto real de cada
+    // una. El nombre de la asociación y la dirección pueden ocupar 2-3 líneas
+    // en esta columna (~212pt), y con offsets fijos de 18pt se solapaban.
     const meta = [condoRif ? `RIF ${condoRif}` : "", condoPhone ? `Tlf. ${condoPhone}` : ""]
       .filter(Boolean).join("  ·  ");
-    const addrH = condoAddress
-      ? doc.fontSize(8).font("Helvetica").heightOfString(condoAddress, { width: col2W, align: "center" })
-      : 0;
-    const textBlockH = lineH * (meta ? 3 : 2) + (condoAddress ? addrH + 3 : 0);
-    const textStartY = headerY + Math.round((logoSize - textBlockH) / 2);
 
-    // Info empresa — centrada en columna central
-    doc.fontSize(11).fillColor("#000000").font("Helvetica-Bold")
-      .text("RECIBO DE PAGO", col2X, textStartY, { width: col2W, align: "center" });
-    doc.fontSize(10).fillColor("#000000").font("Helvetica-Bold")
-      .text(condoName, col2X, textStartY + lineH, { width: col2W, align: "center" });
-    if (meta) {
-      doc.fontSize(9).fillColor("#000000").font("Helvetica-Bold")
-        .text(meta, col2X, textStartY + lineH * 2, { width: col2W, align: "center" });
-    }
-    if (condoAddress) {
-      // En regular y un punto más chica: es dato de contacto, no encabezado.
-      doc.fontSize(8).fillColor("#000000").font("Helvetica")
-        .text(condoAddress, col2X, textStartY + lineH * (meta ? 3 : 2) + 3,
-          { width: col2W, align: "center" });
+    // Orden: título, nombre, dirección, y al final RIF/teléfono.
+    const headerLines = [
+      { text: "RECIBO DE PAGO", size: 11, gap: 4 },
+      { text: condoName, size: 10, gap: 3 },
+      { text: condoAddress, size: 8, gap: 3 },
+      { text: meta, size: 9, gap: 0 },
+    ].filter((l) => l.text);
+
+    const measured = headerLines.map((l) => {
+      doc.fontSize(l.size).font("Helvetica-Bold");
+      return { ...l, h: doc.heightOfString(l.text, { width: col2W, align: "center" }) };
+    });
+
+    const textBlockH = measured.reduce((s, l) => s + l.h + l.gap, 0);
+    // Math.max(0): con un bloque más alto que el logo, centrarlo daría una Y
+    // negativa y el texto se saldría por arriba de la página.
+    const textStartY = headerY + Math.max(0, Math.round((logoSize - textBlockH) / 2));
+
+    // Todo el encabezado va en negrita, incluida la dirección.
+    let lineY = textStartY;
+    const lineYs: number[] = [];
+    for (const l of measured) {
+      doc.fontSize(l.size).fillColor("#000000").font("Helvetica-Bold")
+        .text(l.text, col2X, lineY, { width: col2W, align: "center" });
+      lineYs.push(lineY);
+      lineY += l.h + l.gap;
     }
 
-    // RECIBO N° — columna derecha, alineado con el bloque de empresa
+    // RECIBO N° — columna derecha, alineado con las dos primeras líneas
+    const numLabelY = lineYs[0] ?? textStartY;
+    const numValueY = lineYs[1] ?? numLabelY + 18;
     doc.fontSize(8).fillColor("#000000").font("Helvetica-Bold")
-      .text("RECIBO N°:", col3X, textStartY, { width: col3W, align: "right" });
+      .text("RECIBO N°:", col3X, numLabelY, { width: col3W, align: "right" });
     doc.fontSize(12).fillColor("#000000").font("Helvetica-Bold")
-      .text(receiptNumber, col3X, textStartY + lineH, { width: col3W, align: "right" });
+      .text(receiptNumber, col3X, numValueY, { width: col3W, align: "right" });
 
     // Resetear cursor al margen izquierdo para que el cuerpo quede alineado a la izquierda
     doc.y = headerY + logoSize + 2;
