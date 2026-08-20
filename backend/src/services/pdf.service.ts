@@ -74,7 +74,9 @@ export function generateReceiptPdf(
     ];
     const logoFile = logoCandidates.find((p) => fs.existsSync(p)) ?? "";
     const hasLogo = logoFile !== "";
-    const logoSize = 155;
+    // 130 en vez de 155: cada punto que cede el logo se lo gana la columna
+    // central, que es la que decide en cuántas líneas parten nombre y dirección.
+    const logoSize = 130;
     const headerY = 0;
 
     if (hasLogo) {
@@ -82,7 +84,7 @@ export function generateReceiptPdf(
     }
 
     // ── Layout 3 columnas: [logo] [info empresa] [RECIBO N°] ──────────────────
-    const col3W = 100;
+    const col3W = 85;   // alcanza para "RC-00000009" a 12pt
     const col3X = 55 + pageW - col3W;
     const col2X = 55 + (hasLogo ? logoSize + 10 : 0);
     const col2W = col3X - col2X - 8;
@@ -93,11 +95,24 @@ export function generateReceiptPdf(
     const meta = [condoRif ? `RIF ${condoRif}` : "", condoPhone ? `Tlf. ${condoPhone}` : ""]
       .filter(Boolean).join("  ·  ");
 
+    // La dirección es la línea más larga: se busca el mayor tamaño que la deje
+    // en 2 líneas como máximo. Con una dirección corta se queda en 8pt; con una
+    // larga baja hasta 6pt antes que dejarla ocupar media página.
+    const addrSize = (() => {
+      if (!condoAddress) return 8;
+      for (const size of [8, 7.5, 7, 6.5, 6]) {
+        doc.fontSize(size).font("Helvetica-Bold");
+        const alto = doc.heightOfString(condoAddress, { width: col2W, align: "center" });
+        if (alto / doc.heightOfString("X", { width: col2W }) <= 2.2) return size;
+      }
+      return 6;
+    })();
+
     // Orden: título, nombre, dirección, y al final RIF/teléfono.
     const headerLines = [
       { text: "RECIBO DE PAGO", size: 11, gap: 4 },
       { text: condoName, size: 10, gap: 3 },
-      { text: condoAddress, size: 8, gap: 3 },
+      { text: condoAddress, size: addrSize, gap: 3 },
       { text: meta, size: 9, gap: 0 },
     ].filter((l) => l.text);
 

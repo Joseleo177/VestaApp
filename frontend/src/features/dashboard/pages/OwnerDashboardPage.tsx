@@ -15,6 +15,7 @@ import { FinancialSummary } from "../components/FinancialSummary";
 import { usePayments } from "@/features/payments/hooks/usePayments";
 import { PaymentHistoryTable } from "@/features/payments/components/PaymentHistoryTable";
 import { PaymentForm } from "@/features/payments/components/PaymentForm";
+import { ReportService } from "@/services/report.service";
 
 const STATUS_META: Record<ChargeStatus, { label: string; cls: string }> = {
   [ChargeStatus.PENDING]:    { label: "Pendiente",  cls: "bg-ios-orange/10 text-ios-orange" },
@@ -269,6 +270,7 @@ export function OwnerDashboardPage() {
     useAccountStatement();
   const { payments, loading: loadingPayments, refetch: refetchPayments } = usePayments();
   const [payCharge, setPayCharge] = useState<Charge | null>(null);
+  const [downloadingStatement, setDownloadingStatement] = useState(false);
 
   const pendingCharges = useMemo(
     () =>
@@ -289,11 +291,32 @@ export function OwnerDashboardPage() {
     void refetchStatement();
   };
 
+  const handleDownloadStatement = async () => {
+    setDownloadingStatement(true);
+    try {
+      await ReportService.downloadAccountStatement();
+    } catch {
+      toast.error("No se pudo descargar el estado de cuenta");
+    } finally {
+      setDownloadingStatement(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-[28px] font-bold leading-tight text-ios-label">Mi estado de cuenta</h1>
-        <p className="text-sm text-ios-secondary">Resumen financiero e historial de pagos</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-[28px] font-bold leading-tight text-ios-label">Mi estado de cuenta</h1>
+          <p className="text-sm text-ios-secondary">Resumen financiero e historial de pagos</p>
+        </div>
+        <Button 
+          variant="outline" 
+          disabled={downloadingStatement}
+          onClick={handleDownloadStatement}
+        >
+          {downloadingStatement ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+          PDF
+        </Button>
       </div>
 
       <FinancialSummary

@@ -8,6 +8,7 @@ import exchangeRateRoutes from "./exchange-rate.routes";
 import towerRoutes from "./tower.routes";
 import reconciliationRoutes from "./reconciliation.routes";
 import settingsRoutes from "./settings.routes";
+import reportRoutes from "./report.routes";
 
 const router = Router();
 
@@ -22,5 +23,6 @@ router.use("/exchange-rate", exchangeRateRoutes);
 router.use("/towers", towerRoutes);
 router.use("/bank-statements", reconciliationRoutes);
 router.use("/settings", settingsRoutes);
+router.use("/reports", reportRoutes);
 
 export default router;

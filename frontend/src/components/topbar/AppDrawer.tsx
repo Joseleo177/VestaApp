@@ -12,6 +12,7 @@ import {
   CreditCard,
   FileSpreadsheet,
   TrendingUp,
+  BarChart3,
   Settings,
   X,
   LucideIcon,
@@ -35,6 +36,7 @@ const ADMIN_APPS: AppItem[] = [
   { label: "Cobros",        to: "/admin/gasto-comun",  icon: Receipt,         color: "from-emerald-500 to-green-600"  },
   { label: "Pagos",         to: "/admin/pagos",        icon: CreditCard,      color: "from-fuchsia-500 to-purple-600" },
   { label: "Extracto",      to: "/admin/extracto",     icon: FileSpreadsheet, color: "from-rose-500 to-red-600"       },
+  { label: "Reportes",      to: "/admin/reportes",     icon: BarChart3,       color: "from-blue-500 to-indigo-600"    },
   { label: "Tasa",          to: "/admin/tasa",         icon: TrendingUp,      color: "from-lime-500 to-green-600"     },
   { label: "Ajustes",       to: "/admin/ajustes",      icon: Settings,        color: "from-slate-500 to-slate-700"    },
 ];
