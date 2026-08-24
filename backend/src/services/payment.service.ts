@@ -147,16 +147,19 @@ export async function applyCreditBalance(manager: TxManager, ownerId: string): P
   await manager.save(User, user);
 }
 
+import { UserRole } from "../models/User";
+
 export const PaymentService = {
-  async create(userId: string, input: CreatePaymentInput): Promise<Payment> {
+  async create(userId: string, input: CreatePaymentInput, userRole?: UserRole): Promise<Payment> {
     const charge = await chargeRepo().findOne({
       where: { id: input.chargeId },
       relations: { property: { owner: true, authorized: true } },
     });
     if (!charge) throw new HttpError(404, "Cuota no encontrada");
 
-    // Puede pagar el titular o el autorizado del departamento.
+    // Puede pagar el titular o el autorizado del departamento, o un administrador
     const canPay =
+      userRole === UserRole.ADMIN ||
       charge.property.owner?.id === userId ||
       charge.property.authorized?.id === userId;
     if (!canPay) {

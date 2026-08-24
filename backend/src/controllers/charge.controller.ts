@@ -130,7 +130,7 @@ export const ChargeController = {
   // POST /api/charges/generate  (admin)
   async generate(req: Request, res: Response, next: NextFunction) {
     try {
-      const { period, amount, moraAmount, dueDate, type, towerIds, description } = req.body;
+      const { period, amount, moraAmount, dueDate, type, towerIds, propertyIds, description } = req.body;
       if (!period || !amount || !dueDate) {
         throw new HttpError(400, "period, amount y dueDate son requeridos");
       }
@@ -143,6 +143,7 @@ export const ChargeController = {
         dueDate,
         type: chargeType,
         towerIds: Array.isArray(towerIds) ? towerIds : undefined,
+        propertyIds: Array.isArray(propertyIds) ? propertyIds : undefined,
         description,
       });
       res.status(201).json(result);

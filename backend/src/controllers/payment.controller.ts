@@ -17,14 +17,18 @@ export const PaymentController = {
         throw new HttpError(400, "Tipo de pago inválido");
       }
 
-      const payment = await PaymentService.create(req.user!.sub, {
-        chargeId,
-        currency,
-        bank,
-        reference,
-        paymentDate,
-        amountBs: amountBs ? Number(amountBs) : undefined,
-      });
+      const payment = await PaymentService.create(
+        req.user!.sub,
+        {
+          chargeId,
+          currency,
+          bank,
+          reference,
+          paymentDate,
+          amountBs: amountBs ? Number(amountBs) : undefined,
+        },
+        req.user!.role as UserRole
+      );
 
       res.status(201).json(payment);
     } catch (err) {

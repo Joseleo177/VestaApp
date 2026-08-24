@@ -16,8 +16,13 @@ export const ReportService = {
     link.remove();
   },
 
-  async downloadOwedCharges(): Promise<void> {
+  async downloadOwedCharges(startDate?: string, endDate?: string): Promise<void> {
+    const params: Record<string, string> = {};
+    if (startDate) params.startDate = startDate;
+    if (endDate) params.endDate = endDate;
+    
     const res = await api.get("/reports/debt", {
+      params,
       responseType: "blob",
     });
 

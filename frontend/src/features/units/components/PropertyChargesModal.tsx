@@ -15,6 +15,8 @@ import { billingService } from "@/features/billing/services/billing.service";
 import { paymentService } from "@/features/payments/services/payment.service";
 import { PropertyWithBalance } from "@/features/admin-panel/types";
 
+import { PaymentForm } from "@/features/payments/components/PaymentForm";
+
 interface PropertyChargesModalProps {
   property: PropertyWithBalance | null;
   open: boolean;
@@ -34,6 +36,7 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
   const [busyId, setBusyId]           = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Charge | null>(null);
+  const [paymentTarget, setPaymentTarget] = useState<Charge | null>(null);
 
   useEffect(() => {
     if (!open || !property) return;
@@ -94,7 +97,7 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
 
   return (
     <>
-      <Modal open={open} onClose={onClose} title={title} className="max-w-3xl">
+      <Modal open={open} onClose={onClose} title={title} className="sm:max-w-4xl w-full">
         {loading ? (
           <TableSkeleton rows={4} cols={5} />
         ) : charges.length === 0 ? (
@@ -169,6 +172,15 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
                   {/* Acciones */}
                   <td className="py-3">
                     <div className="flex justify-end items-center gap-1">
+                      {(c.status === ChargeStatus.PENDING || c.status === ChargeStatus.PARTIAL) && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setPaymentTarget(c)}
+                        >
+                          Registrar Pago
+                        </Button>
+                      )}
                       {c.status !== ChargeStatus.PAID && c.status !== ChargeStatus.PARTIAL && (
                         <Button
                           size="sm"
@@ -228,6 +240,30 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
         confirmLabel="Eliminar"
         loading={busyId === deleteTarget?.id}
       />
+
+      <Modal
+        open={paymentTarget !== null}
+        onClose={() => setPaymentTarget(null)}
+        title={`Registrar pago — ${paymentTarget ? formatPeriod(paymentTarget.period) : ""}`}
+      >
+        {paymentTarget && (
+          <PaymentForm
+            charges={[paymentTarget]}
+            defaultChargeId={paymentTarget.id}
+            onSuccess={() => {
+              setPaymentTarget(null);
+              if (property) {
+                setLoading(true);
+                billingService
+                  .listForProperty(property.id)
+                  .then(setCharges)
+                  .finally(() => setLoading(false));
+              }
+            }}
+            onCancel={() => setPaymentTarget(null)}
+          />
+        )}
+      </Modal>
     </>
   );
 }

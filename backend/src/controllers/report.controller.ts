@@ -58,13 +58,23 @@ export const ReportController = {
   // GET /api/reports/debt
   async exportOwedCharges(req: Request, res: Response, next: NextFunction) {
     try {
+      const { startDate, endDate } = req.query;
       const chargeRepo = AppDataSource.getRepository(Charge);
 
-      const charges = await chargeRepo.createQueryBuilder("charge")
+      let query = chargeRepo.createQueryBuilder("charge")
         .leftJoinAndSelect("charge.property", "property")
         .leftJoinAndSelect("property.tower", "tower")
         .leftJoinAndSelect("property.owner", "owner")
-        .where("charge.status IN (:...statuses)", { statuses: [ChargeStatus.PENDING, ChargeStatus.PARTIAL] })
+        .where("charge.status IN (:...statuses)", { statuses: [ChargeStatus.PENDING, ChargeStatus.PARTIAL] });
+
+      if (startDate) {
+        query = query.andWhere("charge.dueDate >= :startDate", { startDate });
+      }
+      if (endDate) {
+        query = query.andWhere("charge.dueDate <= :endDate", { endDate });
+      }
+
+      const charges = await query
         .orderBy("property.id", "ASC")
         .addOrderBy("charge.period", "ASC")
         .getMany();

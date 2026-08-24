@@ -37,6 +37,9 @@ export function ReportsPage() {
     loadUsers();
   }, []);
 
+  const [startDateDebt, setStartDateDebt] = useState("");
+  const [endDateDebt, setEndDateDebt] = useState("");
+
   const handleExportCollected = async () => {
     if (!startDate || !endDate) {
       toast.error("Debe seleccionar ambas fechas.");
@@ -60,9 +63,14 @@ export function ReportsPage() {
   };
 
   const handleExportDebt = async () => {
+    if (startDateDebt && endDateDebt && startDateDebt > endDateDebt) {
+      toast.error("La fecha de inicio no puede ser mayor que la de fin.");
+      return;
+    }
+
     try {
       setLoadingDebt(true);
-      await ReportService.downloadOwedCharges();
+      await ReportService.downloadOwedCharges(startDateDebt, endDateDebt);
       toast.success("Reporte de deudas exportado");
     } catch (error) {
       console.error(error);
@@ -144,9 +152,22 @@ export function ReportsPage() {
           </CardHeader>
           <CardBody className="space-y-4">
             <p className="text-sm text-ios-secondary">
-              Exporta todas las cuotas pendientes o pagadas parcialmente, mostrando lo que se adeuda a la fecha.
+              Exporta todas las cuotas pendientes o pagadas parcialmente, filtradas opcionalmente por fecha de vencimiento.
             </p>
-            <div className="h-16" /> {/* Spacer to align with left card inputs */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input
+                label="Desde (Opcional)"
+                type="date"
+                value={startDateDebt}
+                onChange={(e) => setStartDateDebt(e.target.value)}
+              />
+              <Input
+                label="Hasta (Opcional)"
+                type="date"
+                value={endDateDebt}
+                onChange={(e) => setEndDateDebt(e.target.value)}
+              />
+            </div>
             <Button
               className="w-full"
               variant="outline"

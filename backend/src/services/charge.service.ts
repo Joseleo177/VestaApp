@@ -123,10 +123,12 @@ export const ChargeService = {
     dueDate: string;
     type: ChargeType;
     towerIds?: string[];
+    propertyIds?: string[];
     description?: string;
   }): Promise<{ created: number }> {
-    const { period, amount, moraAmount, dueDate, type, towerIds, description } = input;
+    const { period, amount, moraAmount, dueDate, type, towerIds, propertyIds, description } = input;
     const filterByTowers = towerIds && towerIds.length > 0;
+    const filterByProperties = propertyIds && propertyIds.length > 0;
 
     const propRepo = AppDataSource.getRepository(Property);
     let propQuery = propRepo
@@ -134,13 +136,15 @@ export const ChargeService = {
       .leftJoinAndSelect("property.tower", "tower")
       .leftJoinAndSelect("property.owner", "owner");
 
-    if (filterByTowers) {
+    if (filterByProperties) {
+      propQuery = propQuery.where("property.id IN (:...propertyIds)", { propertyIds });
+    } else if (filterByTowers) {
       propQuery = propQuery.where("tower.id IN (:...towerIds)", { towerIds });
     }
 
     const properties = await propQuery.getMany();
     if (properties.length === 0) {
-      throw new HttpError(400, "No hay departamentos en las torres seleccionadas");
+      throw new HttpError(400, "No hay departamentos seleccionados");
     }
 
     if (type === ChargeType.REGULAR) {
@@ -153,7 +157,9 @@ export const ChargeService = {
         .getCount();
 
       if (existing > 0) {
-        const scope = filterByTowers ? " en las torres seleccionadas" : "";
+        let scope = "";
+        if (filterByProperties) scope = " en los departamentos seleccionados";
+        else if (filterByTowers) scope = " en las torres seleccionadas";
         throw new HttpError(
           409,
           `Ya existe una cuota regular para ${period}${scope}`

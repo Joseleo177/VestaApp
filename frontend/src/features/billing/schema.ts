@@ -9,6 +9,7 @@ export const generateChargesSchema = z
     dueDate: z.string().min(1, "Indica la fecha de vencimiento"),
     type: z.nativeEnum(ChargeType),
     towerIds: z.array(z.string()),
+    propertyIds: z.array(z.string()).optional(),
     description: z.string().optional(),
   })
   .refine(

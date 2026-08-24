@@ -9,6 +9,10 @@ import { formatBs } from "@/lib/format";
 import { ApiError } from "@/services/api";
 import { useExchangeRate } from "@/features/exchange-rate/hooks/useExchangeRate";
 import { useTowers } from "@/features/towers/hooks/useTowers";
+import { useUnits } from "@/features/units/hooks/useUnits";
+import { SearchSelect } from "@/components/ui/SearchSelect";
+import { X } from "lucide-react";
+import { useState, useMemo } from "react";
 import { billingService } from "../services/billing.service";
 import { generateChargesSchema, GenerateChargesValues } from "../schema";
 
@@ -19,7 +23,20 @@ interface GenerateChargesFormProps {
 export function GenerateChargesForm({ onGenerated }: GenerateChargesFormProps) {
   const { data: rate } = useExchangeRate();
   const { towers } = useTowers();
+  const { units } = useUnits();
   const thisMonth = new Date().toISOString().slice(0, 7);
+
+  const [targetType, setTargetType] = useState<"TOWERS" | "PROPERTIES">("TOWERS");
+
+  const propertyOptions = useMemo(
+    () =>
+      units.map((u) => ({
+        value: u.id,
+        label: `${u.code}${u.tower ? ` - ${u.tower.name}` : ""}`,
+        hint: u.owner ? u.owner.fullName : undefined,
+      })),
+    [units]
+  );
 
   const {
     register,
@@ -34,6 +51,7 @@ export function GenerateChargesForm({ onGenerated }: GenerateChargesFormProps) {
       moraAmount: 5,
       type: ChargeType.REGULAR,
       towerIds: [],
+      propertyIds: [],
     },
   });
 
@@ -45,10 +63,13 @@ export function GenerateChargesForm({ onGenerated }: GenerateChargesFormProps) {
 
   const onSubmit = async (values: GenerateChargesValues) => {
     try {
-      const result = await billingService.generate({
+      const payload = {
         ...values,
         moraAmount: isSpecial ? 0 : values.moraAmount,
-      });
+        towerIds: targetType === "TOWERS" ? values.towerIds : [],
+        propertyIds: targetType === "PROPERTIES" ? values.propertyIds : [],
+      };
+      const result = await billingService.generate(payload);
       toast.success(`Emitido: ${result.created} cuotas creadas`);
       onGenerated();
     } catch (err) {
@@ -139,62 +160,137 @@ export function GenerateChargesForm({ onGenerated }: GenerateChargesFormProps) {
             {...register("description")}
           />
 
-          {/* Selección de torres */}
-          {towers.length > 0 && (
-            <div>
-              <p className="mb-2 text-sm font-medium text-ios-label">
-                Torres destino{" "}
-                <span className="font-normal text-ios-secondary">
-                  (sin selección = todas las torres)
-                </span>
-              </p>
-              <Controller
-                name="towerIds"
-                control={control}
-                render={({ field }) => (
-                  <div className="flex flex-wrap gap-3">
-                    {towers.map((tower) => {
-                      const checked = field.value.includes(tower.id);
-                      return (
-                        <label
-                          key={tower.id}
-                          className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                            checked
-                              ? "border-brand-600 bg-brand-50 text-brand-700"
-                              : "border-ios-separator text-ios-label hover:border-ios-separator"
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4 rounded border-ios-separator text-brand-600"
-                            checked={checked}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                field.onChange([...field.value, tower.id]);
-                              } else {
-                                field.onChange(field.value.filter((id) => id !== tower.id));
-                              }
-                            }}
-                          />
-                          {tower.name}
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
-              />
-              {filteringTowers && (
-                <p className="mt-1.5 text-xs text-ios-secondary">
-                  Solo se emitirá a los departamentos de{" "}
-                  {towers
-                    .filter((t) => towerIds.includes(t.id))
-                    .map((t) => t.name)
-                    .join(", ")}
-                  .
-                </p>
-              )}
+          {/* Destino */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-4">
+              <p className="text-sm font-medium text-ios-label">Destino de la cuota:</p>
+              <div className="flex gap-2">
+                <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    name="targetType"
+                    checked={targetType === "TOWERS"}
+                    onChange={() => setTargetType("TOWERS")}
+                    className="text-brand-600 focus:ring-brand-600"
+                  />
+                  <span>Torres</span>
+                </label>
+                <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    name="targetType"
+                    checked={targetType === "PROPERTIES"}
+                    onChange={() => setTargetType("PROPERTIES")}
+                    className="text-brand-600 focus:ring-brand-600"
+                  />
+                  <span>Departamentos</span>
+                </label>
+              </div>
             </div>
-          )}
+
+            {targetType === "TOWERS" && towers.length > 0 && (
+              <div className="rounded-xl border border-ios-separator p-4">
+                <p className="mb-2 text-sm font-medium text-ios-label">
+                  Torres destino{" "}
+                  <span className="font-normal text-ios-secondary">
+                    (sin selección = todas las torres)
+                  </span>
+                </p>
+                <Controller
+                  name="towerIds"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="flex flex-wrap gap-3">
+                      {towers.map((tower) => {
+                        const checked = field.value.includes(tower.id);
+                        return (
+                          <label
+                            key={tower.id}
+                            className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                              checked
+                                ? "border-brand-600 bg-brand-50 text-brand-700"
+                                : "border-ios-separator text-ios-label hover:border-ios-separator"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-ios-separator text-brand-600"
+                              checked={checked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  field.onChange([...field.value, tower.id]);
+                                } else {
+                                  field.onChange(field.value.filter((id) => id !== tower.id));
+                                }
+                              }}
+                            />
+                            {tower.name}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                />
+                {filteringTowers && (
+                  <p className="mt-1.5 text-xs text-ios-secondary">
+                    Solo se emitirá a los departamentos de{" "}
+                    {towers
+                      .filter((t) => towerIds.includes(t.id))
+                      .map((t) => t.name)
+                      .join(", ")}
+                    .
+                  </p>
+                )}
+              </div>
+            )}
+
+            {targetType === "PROPERTIES" && (
+              <div className="rounded-xl border border-ios-separator p-4 space-y-3 overflow-visible">
+                <p className="text-sm font-medium text-ios-label">Departamentos seleccionados</p>
+                <Controller
+                  name="propertyIds"
+                  control={control}
+                  render={({ field }) => (
+                    <>
+                      <SearchSelect
+                        value=""
+                        onChange={(val) => {
+                          if (val && !field.value?.includes(val)) {
+                            field.onChange([...(field.value || []), val]);
+                          }
+                        }}
+                        options={propertyOptions.filter((o) => !field.value?.includes(o.value))}
+                        placeholder="Buscar departamento..."
+                      />
+                      {field.value && field.value.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {field.value.map((id) => {
+                            const unit = units.find((u) => u.id === id);
+                            if (!unit) return null;
+                            return (
+                              <span
+                                key={id}
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-ios-fill px-2.5 py-1 text-sm font-medium text-ios-label"
+                              >
+                                {unit.code} {unit.tower && `(${unit.tower.name})`}
+                                <button
+                                  type="button"
+                                  className="text-ios-secondary hover:text-ios-label focus:outline-none"
+                                  onClick={() => field.onChange(field.value?.filter((v) => v !== id))}
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
+                  )}
+                />
+              </div>
+            )}
+          </div>
 
           {amount > 0 && rate && (
             <p className="rounded-xl bg-ios-fill px-3 py-2 text-sm text-ios-label">
