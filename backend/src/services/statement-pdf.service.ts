@@ -118,8 +118,14 @@ export function generateAccountStatementPdf(
     // ── Datos del Cliente ──────────────────────────────────────────────────────
     const propsStr = properties.map(p => `${p.tower?.name || ''} ${p.code}`.trim()).join(", ") || "—";
     
-    doc.fontSize(11).font("Helvetica-Bold").text("Propietario: ", { continued: true }).font("Helvetica").text(user.fullName);
-    doc.font("Helvetica-Bold").text("Cédula: ", { continued: true }).font("Helvetica").text(user.cedula);
+    const ownerNames = Array.from(new Set(properties.map(p => p.owner?.fullName).filter(Boolean)));
+    const ownerName = ownerNames.length > 0 ? ownerNames.join(" / ") : user.fullName;
+    
+    const ownerCedulas = Array.from(new Set(properties.map(p => p.owner?.cedula).filter(Boolean)));
+    const ownerCedula = ownerCedulas.length > 0 ? ownerCedulas.join(" / ") : user.cedula;
+
+    doc.fontSize(11).font("Helvetica-Bold").text("Propietario: ", { continued: true }).font("Helvetica").text(ownerName);
+    doc.font("Helvetica-Bold").text("Cédula: ", { continued: true }).font("Helvetica").text(ownerCedula);
     doc.font("Helvetica-Bold").text("Propiedades: ", { continued: true }).font("Helvetica").text(propsStr);
     doc.moveDown(1.5);
 

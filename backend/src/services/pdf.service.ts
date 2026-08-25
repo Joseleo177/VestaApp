@@ -158,7 +158,7 @@ export function generateReceiptPdf(
     doc.moveDown(1);
 
     // ── Cuerpo ─────────────────────────────────────────────────────────────────
-    const owner = payment.submittedBy?.fullName ?? "—";
+    const owner = payment.property?.owner?.fullName ?? payment.submittedBy?.fullName ?? "—";
     const unit = payment.property?.code ?? "—";
     const tower = (payment.property as any)?.tower?.name ?? "";
     const unitFull = tower ? `${unit} · ${tower}` : unit;

@@ -9,7 +9,7 @@ import { PeriodChargesModal } from "../components/PeriodChargesModal";
 /** Módulo de gasto común: emitir la cuota del mes, ver y exonerar cuotas. */
 export function BillingPage() {
   const { periods, loading, refetch } = usePeriods();
-  const [selectedPeriod, setSelectedPeriod] = useState<string | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState<{ period: string; type: string } | null>(null);
   const [showForm, setShowForm] = useState(false);
 
   // Al emitir se cierra el formulario: el período ya aparece en la tabla.
@@ -53,11 +53,17 @@ export function BillingPage() {
         <p className="mb-3 text-xs text-ios-secondary">
           Haz clic en un período para ver sus cuotas y exonerar departamentos.
         </p>
-        <PeriodsTable periods={periods} loading={loading} onSelect={setSelectedPeriod} onDeleted={refetch} />
+        <PeriodsTable 
+          periods={periods} 
+          loading={loading} 
+          onSelect={(period, type) => setSelectedPeriod({ period, type })} 
+          onDeleted={refetch} 
+        />
       </div>
 
       <PeriodChargesModal
-        period={selectedPeriod}
+        period={selectedPeriod?.period ?? null}
+        type={selectedPeriod?.type ?? null}
         open={!!selectedPeriod}
         onClose={() => setSelectedPeriod(null)}
       />

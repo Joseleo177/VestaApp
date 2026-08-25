@@ -15,6 +15,7 @@ import { paymentService } from "@/features/payments/services/payment.service";
 
 interface PeriodChargesModalProps {
   period: string | null;
+  type: string | null;
   open: boolean;
   onClose: () => void;
 }
@@ -26,7 +27,7 @@ const STATUS_META: Record<ChargeStatus, { label: string; cls: string }> = {
   [ChargeStatus.PARTIAL]: { label: "Parcial", cls: "bg-ios-orange/10 text-ios-orange" },
 };
 
-export function PeriodChargesModal({ period, open, onClose }: PeriodChargesModalProps) {
+export function PeriodChargesModal({ period, type, open, onClose }: PeriodChargesModalProps) {
   const [charges, setCharges] = useState<Charge[]>([]);
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -36,11 +37,11 @@ export function PeriodChargesModal({ period, open, onClose }: PeriodChargesModal
     if (!open || !period) return;
     setLoading(true);
     billingService
-      .listForPeriod(period)
+      .listForPeriod(period, type ?? undefined)
       .then(setCharges)
       .catch(() => toast.error("No se pudieron cargar las cuotas"))
       .finally(() => setLoading(false));
-  }, [open, period]);
+  }, [open, period, type]);
 
   const paged = usePagination(charges, 20);
 

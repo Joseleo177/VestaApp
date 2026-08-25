@@ -14,7 +14,7 @@ import { ApiError } from "@/services/api";
 interface PeriodsTableProps {
   periods: PeriodSummary[];
   loading: boolean;
-  onSelect: (period: string) => void;
+  onSelect: (period: string, type: string) => void;
   onDeleted: () => void;
 }
 
@@ -23,17 +23,21 @@ export function PeriodsTable({ periods, loading, onSelect, onDeleted }: PeriodsT
   const [deletingPeriod, setDeletingPeriod] = useState<string | null>(null);
   const [confirmPeriod, setConfirmPeriod] = useState<string | null>(null);
 
-  const handleDelete = async (period: string) => {
+  const [deletingType, setDeletingType] = useState<string | null>(null);
+
+  const handleDelete = async (period: string, type: string) => {
     setDeletingPeriod(period);
+    setDeletingType(type);
     setConfirmPeriod(null);
     try {
-      await billingService.deletePeriod(period);
+      await billingService.deletePeriod(period, type);
       toast.success(`Cuotas de ${formatPeriod(period)} eliminadas`);
       onDeleted();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudieron eliminar las cuotas");
     } finally {
       setDeletingPeriod(null);
+      setDeletingType(null);
     }
   };
 
@@ -70,8 +74,8 @@ export function PeriodsTable({ periods, loading, onSelect, onDeleted }: PeriodsT
             <tbody className="divide-y divide-ios-separator">
               {periods.map((p) => (
                 <tr
-                  key={p.period}
-                  onClick={() => onSelect(p.period)}
+                  key={`${p.period}-${p.type}`}
+                  onClick={() => onSelect(p.period, p.type)}
                   className="cursor-pointer hover:bg-brand-50/50"
                 >
                   <td className="px-5 py-3.5">
@@ -93,9 +97,9 @@ export function PeriodsTable({ periods, loading, onSelect, onDeleted }: PeriodsT
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={(e) => { e.stopPropagation(); setConfirmPeriod(p.period); }}
-                      disabled={deletingPeriod === p.period}
-                      title="Eliminar período"
+                      onClick={(e) => { e.stopPropagation(); setConfirmPeriod(`${p.period}|${p.type}`); }}
+                      disabled={deletingPeriod === p.period && deletingType === p.type}
+                      title="Eliminar cuotas"
                     >
                       <Trash2 className="h-3.5 w-3.5 text-ios-red" />
                     </Button>
@@ -110,9 +114,14 @@ export function PeriodsTable({ periods, loading, onSelect, onDeleted }: PeriodsT
       <ConfirmDialog
         open={confirmPeriod !== null}
         onClose={() => setConfirmPeriod(null)}
-        onConfirm={() => confirmPeriod && handleDelete(confirmPeriod)}
-        title="Eliminar período"
-        description={`Se eliminarán todas las cuotas de ${confirmPeriod ? formatPeriod(confirmPeriod) : ""}. Esta acción no se puede deshacer.`}
+        onConfirm={() => {
+          if (confirmPeriod) {
+            const [p, t] = confirmPeriod.split("|");
+            handleDelete(p, t);
+          }
+        }}
+        title="Eliminar cuotas"
+        description={`Se eliminarán todas las cuotas seleccionadas de ${confirmPeriod ? formatPeriod(confirmPeriod.split("|")[0]) : ""}. Esta acción no se puede deshacer.`}
         confirmLabel="Eliminar"
         loading={deletingPeriod !== null}
       />

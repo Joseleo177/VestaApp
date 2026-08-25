@@ -6,6 +6,7 @@ export interface PeriodSummary {
   count: number;
   total: number;
   hasSpecial: boolean;
+  type: ChargeType;
 }
 
 export interface GenerateChargesInput {
@@ -28,8 +29,8 @@ export const billingService = {
     return data;
   },
 
-  async listForPeriod(period: string): Promise<Charge[]> {
-    const { data } = await api.get<Charge[]>(`/charges/period/${period}`);
+  async listForPeriod(period: string, type?: string): Promise<Charge[]> {
+    const { data } = await api.get<Charge[]>(`/charges/period/${period}`, { params: { type } });
     return data;
   },
 
@@ -43,8 +44,8 @@ export const billingService = {
     return data;
   },
 
-  async deletePeriod(period: string): Promise<void> {
-    await api.delete(`/charges/period/${period}`);
+  async deletePeriod(period: string, type?: string): Promise<void> {
+    await api.delete(`/charges/period/${period}`, { params: { type } });
   },
 
   async setExonerated(chargeId: string, exonerated: boolean): Promise<Charge> {

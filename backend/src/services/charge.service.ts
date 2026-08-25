@@ -69,32 +69,33 @@ export const ChargeService = {
   },
 
   async listPeriods(): Promise<
-    { period: string; count: number; total: number; hasSpecial: boolean }[]
+    { period: string; type: ChargeType; count: number; total: number; hasSpecial: boolean }[]
   > {
     const rows = await repo()
       .createQueryBuilder("charge")
       .select("charge.period", "period")
+      .addSelect("charge.type", "type")
       .addSelect("COUNT(*)", "count")
       .addSelect("COALESCE(SUM(charge.amount), 0)", "total")
-      .addSelect(
-        `BOOL_OR(charge.type::text = '${ChargeType.SPECIAL}')`,
-        "hasSpecial"
-      )
-      .groupBy("charge.period")
+      .groupBy("charge.period, charge.type")
       .orderBy("charge.period", "DESC")
-      .getRawMany<{ period: string; count: string; total: string; hasSpecial: boolean }>();
+      .addOrderBy("charge.type", "ASC")
+      .getRawMany<{ period: string; type: string; count: string; total: string }>();
 
     return rows.map((r) => ({
       period: r.period,
+      type: r.type as ChargeType,
       count: Number(r.count),
       total: Number(r.total),
-      hasSpecial: Boolean(r.hasSpecial),
+      hasSpecial: r.type === ChargeType.SPECIAL,
     }));
   },
 
-  listForPeriod(period: string): Promise<Charge[]> {
+  listForPeriod(period: string, type?: string): Promise<Charge[]> {
+    const where: any = { period };
+    if (type) where.type = type;
     return repo().find({
-      where: { period },
+      where,
       order: { property: { code: "ASC" } },
       relations: { payments: { submittedBy: true } },
     });

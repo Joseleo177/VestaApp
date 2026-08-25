@@ -164,7 +164,8 @@ export const ChargeController = {
   // GET /api/charges/period/:period  (admin)
   async listForPeriod(req: Request, res: Response, next: NextFunction) {
     try {
-      const charges = await ChargeService.listForPeriod(req.params.period);
+      const type = req.query.type as string | undefined;
+      const charges = await ChargeService.listForPeriod(req.params.period, type);
       res.json(charges.map(serializeCharge));
     } catch (err) {
       next(err);
@@ -185,11 +186,17 @@ export const ChargeController = {
   async deletePeriod(req: Request, res: Response, next: NextFunction) {
     try {
       const { period } = req.params;
-      const result = await AppDataSource.getRepository(Charge)
+      const type = req.query.type as string | undefined;
+      let query = AppDataSource.getRepository(Charge)
         .createQueryBuilder()
         .delete()
-        .where("period = :period", { period })
-        .execute();
+        .where("period = :period", { period });
+        
+      if (type) {
+        query = query.andWhere("type = :type", { type });
+      }
+      
+      const result = await query.execute();
       res.json({ deleted: result.affected ?? 0 });
     } catch (err) {
       next(err);
