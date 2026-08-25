@@ -187,16 +187,31 @@ export const ChargeController = {
     try {
       const { period } = req.params;
       const type = req.query.type as string | undefined;
-      let query = AppDataSource.getRepository(Charge)
-        .createQueryBuilder()
-        .delete()
-        .where("period = :period", { period });
+      
+      const qb = AppDataSource.getRepository(Charge)
+        .createQueryBuilder("charge")
+        .where("charge.period = :period", { period });
         
       if (type) {
-        query = query.andWhere("type = :type", { type });
+        qb.andWhere("charge.type = :type", { type });
       }
       
-      const result = await query.execute();
+      // Check for associated payments to provide a clear error message
+      const paymentsCount = await qb.clone()
+        .innerJoin("charge.payments", "payment")
+        .getCount();
+        
+      if (paymentsCount > 0) {
+        throw new HttpError(409, "No se puede eliminar el lote porque hay cuotas con pagos asociados (pendientes, rechazados o confirmados).");
+      }
+
+      const result = await AppDataSource.getRepository(Charge)
+        .createQueryBuilder()
+        .delete()
+        .where("period = :period", { period })
+        .andWhere(type ? "type = :type" : "1=1", { type })
+        .execute();
+
       res.json({ deleted: result.affected ?? 0 });
     } catch (err) {
       next(err);
