@@ -97,7 +97,7 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
 
   return (
     <>
-      <Modal open={open} onClose={onClose} title={title} className="sm:max-w-4xl w-full">
+      <Modal open={open} onClose={onClose} title={title} className="w-full sm:max-w-2xl">
         {loading ? (
           <TableSkeleton rows={4} cols={5} />
         ) : charges.length === 0 ? (
@@ -107,127 +107,133 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
             description="Este departamento no tiene cuotas emitidas aún."
           />
         ) : (
-          <table className="w-full text-left text-sm">
-            <thead className="text-xs uppercase tracking-wide text-ios-secondary border-b border-ios-separator">
-              <tr>
-                <th className="pb-2 font-medium">Período</th>
-                <th className="pb-2 font-medium">Monto</th>
-                <th className="pb-2 font-medium whitespace-nowrap">Vence</th>
-                <th className="pb-2 font-medium">Estado</th>
-                <th className="pb-2 text-right font-medium">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-ios-separator">
-              {charges.map((c) => (
-                <tr key={c.id} className="hover:bg-ios-fill/60">
-                  {/* Período + concepto */}
-                  <td className="py-3 pr-4">
-                    <div className="whitespace-nowrap font-medium text-ios-label">
-                      {formatPeriod(c.period)}
+          /* Lista en vez de tabla: las cuotas caben a cualquier ancho sin
+             obligar a desplazar el modal en horizontal. */
+          <ul className="divide-y divide-ios-separator text-sm">
+            {charges.map((c) => {
+              const cp = c.confirmedPayment;
+              const receiptNumber = cp?.receiptNumber ?? null;
+              const canPay =
+                c.status === ChargeStatus.PENDING || c.status === ChargeStatus.PARTIAL;
+              const canExonerate =
+                c.status === ChargeStatus.PENDING || c.status === ChargeStatus.EXONERATED;
+              const canDelete = canExonerate;
+              const busy = busyId === c.id;
+
+              return (
+                <li key={c.id} className="py-3 first:pt-0">
+                  {/* Cabecera: período + estado a la izquierda, monto a la derecha */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="font-medium text-ios-label">
+                          {formatPeriod(c.period)}
+                        </span>
+                        <span
+                          className={cn(
+                            "inline-flex rounded-full px-2 py-0.5 text-xs font-medium",
+                            STATUS_META[c.status].cls
+                          )}
+                        >
+                          {STATUS_META[c.status].label}
+                        </span>
+                        {c.type === ChargeType.SPECIAL && (
+                          <span className="inline-flex rounded-full bg-ios-purple/10 px-2 py-0.5 text-xs font-medium text-ios-purple">
+                            Especial
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-0.5 truncate text-xs text-ios-secondary">
+                        {c.description}
+                      </p>
+                      <p className="mt-0.5 text-xs text-ios-tertiary">
+                        Vence {formatDate(c.dueDate)}
+                      </p>
                     </div>
-                    <div className="text-xs text-ios-secondary truncate max-w-[140px]">{c.description}</div>
-                    {c.type === ChargeType.SPECIAL && (
-                      <span className="mt-0.5 inline-flex rounded-full bg-ios-purple/10 px-2 py-0.5 text-xs font-medium text-ios-purple">
-                        Especial
-                      </span>
-                    )}
-                  </td>
 
-                  {/* Monto */}
-                  <td className="py-3 pr-4 font-semibold text-ios-label whitespace-nowrap">
-                    {c.status === ChargeStatus.PAID
-                      ? formatCurrency(c.amountPaid ?? c.amount)
-                      : formatCurrency(c.amountDue ?? c.amount)}
-                    {c.overdue && c.status === ChargeStatus.PENDING && (
-                      <div className="text-xs font-normal text-ios-red">mora incluida</div>
-                    )}
-                    {c.status === ChargeStatus.PARTIAL && (c.amountPaid ?? 0) > 0 && (
-                      <div className="text-xs font-normal text-ios-orange">
-                        pagado {formatCurrency(c.amountPaid ?? 0)}
+                    <div className="shrink-0 text-right">
+                      <div className="font-semibold text-ios-label">
+                        {c.status === ChargeStatus.PAID
+                          ? formatCurrency(c.amountPaid ?? c.amount)
+                          : formatCurrency(c.amountDue ?? c.amount)}
                       </div>
-                    )}
-                    {c.confirmedPayment && (
-                      <div className="mt-0.5 font-mono text-xs text-ios-green whitespace-nowrap">
-                        {c.confirmedPayment.reference} · {c.confirmedPayment.bank}
-                        <br />{formatDate(c.confirmedPayment.paymentDate)}
-                      </div>
-                    )}
-                  </td>
-
-                  {/* Vence */}
-                  <td className="py-3 pr-4 text-xs text-ios-secondary whitespace-nowrap">
-                    {formatDate(c.dueDate)}
-                  </td>
-
-                  {/* Estado */}
-                  <td className="py-3 pr-4">
-                    <span className={cn(
-                      "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap",
-                      STATUS_META[c.status].cls
-                    )}>
-                      {STATUS_META[c.status].label}
-                    </span>
-                  </td>
-
-                  {/* Acciones */}
-                  <td className="py-3">
-                    <div className="flex justify-end items-center gap-1">
-                      {(c.status === ChargeStatus.PENDING || c.status === ChargeStatus.PARTIAL) && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setPaymentTarget(c)}
-                        >
-                          Registrar Pago
-                        </Button>
+                      {c.overdue && c.status === ChargeStatus.PENDING && (
+                        <div className="text-xs text-ios-red">mora incluida</div>
                       )}
-                      {c.status !== ChargeStatus.PAID && c.status !== ChargeStatus.PARTIAL && (
-                        <Button
-                          size="sm"
-                          variant={c.status === ChargeStatus.EXONERATED ? "outline" : "ghost"}
-                          onClick={() => toggle(c)}
-                          disabled={busyId === c.id}
-                        >
-                          {c.status === ChargeStatus.EXONERATED ? "Reactivar" : "Exonerar"}
-                        </Button>
+                      {c.status === ChargeStatus.PARTIAL && (c.amountPaid ?? 0) > 0 && (
+                        <div className="text-xs text-ios-orange">
+                          pagado {formatCurrency(c.amountPaid ?? 0)}
+                        </div>
                       )}
-                      {(c.status === ChargeStatus.PENDING || c.status === ChargeStatus.EXONERATED) && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setDeleteTarget(c)}
-                          disabled={busyId === c.id}
-                          title="Eliminar cuota"
-                          className="text-ios-red hover:bg-ios-red/10 hover:text-ios-red"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                    </div>
+                  </div>
+
+                  {/* Datos del pago confirmado */}
+                  {cp && (
+                    <p className="mt-1.5 break-words font-mono text-xs text-ios-green">
+                      {[cp.reference, cp.bank, cp.paymentDate ? formatDate(cp.paymentDate) : null]
+                        .filter(Boolean)
+                        .join(" · ")}
+                      {receiptNumber && (
+                        <span className="text-ios-secondary"> · Recibo {receiptNumber}</span>
                       )}
-                      {c.status === ChargeStatus.PAID &&
-                        (c.confirmedPayment?.receiptNumber ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleDownload(c)}
-                            disabled={downloadingId === c.id}
-                            title={`Descargar ${c.confirmedPayment.receiptNumber}`}
-                          >
-                            {downloadingId === c.id ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Download className="h-3.5 w-3.5" />
-                            )}
-                            PDF
-                          </Button>
+                    </p>
+                  )}
+
+                  {/* Acciones: se reacomodan en varias líneas si el ancho aprieta */}
+                  <div className="mt-2 flex flex-wrap items-center justify-end gap-1.5">
+                    {receiptNumber ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleDownload(c)}
+                        disabled={downloadingId === c.id}
+                        title={`Descargar ${receiptNumber}`}
+                      >
+                        {downloadingId === c.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
-                          <span className="text-xs text-ios-tertiary">—</span>
-                        ))}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                          <Download className="h-3.5 w-3.5" />
+                        )}
+                        Recibo
+                      </Button>
+                    ) : (
+                      c.status === ChargeStatus.PAID && (
+                        <span className="text-xs text-ios-tertiary">Sin recibo emitido</span>
+                      )
+                    )}
+                    {canPay && (
+                      <Button size="sm" variant="ghost" onClick={() => setPaymentTarget(c)}>
+                        Registrar pago
+                      </Button>
+                    )}
+                    {canExonerate && (
+                      <Button
+                        size="sm"
+                        variant={c.status === ChargeStatus.EXONERATED ? "outline" : "ghost"}
+                        onClick={() => toggle(c)}
+                        disabled={busy}
+                      >
+                        {c.status === ChargeStatus.EXONERATED ? "Reactivar" : "Exonerar"}
+                      </Button>
+                    )}
+                    {canDelete && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setDeleteTarget(c)}
+                        disabled={busy}
+                        title="Eliminar cuota"
+                        className="text-ios-red hover:bg-ios-red/10 hover:text-ios-red"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </Modal>
 

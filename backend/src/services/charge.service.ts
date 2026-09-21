@@ -105,6 +105,12 @@ export const ChargeService = {
     return repo().find({
       where: { property: { id: propertyId } },
       order: { period: "DESC" },
+      // Sin estas relaciones el serializador no puede armar confirmedPayment y
+      // el panel se queda sin el número de recibo para descargar el PDF.
+      relations: {
+        payments: { submittedBy: true },
+        coveringReceipt: { payment: { submittedBy: true } },
+      },
     });
   },
 
