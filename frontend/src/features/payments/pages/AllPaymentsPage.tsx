@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Receipt, Trash2, Upload } from "lucide-react";
+import { Loader2, Receipt, Search, Trash2, Upload, X } from "lucide-react";
 import { Charge, Payment, PaymentStatus } from "@/types/domain";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -22,6 +22,35 @@ const TABS: { label: string; value: string }[] = [
   { label: "Confirmados", value: PaymentStatus.CONFIRMED },
   { label: "Rechazados", value: PaymentStatus.REJECTED },
 ];
+
+/** Sin tildes y en minúsculas: buscar "perez" debe encontrar "Pérez". */
+function norm(value: string | null | undefined): string {
+  return (value ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "");
+}
+
+/**
+ * Texto sobre el que busca el filtro: todo lo que la fila muestra y que el
+ * admin podría teclear — nombre, cédula, departamento, referencia, banco y el
+ * período tanto en letras ("septiembre") como en número ("2026-09").
+ */
+function searchableText(p: Payment): string {
+  return norm(
+    [
+      p.submittedBy?.fullName,
+      p.submittedBy?.cedula,
+      p.property?.code,
+      p.reference,
+      p.bank,
+      p.charge?.period,
+      p.charge ? formatPeriod(p.charge.period) : null,
+    ]
+      .filter(Boolean)
+      .join(" ")
+  );
+}
 
 /**
  * Cuotas que saldó el pago además de la suya: cuando el monto excede la cuota
@@ -53,6 +82,7 @@ export function AllPaymentsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Payment | null>(null);
   const [rejectTarget, setRejectTarget] = useState<Payment | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [search, setSearch] = useState("");
 
   const load = useCallback(async (status: string) => {
     setLoading(true);
@@ -67,7 +97,17 @@ export function AllPaymentsPage() {
 
   useEffect(() => { void load(tab); }, [tab, load]);
 
-  const paged = usePagination(payments, 25);
+  /** Varias palabras se exigen todas, en cualquier orden: "gori septiembre". */
+  const filtered = useMemo(() => {
+    const terms = norm(search).split(/\s+/).filter(Boolean);
+    if (terms.length === 0) return payments;
+    return payments.filter((p) => {
+      const haystack = searchableText(p);
+      return terms.every((t) => haystack.includes(t));
+    });
+  }, [payments, search]);
+
+  const paged = usePagination(filtered, 25);
 
   const handleConfirm = async (payment: Payment) => {
     setBusyId(payment.id);
@@ -131,22 +171,47 @@ export function AllPaymentsPage() {
         </Button>
       </div>
 
-      {/* Tabs de filtro — desbordan en móvil, así que scrollean dentro de su fila */}
-      <div className="no-scrollbar flex gap-1 overflow-x-auto border-b border-ios-separator">
-        {TABS.map((t) => (
-          <button
-            key={t.value}
-            onClick={() => setTab(t.value)}
-            className={cn(
-              "shrink-0 whitespace-nowrap border-b-2 px-4 py-2 text-sm font-medium transition-colors",
-              tab === t.value
-                ? "border-brand-600 text-brand-700"
-                : "border-transparent text-ios-secondary hover:text-ios-label"
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
+      {/* Filtros: pestañas de estado + buscador. El borde va en el contenedor
+          para que cruce todo el ancho aunque el buscador se ponga al lado. */}
+      <div className="flex flex-col gap-2 border-b border-ios-separator sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        {/* Desbordan en móvil, así que scrollean dentro de su fila */}
+        <div className="no-scrollbar flex gap-1 overflow-x-auto">
+          {TABS.map((t) => (
+            <button
+              key={t.value}
+              onClick={() => setTab(t.value)}
+              className={cn(
+                "shrink-0 whitespace-nowrap border-b-2 px-4 py-2 text-sm font-medium transition-colors",
+                tab === t.value
+                  ? "border-brand-600 text-brand-700"
+                  : "border-transparent text-ios-secondary hover:text-ios-label"
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="relative pb-2 sm:pb-1.5">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ios-secondary" />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar copropietario, depa, referencia…"
+            aria-label="Buscar pagos"
+            className="h-9 w-full rounded-xl border-0 bg-ios-fill pl-8 pr-8 text-sm text-ios-label placeholder:text-ios-secondary focus:outline-none focus:ring-2 focus:ring-brand-500/70 sm:w-72"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              aria-label="Limpiar búsqueda"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-ios-secondary hover:text-ios-label"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {loading ? (
@@ -159,6 +224,14 @@ export function AllPaymentsPage() {
             icon={<Receipt className="h-7 w-7" />}
             title="Sin pagos"
             description="No hay pagos en esta categoría."
+          />
+        </Card>
+      ) : filtered.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={<Search className="h-7 w-7" />}
+            title="Sin coincidencias"
+            description={`Ningún pago de esta categoría coincide con "${search}".`}
           />
         </Card>
       ) : (
@@ -340,6 +413,11 @@ export function AllPaymentsPage() {
             onPageChange={paged.setPage}
             label="pagos"
           />
+          {search && (
+            <div className="border-t border-ios-separator px-4 py-2 text-xs text-ios-secondary">
+              Mostrando {filtered.length} de {payments.length} pagos
+            </div>
+          )}
         </Card>
       )}
     </div>

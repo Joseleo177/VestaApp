@@ -65,7 +65,8 @@ export function BankStatementPage() {
 
   // Filtros
   const [search, setSearch] = useState("");
-  const [filterDate, setFilterDate] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [filterMatched, setFilterMatched] = useState<"all" | "matched" | "free">("all");
 
   // Selección
@@ -87,14 +88,19 @@ export function BankStatementPage() {
 
   useEffect(() => { void loadEntries(); }, [loadEntries]);
 
+  const hasFilters = search !== "" || dateFrom !== "" || dateTo !== "" || filterMatched !== "all";
+
   const filteredEntries = useMemo(() =>
     entries.filter((e) => {
       const matchRef = search === "" || e.referencia.toLowerCase().includes(search.toLowerCase());
-      const matchDate = filterDate === "" || e.fecha === filterDate;
+      // Las fechas son "YYYY-MM-DD", así que comparar como texto ya ordena bien.
+      // Una entrada sin fecha queda fuera en cuanto se acota el rango.
+      const matchFrom = dateFrom === "" || (!!e.fecha && e.fecha >= dateFrom);
+      const matchTo = dateTo === "" || (!!e.fecha && e.fecha <= dateTo);
       const matchStatus = filterMatched === "all" || (filterMatched === "matched" ? e.matched : !e.matched);
-      return matchRef && matchDate && matchStatus;
+      return matchRef && matchFrom && matchTo && matchStatus;
     }),
-  [entries, search, filterDate, filterMatched]);
+  [entries, search, dateFrom, dateTo, filterMatched]);
 
   // Solo se pagina lo que se dibuja: "seleccionar todo" sigue operando sobre
   // todas las entradas filtradas, no sobre la página visible.
@@ -323,9 +329,17 @@ export function BankStatementPage() {
         {/* Cabecera con conteo y filtros */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
+            {/* Con filtros activos manda el conteo filtrado, que es lo que se
+                está viendo; el total queda al lado para no perder referencia. */}
             <div className="flex items-center gap-2 font-semibold text-ios-label">
               <Database className="h-5 w-5" />
-              Entradas bancarias guardadas ({entries.length})
+              Entradas bancarias guardadas ({filteredEntries.length}
+              {hasFilters && (
+                <span className="font-normal text-ios-secondary">
+                  {" "}de {entries.length}
+                </span>
+              )}
+              )
             </div>
             {selected.size > 0 && (
               <Button
@@ -357,23 +371,40 @@ export function BankStatementPage() {
                 </button>
               )}
             </div>
-            {/* Filtro de fecha — a todo el ancho en móvil: si queda pegado al
-                borde derecho, el calendario nativo se abre fuera de pantalla. */}
-            <div className="flex min-w-0 items-center gap-1">
+            {/* Rango de fechas — a todo el ancho en móvil: si queda pegado al
+                borde derecho, el calendario nativo se abre fuera de pantalla.
+                `max`/`min` cruzados impiden elegir un rango invertido. */}
+            <div className="col-span-2 flex min-w-0 items-center gap-1 sm:col-auto">
               <input
                 type="date"
-                value={filterDate}
-                onChange={(e) => setFilterDate(e.target.value)}
+                value={dateFrom}
+                max={dateTo || undefined}
+                onChange={(e) => setDateFrom(e.target.value)}
+                aria-label="Desde"
+                title="Desde"
                 className={cn(
                   "h-9 w-full min-w-0 rounded-xl border-0 bg-ios-fill px-3 text-sm text-ios-label focus:outline-none focus:ring-2 focus:ring-brand-500/70 sm:w-auto",
-                  filterDate ? "text-brand-700" : ""
+                  dateFrom ? "text-brand-700" : ""
                 )}
               />
-              {filterDate && (
+              <span className="shrink-0 text-xs text-ios-secondary">–</span>
+              <input
+                type="date"
+                value={dateTo}
+                min={dateFrom || undefined}
+                onChange={(e) => setDateTo(e.target.value)}
+                aria-label="Hasta"
+                title="Hasta"
+                className={cn(
+                  "h-9 w-full min-w-0 rounded-xl border-0 bg-ios-fill px-3 text-sm text-ios-label focus:outline-none focus:ring-2 focus:ring-brand-500/70 sm:w-auto",
+                  dateTo ? "text-brand-700" : ""
+                )}
+              />
+              {(dateFrom || dateTo) && (
                 <button
-                  onClick={() => setFilterDate("")}
+                  onClick={() => { setDateFrom(""); setDateTo(""); }}
                   className="shrink-0 text-xs text-ios-secondary hover:text-ios-label"
-                  aria-label="Quitar filtro de fecha"
+                  aria-label="Quitar filtro de fechas"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -383,7 +414,7 @@ export function BankStatementPage() {
             <select
               value={filterMatched}
               onChange={(e) => setFilterMatched(e.target.value as "all" | "matched" | "free")}
-              className="h-9 w-full min-w-0 rounded-xl border-0 bg-ios-fill px-3 text-sm text-ios-label focus:outline-none focus:ring-2 focus:ring-brand-500/70 sm:w-auto"
+              className="col-span-2 h-9 w-full min-w-0 rounded-xl border-0 bg-ios-fill px-3 text-sm text-ios-label focus:outline-none focus:ring-2 focus:ring-brand-500/70 sm:col-auto sm:w-auto"
             >
               <option value="all">Todos</option>
               <option value="matched">Conciliado</option>
@@ -463,7 +494,7 @@ export function BankStatementPage() {
               onPageChange={paged.setPage}
               label="entradas"
             />
-            {(search || filterDate) && (
+            {hasFilters && (
               <div className="border-t border-ios-separator px-4 py-2 text-xs text-ios-secondary">
                 Mostrando {filteredEntries.length} de {entries.length} entradas
               </div>
