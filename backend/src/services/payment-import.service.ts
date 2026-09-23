@@ -39,12 +39,13 @@ export interface ImportPreviewRow {
   amountEur: number | null;
   /** Cuota a la que se imputa el pago. */
   targetPeriod: string | null;
+  targetDescription: string | null;
   /** La cuota destino queda saldada; si es false, el pago es un abono parcial. */
   targetSettled: boolean;
   /** El período venía escrito en la planilla (no se eligió automáticamente). */
   periodExplicit: boolean;
   /** Cuotas adicionales que cierra el excedente, en orden de vencimiento. */
-  cascadePeriods: string[];
+  cascade: { period: string; description: string }[];
   /** Excedente final que queda como saldo a favor del titular. */
   creditLeft: number;
   /** La referencia ya está en el extracto y el monto cuadra → se confirmará sola. */
@@ -85,6 +86,7 @@ export const TEMPLATE_HEADERS = [
   "modalidad",
   "referencia",
   "periodo",
+  "descripcion",
 ] as const;
 
 /**
@@ -166,9 +168,35 @@ function readReference(text: string, raw: unknown): string {
   return clean;
 }
 
-/** Normaliza el código de departamento para comparar sin depender de espacios. */
-function normalizeCode(s: string): string {
+/** Normaliza texto libre para comparar sin depender de tildes ni espacios. */
+function normalizeText(s: string): string {
   return stripAccents(s).replace(/\s+/g, " ").trim();
+}
+
+/** Normaliza el código de departamento para comparar sin depender de espacios. */
+const normalizeCode = normalizeText;
+
+/**
+ * Busca entre las cuotas candidatas la que corresponde a una descripción.
+ * Primero exacta; si no hay, por contención en cualquier sentido, para que
+ * "luz" encuentre "Cuota especial luz" sin obligar a transcribirla completa.
+ */
+function matchByDescription<T extends { description: string }>(
+  candidates: T[],
+  wanted: string
+): T[] {
+  const w = normalizeText(wanted).toLowerCase();
+  const exact = candidates.filter((c) => normalizeText(c.description).toLowerCase() === w);
+  if (exact.length > 0) return exact;
+  return candidates.filter((c) => {
+    const d = normalizeText(c.description).toLowerCase();
+    return d.includes(w) || w.includes(d);
+  });
+}
+
+/** Lista descripciones para un mensaje de error, sin repetir. */
+function describeOptions(charges: { description: string }[]): string {
+  return [...new Set(charges.map((c) => c.description))].map((d) => `"${d}"`).join(", ");
 }
 
 function parseCurrency(value: unknown): PaymentCurrency | "UNKNOWN" | null {
@@ -193,6 +221,7 @@ interface ParsedRow {
   referencia: string;
   periodo: string | null;
   periodoRaw: string;
+  descripcion: string;
 }
 
 function parseSheet(buffer: Buffer): ParsedRow[] {
@@ -210,7 +239,8 @@ function parseSheet(buffer: Buffer): ParsedRow[] {
   const amountCol = findColumn(read.headers, ["monto", "importe", "cantidad", "valor"]);
   const bankCol = findColumn(read.headers, ["modalidad", "metodo", "forma"]);
   const refCol = findColumn(read.headers, ["referencia", "ref"]);
-  const periodCol = findColumn(read.headers, ["periodo", "mes", "cuota"]);
+  const periodCol = findColumn(read.headers, ["periodo", "mes"]);
+  const descCol = findColumn(read.headers, ["descripcion", "concepto", "detalle", "cuota"]);
 
   const idx = (col?: string) => (col ? read.headers.indexOf(col) : -1);
   const iCode = idx(codeCol);
@@ -220,6 +250,7 @@ function parseSheet(buffer: Buffer): ParsedRow[] {
   const iBank = idx(bankCol);
   const iRef = idx(refCol);
   const iPeriod = idx(periodCol);
+  const iDesc = idx(descCol);
 
   const cell = (row: unknown[], i: number) => (i >= 0 ? row[i] : undefined);
 
@@ -263,6 +294,7 @@ function parseSheet(buffer: Buffer): ParsedRow[] {
         referencia,
         periodo: parsePeriod(cell(raw, iPeriod) ?? cell(row, iPeriod)),
         periodoRaw,
+        descripcion: String(cell(row, iDesc) ?? "").trim(),
       };
     })
     // Una fila sin código y sin monto es una fila vacía del Excel, no un error.
@@ -276,6 +308,7 @@ function parseSheet(buffer: Buffer): ParsedRow[] {
 interface SimCharge extends ChargeLike {
   id: string;
   period: string;
+  description: string;
   dueDate: string;
   amount: number;
   moraAmount: number;
@@ -285,8 +318,18 @@ interface SimCharge extends ChargeLike {
   propertyId: string;
 }
 
+/**
+ * Orden de cobro: vencimiento, y a igualdad, período y descripción. Los
+ * desempates importan: con varias cuotas del mismo mes (luz, agua,
+ * mantenimiento) un orden indefinido haría que la vista previa y la carga real
+ * eligieran cuotas distintas. El mismo criterio va en las consultas a la base.
+ */
 const byDueDate = (a: SimCharge, b: SimCharge) =>
-  a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : a.period.localeCompare(b.period);
+  a.dueDate < b.dueDate
+    ? -1
+    : a.dueDate > b.dueDate
+    ? 1
+    : a.period.localeCompare(b.period) || a.description.localeCompare(b.description);
 
 export const PaymentImportService = {
   /**
@@ -312,6 +355,7 @@ export const PaymentImportService = {
     const sim: SimCharge[] = charges.map((c) => ({
       id: c.id,
       period: c.period,
+      description: c.description ?? "",
       dueDate: String(c.dueDate),
       amount: Number(c.amount),
       moraAmount: Number(c.moraAmount ?? 0),
@@ -372,9 +416,10 @@ export const PaymentImportService = {
         amountBs: null,
         amountEur: null,
         targetPeriod: null,
+        targetDescription: null,
         targetSettled: false,
         periodExplicit: r.periodo !== null,
-        cascadePeriods: [],
+        cascade: [],
         creditLeft: 0,
         willAutoConfirm: false,
         errors: [],
@@ -433,20 +478,63 @@ export const PaymentImportService = {
 
       // --- Cuota destino ---
       const propCharges = byProperty.get(property.id) ?? [];
+      const isOpen = (c: SimCharge) =>
+        c.status === ChargeStatus.PENDING || c.status === ChargeStatus.PARTIAL;
       let target: SimCharge | undefined;
-      if (r.periodo) {
-        target = propCharges.find((c) => c.period === r.periodo);
-        if (!target) {
-          out.errors.push(`El departamento no tiene cuota del período ${r.periodo}`);
-        } else if (target.status === ChargeStatus.PAID) {
-          out.errors.push(`La cuota ${r.periodo} ya está pagada`);
-        } else if (target.status === ChargeStatus.EXONERATED) {
-          out.errors.push(`La cuota ${r.periodo} está exonerada`);
+
+      if (r.periodo || r.descripcion) {
+        // Se filtra por lo que la fila especifique. Un mismo período puede
+        // tener varias cuotas (la de asociación y las especiales de luz, agua,
+        // mantenimiento), así que la descripción es lo que las distingue.
+        let candidates = r.periodo
+          ? propCharges.filter((c) => c.period === r.periodo)
+          : propCharges.filter(isOpen);
+
+        if (candidates.length === 0) {
+          out.errors.push(
+            r.periodo
+              ? `El departamento no tiene cuota del período ${r.periodo}`
+              : "El departamento no tiene cuotas pendientes"
+          );
+        } else if (r.descripcion) {
+          const matched = matchByDescription(candidates, r.descripcion);
+          if (matched.length === 0) {
+            out.errors.push(
+              `No hay cuota "${r.descripcion}"${r.periodo ? ` en ${r.periodo}` : ""}. ` +
+                `Disponibles: ${describeOptions(candidates)}`
+            );
+          } else if (matched.length > 1) {
+            out.errors.push(
+              `"${r.descripcion}" coincide con varias cuotas: ${describeOptions(matched)}`
+            );
+          } else {
+            target = matched[0];
+          }
+        } else if (candidates.length > 1) {
+          // Con período pero sin descripción y varias cuotas, elegir una sería
+          // adivinar: mejor decir cuáles hay y que la planilla lo aclare.
+          const open = candidates.filter(isOpen);
+          if (open.length === 1) {
+            target = open[0];
+          } else {
+            out.errors.push(
+              `${r.periodo} tiene ${candidates.length} cuotas (${describeOptions(candidates)}). ` +
+                "Indica cuál en la columna descripcion"
+            );
+          }
+        } else {
+          target = candidates[0];
+        }
+
+        if (target && target.status === ChargeStatus.PAID) {
+          out.errors.push(`La cuota "${target.description}" (${target.period}) ya está pagada`);
+          target = undefined;
+        } else if (target && target.status === ChargeStatus.EXONERATED) {
+          out.errors.push(`La cuota "${target.description}" (${target.period}) está exonerada`);
+          target = undefined;
         }
       } else {
-        target = propCharges.find(
-          (c) => c.status === ChargeStatus.PENDING || c.status === ChargeStatus.PARTIAL
-        );
+        target = propCharges.find(isOpen);
         if (!target) out.errors.push("El departamento no tiene cuotas pendientes");
       }
 
@@ -455,6 +543,7 @@ export const PaymentImportService = {
         continue;
       }
       out.targetPeriod = target.period;
+      out.targetDescription = target.description;
 
       // --- Monto en EUR ---
       let eur: number;
@@ -504,7 +593,7 @@ export const PaymentImportService = {
           other.status = step.status;
           excess = step.excess;
           if (step.status === ChargeStatus.PAID) {
-            out.cascadePeriods.push(other.period);
+            out.cascade.push({ period: other.period, description: other.description });
             settledCharges.add(other.id);
           }
         }
@@ -581,23 +670,25 @@ export const PaymentImportService = {
         const prop = propByCode.get(normalizeCode(row.codigo));
         if (!prop?.owner) throw new Error("Departamento sin titular");
 
-        // La cuota destino se vuelve a resolver contra la base real: las filas
-        // anteriores del mismo archivo ya pudieron cerrar cuotas.
-        let charge: Charge | null = null;
-        if (src.periodo) {
-          charge = await chargeRepo.findOne({
-            where: { property: { id: prop.id }, period: src.periodo },
-          });
-        } else {
-          const pendientes = await chargeRepo.find({
-            where: [
-              { property: { id: prop.id }, status: ChargeStatus.PENDING },
-              { property: { id: prop.id }, status: ChargeStatus.PARTIAL },
-            ],
-            order: { dueDate: "ASC" },
-          });
-          charge = pendientes[0] ?? null;
-        }
+        // Se cobra la cuota exacta que resolvió la vista previa, no una nueva
+        // búsqueda: si se volviera a resolver aquí, una fila anterior que no
+        // llegó a confirmarse dejaría la cuota abierta y esta fila podría caer
+        // en otra distinta de la que se te mostró. Si entretanto quedó pagada,
+        // `create` lo rechaza y la fila se reporta — visible, no silencioso.
+        if (!row.targetPeriod) throw new Error("Sin cuota pendiente donde imputar el pago");
+
+        const candidatas = await chargeRepo.find({
+          where: {
+            property: { id: prop.id },
+            period: row.targetPeriod,
+            ...(row.targetDescription ? { description: row.targetDescription } : {}),
+          },
+          order: { dueDate: "ASC", period: "ASC", description: "ASC" },
+        });
+        const charge =
+          candidatas.find(
+            (c) => c.status === ChargeStatus.PENDING || c.status === ChargeStatus.PARTIAL
+          ) ?? candidatas[0];
         if (!charge) throw new Error("Sin cuota pendiente donde imputar el pago");
 
         const created = await PaymentService.create(prop.owner.id, {
@@ -663,6 +754,7 @@ export const PaymentImportService = {
       { wch: 16 }, // modalidad
       { wch: 20 }, // referencia
       { wch: 10 }, // periodo
+      { wch: 24 }, // descripcion
     ];
     XLSX.utils.book_append_sheet(wb, pagos, "Pagos");
 
@@ -686,15 +778,22 @@ export const PaymentImportService = {
         "Referencia bancaria. Vacío = efectivo. Debe ser única. Si empieza por cero, formatea la columna como Texto para no perderlo.",
       ],
       ["periodo", "No", "2026-07 para imputar a un mes concreto. Vacío = la cuota pendiente más antigua."],
+      [
+        "descripcion",
+        "Si el mes tiene varias cuotas",
+        "Distingue entre las cuotas de un mismo período (ej. Luz, Agua, Mantenimiento). Basta una palabra que las diferencie. Ver la hoja \"Cuotas\".",
+      ],
       [],
       ["Ejemplos"],
       [...TEMPLATE_HEADERS],
-      ["DEP1 N-11", "2026-07-08", "BS", 4500, "Transferencia", "0012345678", ""],
-      ["DEP1 N-11", "2026-07-08", "DIVISAS", 25, "Efectivo", "", "2026-07"],
+      ["DEP1 N-11", "2026-07-08", "BS", 4500, "Transferencia", "0012345678", "", ""],
+      ["DEP1 N-11", "2026-07-08", "DIVISAS", 25, "Efectivo", "", "2026-07", ""],
+      ["DEP1 N-11", "2026-07-08", "BS", 1800, "Transferencia", "0012345679", "2026-07", "Luz"],
       [],
       ["Cómo se asocia el pago con la deuda"],
       ["1. Si escribes un período, el pago se imputa a esa cuota."],
-      ["2. Si lo dejas vacío, va a la cuota pendiente más antigua del departamento."],
+      ["1b. Si ese mes tiene varias cuotas, hay que indicar además la descripción; si no, la fila se marca con error y te dice cuáles hay."],
+      ["2. Si dejas período y descripción vacíos, va a la cuota pendiente más antigua del departamento."],
       ["3. Si el monto supera esa cuota, el excedente cierra las siguientes en orden de vencimiento."],
       ["4. Lo que sobre al final queda como saldo a favor del titular."],
       ["5. Si la referencia ya está en el extracto y el monto cuadra, el pago se confirma solo."],
@@ -745,6 +844,34 @@ export const PaymentImportService = {
       { wch: 18 }, { wch: 12 }, { wch: 18 },
     ];
     XLSX.utils.book_append_sheet(wb, unidades, "Unidades");
+
+    // --- Hoja 4: cuotas pendientes, para copiar período y descripción exactos ---
+    const pendientes = [...pendingByProp.entries()]
+      .flatMap(([, list]) => list)
+      .sort(
+        (a, b) =>
+          (a.property?.code ?? "").localeCompare(b.property?.code ?? "") ||
+          a.period.localeCompare(b.period) ||
+          a.description.localeCompare(b.description)
+      );
+
+    const cuotas = XLSX.utils.aoa_to_sheet([
+      ["codigo", "periodo", "descripcion", "tipo", "vence", "deuda EUR", "estado"],
+      ...pendientes.map((c) => [
+        c.property?.code ?? "",
+        c.period,
+        c.description,
+        c.type,
+        String(c.dueDate),
+        Math.round(amountDue(c) * 100) / 100,
+        c.status,
+      ]),
+    ]);
+    cuotas["!cols"] = [
+      { wch: 16 }, { wch: 10 }, { wch: 34 }, { wch: 10 },
+      { wch: 12 }, { wch: 11 }, { wch: 10 },
+    ];
+    XLSX.utils.book_append_sheet(wb, cuotas, "Cuotas");
 
     return XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
   },

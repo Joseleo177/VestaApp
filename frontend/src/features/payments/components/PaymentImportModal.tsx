@@ -68,6 +68,10 @@ function PreviewRow({ row }: { row: ImportPreviewRow }) {
           <span className="font-medium text-ios-green">
             {formatPeriod(row.targetPeriod)}
           </span>
+          {/* La descripción distingue cuotas del mismo mes (luz, agua, …) */}
+          {row.targetDescription && (
+            <span className="text-ios-secondary">{row.targetDescription}</span>
+          )}
           {!row.periodExplicit && (
             <span className="text-ios-tertiary">(más antigua pendiente)</span>
           )}
@@ -76,12 +80,13 @@ function PreviewRow({ row }: { row: ImportPreviewRow }) {
               abono parcial
             </span>
           )}
-          {row.cascadePeriods.map((p) => (
+          {row.cascade.map((c) => (
             <span
-              key={p}
+              key={`${c.period}-${c.description}`}
               className="rounded-full bg-ios-green/10 px-2 py-0.5 font-medium text-ios-green"
+              title={c.description}
             >
-              + {formatPeriod(p)}
+              + {formatPeriod(c.period)}
             </span>
           ))}
           {row.creditLeft > 0 && (
@@ -329,7 +334,8 @@ export function PaymentImportModal({ open, onClose, onImported }: PaymentImportM
             <ul className="space-y-1 text-xs">
               <li>· <strong>Modalidad</strong> solo admite Efectivo o Transferencia (no es el banco).</li>
               <li>· Si indicas el <strong>período</strong>, el pago se imputa a esa cuota.</li>
-              <li>· Si lo dejas vacío, va a la cuota pendiente más antigua.</li>
+              <li>· Si ese mes tiene varias cuotas (luz, agua…), añade la <strong>descripción</strong>.</li>
+              <li>· Si dejas ambos vacíos, va a la cuota pendiente más antigua.</li>
               <li>· El excedente cierra las siguientes cuotas y lo que sobre queda como saldo a favor.</li>
               <li>· Si la referencia ya está en el extracto y el monto cuadra, el pago se confirma solo.</li>
             </ul>

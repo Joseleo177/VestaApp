@@ -159,7 +159,10 @@ async function cascadeExcess(
       { property: { owner: { id: ownerId } }, status: ChargeStatus.PENDING },
       { property: { owner: { id: ownerId } }, status: ChargeStatus.PARTIAL },
     ],
-    order: { dueDate: "ASC" },
+    // Los desempates hacen falta: un mismo período puede traer varias cuotas
+    // (asociación, luz, agua…) y sin orden definido la cascada cerraría unas u
+    // otras según el humor de Postgres.
+    order: { dueDate: "ASC", period: "ASC", description: "ASC" },
     relations: { property: { owner: true } },
   });
 
