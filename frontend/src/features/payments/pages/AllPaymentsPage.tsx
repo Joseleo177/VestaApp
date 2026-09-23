@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Receipt, Trash2 } from "lucide-react";
+import { Loader2, Receipt, Trash2, Upload } from "lucide-react";
 import { Charge, Payment, PaymentStatus } from "@/types/domain";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -10,6 +10,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Pagination } from "@/components/ui/Pagination";
 import { usePagination } from "@/lib/usePagination";
 import { StatusBadge } from "../components/StatusBadge";
+import { PaymentImportModal } from "../components/PaymentImportModal";
 import { paymentService } from "../services/payment.service";
 import { formatCurrency, formatDate, formatPeriod } from "@/lib/format";
 import { ApiError } from "@/services/api";
@@ -51,6 +52,7 @@ export function AllPaymentsPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Payment | null>(null);
   const [rejectTarget, setRejectTarget] = useState<Payment | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   const load = useCallback(async (status: string) => {
     setLoading(true);
@@ -113,9 +115,20 @@ export function AllPaymentsPage() {
   return (
     <>
     <div className="space-y-6">
-      <div>
-        <h1 className="text-[28px] font-bold leading-tight text-ios-label">Pagos</h1>
-        <p className="text-sm text-ios-secondary">Historial completo de pagos registrados por copropietarios</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-[28px] font-bold leading-tight text-ios-label">Pagos</h1>
+          <p className="text-sm text-ios-secondary">Historial completo de pagos registrados por copropietarios</p>
+        </div>
+        <Button
+          size="sm"
+          className="shrink-0 sm:h-11 sm:px-5 sm:text-[15px]"
+          onClick={() => setImportOpen(true)}
+        >
+          <Upload className="h-4 w-4" />
+          Registrar pagos
+          <span className="hidden sm:inline">&nbsp;en lote</span>
+        </Button>
       </div>
 
       {/* Tabs de filtro — desbordan en móvil, así que scrollean dentro de su fila */}
@@ -330,6 +343,12 @@ export function AllPaymentsPage() {
         </Card>
       )}
     </div>
+
+    <PaymentImportModal
+      open={importOpen}
+      onClose={() => setImportOpen(false)}
+      onImported={() => void load(tab)}
+    />
 
     <ConfirmDialog
       open={deleteTarget !== null}

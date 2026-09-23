@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { PaymentService } from "../services/payment.service";
+import { PaymentImportService } from "../services/payment-import.service";
 import { generateReceiptPdf } from "../services/pdf.service";
 import { UserRole } from "../models/User";
 import { PaymentCurrency, PaymentStatus } from "../models/Payment";
@@ -31,6 +32,41 @@ export const PaymentController = {
       );
 
       res.status(201).json(payment);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // GET /api/payments/import/template  (admin) — planilla .xlsx para llenar
+  async importTemplate(_req: Request, res: Response, next: NextFunction) {
+    try {
+      const buffer = await PaymentImportService.buildTemplate();
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader("Content-Disposition", 'attachment; filename="plantilla-pagos.xlsx"');
+      res.send(buffer);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // POST /api/payments/import/preview  (admin) — simula sin guardar nada
+  async importPreview(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.file) throw new HttpError(400, "Planilla requerida");
+      res.json(await PaymentImportService.preview(req.file.buffer));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // POST /api/payments/import  (admin) — crea los pagos de las filas válidas
+  async importCommit(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.file) throw new HttpError(400, "Planilla requerida");
+      res.json(await PaymentImportService.commit(req.file.buffer));
     } catch (err) {
       next(err);
     }

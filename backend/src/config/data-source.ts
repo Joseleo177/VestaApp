@@ -6,12 +6,13 @@ import { Tower } from "../models/Tower";
 import { Property } from "../models/Property";
 import { Charge } from "../models/Charge";
 import { Payment } from "../models/Payment";
+import { PaymentApplication } from "../models/PaymentApplication";
 import { Receipt } from "../models/Receipt";
 import { BankEntry } from "../models/BankEntry";
 import { ExchangeRateRecord } from "../models/ExchangeRateRecord";
 import { Setting } from "../models/Setting";
 
-const entities = [User, Tower, Property, Charge, Payment, Receipt, BankEntry, ExchangeRateRecord, Setting];
+const entities = [User, Tower, Property, Charge, Payment, PaymentApplication, Receipt, BankEntry, ExchangeRateRecord, Setting];
 
 const poolOptions = {
   // Con Supabase Transaction Mode (PgBouncer puerto 6543) no hay límite duro,

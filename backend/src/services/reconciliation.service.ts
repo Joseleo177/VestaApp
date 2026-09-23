@@ -4,6 +4,7 @@ import { Payment, PaymentCurrency, PaymentStatus } from "../models/Payment";
 import { BankEntry } from "../models/BankEntry";
 import { User } from "../models/User";
 import { PaymentService } from "./payment.service";
+import { stripAccents, parseDate, parseAmount } from "../utils/sheet";
 
 export interface ConfirmedMatch {
   bankRef: string;
@@ -40,28 +41,21 @@ export interface ReconciliationResult {
   totalRows: number;
 }
 
-function normalizeRef(s: string): string {
+/** Normaliza una referencia bancaria: sin apóstrofo de Excel, sin espacios. */
+export function normalizeRef(s: string): string {
   return s.trim().replace(/^'+/, "").replace(/\s/g, "").toLowerCase();
 }
 
-const MIN_SUFFIX = 6;
+export const MIN_SUFFIX = 6;
 
-function refsMatch(a: string, b: string): boolean {
+/** Dos referencias casan si son iguales o si una es sufijo de la otra. */
+export function refsMatch(a: string, b: string): boolean {
   const na = normalizeRef(a);
   const nb = normalizeRef(b);
   if (na === nb) return true;
   const shorter = na.length <= nb.length ? na : nb;
   const longer  = na.length <= nb.length ? nb : na;
   return shorter.length >= MIN_SUFFIX && longer.endsWith(shorter);
-}
-
-/** Quita tildes y pasa a minúsculas para comparar encabezados. */
-function stripAccents(s: string): string {
-  return s
-    .toLowerCase()
-    .trim()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "");
 }
 
 function detectColumns(headers: string[]): {
@@ -92,57 +86,6 @@ function detectColumns(headers: string[]): {
     throw new Error("No se encontro columna de monto. Columnas: " + headers.join(", "));
 
   return { refCol, amountCol, dateCol, descCol };
-}
-
-/** Convierte cualquier formato de fecha a YYYY-MM-DD. */
-function parseDate(value: unknown): string | undefined {
-  // Objeto Date real (de cellDates: true + raw: true) — más confiable.
-  if (value instanceof Date) {
-    if (isNaN(value.getTime())) return undefined;
-    const y = value.getFullYear();
-    const m = String(value.getMonth() + 1).padStart(2, "0");
-    const d = String(value.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
-  }
-
-  const s = String(value ?? "").trim();
-  if (!s || s === "0") return undefined;
-
-  // DD/MM/YYYY o D/M/YYYY o D/M/YY
-  const dmy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
-  if (dmy) {
-    const day = dmy[1]!.padStart(2, "0");
-    const month = dmy[2]!.padStart(2, "0");
-    let year = dmy[3]!;
-    if (year.length === 2) year = `20${year}`;
-    // Validar rangos básicos
-    if (Number(month) > 12 || Number(day) > 31) return undefined;
-    return `${year}-${month}-${day}`;
-  }
-
-  // YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-
-  // Número serial de Excel (días desde 1900-01-00)
-  const num = Number(s);
-  if (!isNaN(num) && num > 40000 && num < 60000) {
-    const epoch = new Date(Date.UTC(1899, 11, 30));
-    const date = new Date(epoch.getTime() + num * 86400000);
-    if (!isNaN(date.getTime())) return date.toISOString().slice(0, 10);
-  }
-
-  return undefined;
-}
-
-function parseAmount(value: unknown): number {
-  if (typeof value === "number") return Math.abs(value);
-  const str = String(value ?? "").trim();
-  const clean = str.replace(/[^\d,.-]/g, "");
-  if (!clean) return 0;
-  if (clean.includes(",") && clean.lastIndexOf(",") > clean.lastIndexOf(".")) {
-    return Math.abs(parseFloat(clean.replace(/\./g, "").replace(",", ".")));
-  }
-  return Math.abs(parseFloat(clean.replace(/,/g, "")));
 }
 
 export function amountMatchesBankEntry(

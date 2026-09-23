@@ -2,6 +2,7 @@ import { EntityManager, In } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { Payment, PaymentStatus, PaymentCurrency } from "../models/Payment";
 import { Charge, ChargeStatus } from "../models/Charge";
+import { PaymentApplication } from "../models/PaymentApplication";
 import { Receipt } from "../models/Receipt";
 import { BankEntry } from "../models/BankEntry";
 import { User } from "../models/User";
@@ -28,22 +29,55 @@ export interface CreatePaymentInput {
   paymentDate: string;
   /** Monto real en Bs que el cliente transfirió (para pagos BS). */
   amountBs?: number;
+  /**
+   * Monto real en EUR (solo pagos en divisas). El formulario nunca lo envía —
+   * ahí cada pago salda una cuota completa — pero la carga en lote sí, porque
+   * un histórico puede traer un pago en efectivo que cubrió varios meses.
+   */
+  amountEur?: number;
 }
 
 type TxManager = EntityManager;
 
+/** Lo mínimo que necesita `computeApplication`: sirve para una cuota real o simulada. */
+export interface ChargeLike {
+  amount: number | string;
+  moraAmount: number | string;
+  amountPaid?: number | string | null;
+  dueDate: string;
+  status: ChargeStatus;
+}
+
+export interface ChargeApplication {
+  /** EUR que efectivamente absorbe la cuota. */
+  applied: number;
+  /** EUR sobrantes, que van a la cascada o al saldo a favor. */
+  excess: number;
+  amountPaid: number;
+  status: ChargeStatus;
+}
+
 /**
- * Aplica hasta `paidAmount` EUR a la cuota, respetando lo que realmente se debe.
- * Retorna el excedente (> 0 si el pago supera la deuda de esta cuota).
+ * Aritmética pura de aplicar un pago a una cuota. No toca la base de datos, así
+ * que la vista previa del import en lote puede simular exactamente lo mismo que
+ * hará la confirmación real sin arriesgarse a divergir.
  */
-async function applyPaymentToCharge(
-  manager: TxManager,
-  charge: Charge,
+export function computeApplication(
+  charge: ChargeLike,
   paidAmount: number,
   currency: PaymentCurrency,
   paymentDate?: string
-): Promise<number> {
-  if (charge.status === ChargeStatus.EXONERATED) return paidAmount;
+): ChargeApplication {
+  const alreadyPaid = Number(charge.amountPaid ?? 0);
+
+  if (charge.status === ChargeStatus.EXONERATED) {
+    return {
+      applied: 0,
+      excess: paidAmount,
+      amountPaid: alreadyPaid,
+      status: ChargeStatus.EXONERATED,
+    };
+  }
 
   const ref = paymentDate
     ? new Date(paymentDate).setHours(0, 0, 0, 0)
@@ -56,21 +90,53 @@ async function applyPaymentToCharge(
   const totalExpected =
     Number(charge.amount) + (moraApplies ? Number(charge.moraAmount) : 0);
 
-  const alreadyPaid = Number(charge.amountPaid ?? 0);
   const stillOwed = Math.max(0, Math.round((totalExpected - alreadyPaid) * 100) / 100);
   const applied = Math.min(paidAmount, stillOwed);
   const excess = Math.round(Math.max(0, paidAmount - applied) * 100) / 100;
+  const amountPaid = Math.round((alreadyPaid + applied) * 100) / 100;
 
-  charge.amountPaid = Math.round((alreadyPaid + applied) * 100) / 100;
-  charge.status =
-    charge.amountPaid >= totalExpected - 0.01
-      ? ChargeStatus.PAID
-      : ChargeStatus.PARTIAL;
-  await manager.save(Charge, charge);
-  return excess;
+  return {
+    applied,
+    excess,
+    amountPaid,
+    status:
+      amountPaid >= totalExpected - 0.01 ? ChargeStatus.PAID : ChargeStatus.PARTIAL,
+  };
 }
 
-const CREDIT_MIN = 0.10; // excedente menor a esto se absorbe sin guardar
+/**
+ * Aplica hasta `paidAmount` EUR a la cuota, respetando lo que realmente se debe.
+ * Retorna el excedente (> 0 si el pago supera la deuda de esta cuota).
+ *
+ * `payment` es opcional porque aplicar el saldo a favor no proviene de un pago
+ * concreto; cuando viene, se deja constancia de cuánto aportó a esta cuota para
+ * poder revertirlo con exactitud si el pago se borra.
+ */
+async function applyPaymentToCharge(
+  manager: TxManager,
+  charge: Charge,
+  paidAmount: number,
+  currency: PaymentCurrency,
+  paymentDate?: string,
+  payment?: Payment
+): Promise<number> {
+  const result = computeApplication(charge, paidAmount, currency, paymentDate);
+  if (charge.status === ChargeStatus.EXONERATED) return result.excess;
+
+  charge.amountPaid = result.amountPaid;
+  charge.status = result.status;
+  await manager.save(Charge, charge);
+
+  if (payment && result.applied > 0) {
+    await manager.save(
+      PaymentApplication,
+      manager.create(PaymentApplication, { payment, charge, amount: result.applied })
+    );
+  }
+  return result.excess;
+}
+
+export const CREDIT_MIN = 0.10; // excedente menor a esto se absorbe sin guardar
 
 /**
  * Aplica un excedente a otras cuotas del propietario (por vencimiento ASC).
@@ -83,7 +149,8 @@ async function cascadeExcess(
   excess: number,
   currency: PaymentCurrency,
   paymentDate: string | undefined,
-  excludeChargeId: string
+  excludeChargeId: string,
+  payment?: Payment
 ): Promise<Charge[]> {
   if (excess <= CREDIT_MIN) return [];
 
@@ -101,7 +168,7 @@ async function cascadeExcess(
   for (const charge of others) {
     if (charge.id === excludeChargeId) continue;
     if (remaining <= CREDIT_MIN) break;
-    remaining = await applyPaymentToCharge(manager, charge, remaining, currency, paymentDate);
+    remaining = await applyPaymentToCharge(manager, charge, remaining, currency, paymentDate, payment);
     if (charge.status === ChargeStatus.PAID) {
       cascadePaid.push(charge);
     }
@@ -206,6 +273,8 @@ export const PaymentService = {
       } else {
         amountBs = Math.round(amount * rate.rate * 100) / 100;
       }
+    } else if (input.amountEur && input.amountEur > 0) {
+      amount = Math.round(input.amountEur * 100) / 100;
     }
 
     const payment = paymentRepo().create({
@@ -288,9 +357,9 @@ export const PaymentService = {
 
       let cascadePaid: Charge[] = [];
       if (payment.charge) {
-        const excess = await applyPaymentToCharge(manager, payment.charge, Number(payment.amount), payment.currency, payment.paymentDate);
+        const excess = await applyPaymentToCharge(manager, payment.charge, Number(payment.amount), payment.currency, payment.paymentDate, payment);
         if (excess > 0.01 && payment.property?.owner?.id) {
-          cascadePaid = await cascadeExcess(manager, payment.property.owner.id, excess, payment.currency, payment.paymentDate, payment.charge.id);
+          cascadePaid = await cascadeExcess(manager, payment.property.owner.id, excess, payment.currency, payment.paymentDate, payment.charge.id, payment);
         }
       }
 
@@ -401,9 +470,9 @@ export const PaymentService = {
 
       let cascadePaid: Charge[] = [];
       if (payment.charge) {
-        const excess = await applyPaymentToCharge(manager, payment.charge, eurAmount, payment.currency, payment.paymentDate);
+        const excess = await applyPaymentToCharge(manager, payment.charge, eurAmount, payment.currency, payment.paymentDate, payment);
         if (excess > 0.01 && payment.property?.owner?.id) {
-          cascadePaid = await cascadeExcess(manager, payment.property.owner.id, excess, payment.currency, payment.paymentDate, payment.charge.id);
+          cascadePaid = await cascadeExcess(manager, payment.property.owner.id, excess, payment.currency, payment.paymentDate, payment.charge.id, payment);
         }
       }
 
@@ -455,12 +524,16 @@ export const PaymentService = {
     return paymentRepo().save(payment);
   },
 
-  /** Elimina un pago. Si estaba confirmado, revierte la cuota directa y las cascadas. */
+  /**
+   * Elimina un pago. Si estaba confirmado, devuelve a cada cuota exactamente lo
+   * que este pago le había aportado (ver `PaymentApplication`) y ajusta el saldo
+   * a favor con el remanente.
+   */
   async delete(paymentId: string): Promise<void> {
     return AppDataSource.transaction(async (manager) => {
       const payment = await manager.findOne(Payment, {
         where: { id: paymentId },
-        relations: { charge: true, receipts: true, property: { owner: true } },
+        relations: { charge: true, receipts: { charge: true }, property: { owner: true } },
       });
       if (!payment) throw new HttpError(404, "Pago no encontrado");
 
@@ -476,63 +549,85 @@ export const PaymentService = {
           .execute();
       }
 
-      if (payment.status === PaymentStatus.CONFIRMED && payment.charge) {
-        const charge = payment.charge;
+      if (payment.status === PaymentStatus.CONFIRMED) {
+        // Se devuelve SOLO lo que este pago aportó a cada cuota, según el
+        // registro de aplicaciones. Antes se recorrían todas las cuotas del
+        // titular restando a ojo, y el borrado le quitaba el dinero a cuotas
+        // que había saldado otro pago distinto.
+        const applications = await manager.find(PaymentApplication, {
+          where: { payment: { id: payment.id } },
+          relations: { charge: true },
+        });
 
-        // Calcular mora vigente en la fecha del pago original
-        const ref = payment.paymentDate
-          ? new Date(payment.paymentDate).setHours(0, 0, 0, 0)
-          : new Date().setHours(0, 0, 0, 0);
-        const overdueAtPayment = new Date(charge.dueDate).getTime() < ref;
-        const moraApplies =
-          overdueAtPayment &&
-          payment.currency !== PaymentCurrency.DIVISAS &&
-          Number(charge.moraAmount) > 0;
-        const totalExpected =
-          Number(charge.amount) + (moraApplies ? Number(charge.moraAmount) : 0);
+        let reverted = 0;
 
-        // Cuánto fue aplicado a la cuota directa (tope en lo que se debía)
-        const directApplied = Math.min(Number(payment.amount), totalExpected);
-        const excess = Math.round(Math.max(0, Number(payment.amount) - directApplied) * 100) / 100;
+        if (applications.length > 0) {
+          for (const app of applications) {
+            const charge = app.charge;
+            const amount = Number(app.amount);
+            charge.amountPaid = Math.max(
+              0,
+              Math.round((Number(charge.amountPaid) - amount) * 100) / 100
+            );
+            charge.status =
+              charge.amountPaid > CREDIT_MIN ? ChargeStatus.PARTIAL : ChargeStatus.PENDING;
+            await manager.save(Charge, charge);
+            reverted = Math.round((reverted + amount) * 100) / 100;
+          }
+        } else if (payment.charge) {
+          // Pagos confirmados antes de que existiera el registro: se revierte la
+          // cuota directa y, de la cascada, solo las cuotas que este pago cerró
+          // (las que tienen recibo suyo). Puede quedarse corto con abonos
+          // parciales antiguos, pero nunca toca cuotas de otro pago.
+          const charge = payment.charge;
+          const ref = payment.paymentDate
+            ? new Date(payment.paymentDate).setHours(0, 0, 0, 0)
+            : new Date().setHours(0, 0, 0, 0);
+          const overdueAtPayment = new Date(charge.dueDate).getTime() < ref;
+          const moraApplies =
+            overdueAtPayment &&
+            payment.currency !== PaymentCurrency.DIVISAS &&
+            Number(charge.moraAmount) > 0;
+          const totalExpected =
+            Number(charge.amount) + (moraApplies ? Number(charge.moraAmount) : 0);
 
-        charge.amountPaid = Math.max(
-          0,
-          Math.round((Number(charge.amountPaid) - directApplied) * 100) / 100
-        );
-        charge.status = charge.amountPaid > 0 ? ChargeStatus.PARTIAL : ChargeStatus.PENDING;
-        await manager.save(Charge, charge);
+          const directApplied = Math.min(Number(payment.amount), totalExpected);
+          charge.amountPaid = Math.max(
+            0,
+            Math.round((Number(charge.amountPaid) - directApplied) * 100) / 100
+          );
+          charge.status =
+            charge.amountPaid > CREDIT_MIN ? ChargeStatus.PARTIAL : ChargeStatus.PENDING;
+          await manager.save(Charge, charge);
+          reverted = directApplied;
 
-        // Revertir las cuotas que recibieron crédito en cascada
-        if (excess > CREDIT_MIN && payment.property?.owner?.id) {
-          const ownerId = payment.property.owner.id;
-          const cascaded = await manager.find(Charge, {
-            where: [
-              { property: { owner: { id: ownerId } }, status: ChargeStatus.PARTIAL },
-              { property: { owner: { id: ownerId } }, status: ChargeStatus.PENDING },
-              { property: { owner: { id: ownerId } }, status: ChargeStatus.PAID },
-            ],
-            order: { dueDate: "ASC" },
-            relations: { property: { owner: true } },
-          });
-
-          let remaining = excess;
-          for (const cc of cascaded) {
-            if (cc.id === charge.id || remaining <= CREDIT_MIN) continue;
+          let remaining = Math.round(Math.max(0, Number(payment.amount) - directApplied) * 100) / 100;
+          for (const receipt of payment.receipts ?? []) {
+            if (remaining <= CREDIT_MIN) break;
+            const cc = await manager.findOne(Charge, { where: { id: receipt.charge?.id } });
+            if (!cc || cc.id === charge.id) continue;
             const toReverse = Math.min(remaining, Number(cc.amountPaid));
             if (toReverse <= CREDIT_MIN) continue;
             cc.amountPaid = Math.round((Number(cc.amountPaid) - toReverse) * 100) / 100;
             cc.status = cc.amountPaid > CREDIT_MIN ? ChargeStatus.PARTIAL : ChargeStatus.PENDING;
             await manager.save(Charge, cc);
             remaining = Math.round((remaining - toReverse) * 100) / 100;
+            reverted = Math.round((reverted + toReverse) * 100) / 100;
           }
+        }
 
-          // Si queda por revertir, descontar del creditBalance
-          if (remaining > CREDIT_MIN) {
-            const user = await manager.findOneBy(User, { id: ownerId });
-            if (user) {
-              user.creditBalance = Math.max(0, Math.round((Number(user.creditBalance) - remaining) * 100) / 100);
-              await manager.save(User, user);
-            }
+        // Lo que el pago no dejó en ninguna cuota había ido al saldo a favor.
+        // Se descuenta con tope en cero: si el titular ya lo gastó en cuotas
+        // nuevas, preferimos quedarnos cortos antes que dejarle saldo negativo.
+        const toCredit = Math.round((Number(payment.amount) - reverted) * 100) / 100;
+        if (toCredit > CREDIT_MIN && payment.property?.owner?.id) {
+          const user = await manager.findOneBy(User, { id: payment.property.owner.id });
+          if (user) {
+            user.creditBalance = Math.max(
+              0,
+              Math.round((Number(user.creditBalance) - toCredit) * 100) / 100
+            );
+            await manager.save(User, user);
           }
         }
       }
