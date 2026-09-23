@@ -288,7 +288,14 @@ export const ReconciliationService = {
 
       await PaymentService.confirm(payment.id, null);
       return true;
-    } catch {
+    } catch (err) {
+      // El pago se queda PENDING a propósito (el admin lo confirma a mano), pero
+      // el error se registra: un fallo de esquema o de datos aquí era invisible
+      // y hacía parecer que la conciliación simplemente no encontraba nada.
+      console.error(
+        `[reconciliación] no se pudo auto-confirmar el pago ${payment.id}:`,
+        err instanceof Error ? err.message : err
+      );
       return false;
     }
   },

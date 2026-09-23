@@ -71,6 +71,11 @@ function PreviewRow({ row }: { row: ImportPreviewRow }) {
           {!row.periodExplicit && (
             <span className="text-ios-tertiary">(más antigua pendiente)</span>
           )}
+          {!row.targetSettled && (
+            <span className="rounded-full bg-ios-orange/10 px-2 py-0.5 font-medium text-ios-orange">
+              abono parcial
+            </span>
+          )}
           {row.cascadePeriods.map((p) => (
             <span
               key={p}

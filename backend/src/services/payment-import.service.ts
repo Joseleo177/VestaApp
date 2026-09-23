@@ -39,6 +39,8 @@ export interface ImportPreviewRow {
   amountEur: number | null;
   /** Cuota a la que se imputa el pago. */
   targetPeriod: string | null;
+  /** La cuota destino queda saldada; si es false, el pago es un abono parcial. */
+  targetSettled: boolean;
   /** El período venía escrito en la planilla (no se eligió automáticamente). */
   periodExplicit: boolean;
   /** Cuotas adicionales que cierra el excedente, en orden de vencimiento. */
@@ -352,6 +354,9 @@ export const PaymentImportService = {
     };
 
     const seenRefs = new Set<string>();
+    // Cuotas que quedan saldadas, por id: dos filas pueden cerrar entre ambas
+    // una misma cuota, y eso es UNA cuota saldada, no dos.
+    const settledCharges = new Set<string>();
     const rows: ImportPreviewRow[] = [];
 
     for (const r of parsed) {
@@ -367,6 +372,7 @@ export const PaymentImportService = {
         amountBs: null,
         amountEur: null,
         targetPeriod: null,
+        targetSettled: false,
         periodExplicit: r.periodo !== null,
         cascadePeriods: [],
         creditLeft: 0,
@@ -482,6 +488,8 @@ export const PaymentImportService = {
       const applied = computeApplication(target, eur, r.moneda, r.fecha);
       target.amountPaid = applied.amountPaid;
       target.status = applied.status;
+      out.targetSettled = applied.status === ChargeStatus.PAID;
+      if (out.targetSettled) settledCharges.add(target.id);
 
       let excess = applied.excess;
       if (excess > CREDIT_MIN && property.owner) {
@@ -495,7 +503,10 @@ export const PaymentImportService = {
           other.amountPaid = step.amountPaid;
           other.status = step.status;
           excess = step.excess;
-          if (step.status === ChargeStatus.PAID) out.cascadePeriods.push(other.period);
+          if (step.status === ChargeStatus.PAID) {
+            out.cascadePeriods.push(other.period);
+            settledCharges.add(other.id);
+          }
         }
       }
       out.creditLeft = excess > CREDIT_MIN ? excess : 0;
@@ -532,10 +543,7 @@ export const PaymentImportService = {
       errorRows: rows.length - valid.length,
       totalEur: Math.round(valid.reduce((s, r) => s + (r.amountEur ?? 0), 0) * 100) / 100,
       willConfirm: valid.filter((r) => r.willAutoConfirm).length,
-      chargesSettled: valid.reduce(
-        (s, r) => s + (r.targetPeriod ? 1 : 0) + r.cascadePeriods.length,
-        0
-      ),
+      chargesSettled: settledCharges.size,
     };
   },
 

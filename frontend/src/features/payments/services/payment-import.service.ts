@@ -12,6 +12,7 @@ export interface ImportPreviewRow {
   amountBs: number | null;
   amountEur: number | null;
   targetPeriod: string | null;
+  targetSettled: boolean;
   periodExplicit: boolean;
   cascadePeriods: string[];
   creditLeft: number;
