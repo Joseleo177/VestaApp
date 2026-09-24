@@ -23,7 +23,9 @@ export const ReconciliationController = {
   async listEntries(_req: Request, res: Response, next: NextFunction) {
     try {
       const entries = await AppDataSource.getRepository(BankEntry).find({
-        order: { uploadedAt: "DESC" },
+        // Por fecha del movimiento (texto "YYYY-MM-DD", ordena bien como string),
+        // lo más nuevo primero; las entradas sin fecha van al final.
+        order: { fecha: { direction: "DESC", nulls: "LAST" }, uploadedAt: "DESC" },
       });
       res.json(entries);
     } catch (err) {
