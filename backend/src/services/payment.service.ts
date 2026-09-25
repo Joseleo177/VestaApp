@@ -525,6 +525,10 @@ export const PaymentService = {
       where: { property: { id: In(propertyIds) } },
       order: { createdAt: "DESC" },
       relations: { receipts: true, targets: { charge: true }, applications: { charge: true } },
+      // Con un solo JOIN, recibos × cuotas elegidas × aplicaciones (y la
+      // propiedad de cada cuota) multiplican las filas: segundos por consulta.
+      // Por separado son consultas pequeñas.
+      relationLoadStrategy: "query",
     });
   },
 
@@ -548,6 +552,7 @@ export const PaymentService = {
         targets: { charge: true },
         applications: { charge: true },
       },
+      relationLoadStrategy: "query",
     });
   },
 
