@@ -1,7 +1,7 @@
 import { PaymentCurrency, PaymentStatus } from "@/types/domain";
 
 export const PAYMENT_CURRENCY_LABELS: Record<PaymentCurrency, string> = {
-  [PaymentCurrency.DIVISAS]: "Divisas (€)",
+  [PaymentCurrency.DIVISAS]: "Divisas ($)",
   [PaymentCurrency.BS]: "Bolívares (Bs)",
 };
 

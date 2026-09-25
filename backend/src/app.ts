@@ -5,9 +5,14 @@ import helmet from "helmet";
 import routes from "./routes";
 import { env } from "./config/env";
 import { errorHandler } from "./middlewares/error.middleware";
+import { rateLimit } from "./middlewares/rate-limit.middleware";
 
 export function createApp() {
   const app = express();
+
+  // En Vercel el edge reescribe X-Forwarded-For con la IP real del cliente;
+  // sin esto todas las peticiones compartirían la IP del proxy en el limitador.
+  if (process.env.VERCEL) app.set("trust proxy", true);
 
   app.use(helmet());
 
@@ -27,11 +32,12 @@ export function createApp() {
       credentials: true,
     })
   );
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+  app.use(express.json({ limit: "1mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
-  // Todas las rutas de la API bajo /api.
-  app.use("/api", routes);
+  // Todas las rutas de la API bajo /api. El límite es holgado (varios vecinos
+  // pueden compartir la IP del wifi del edificio); solo corta abusos.
+  app.use("/api", rateLimit({ windowMs: 60_000, max: 300 }), routes);
 
   // Manejo central de errores (siempre al final).
   app.use(errorHandler);

@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { usePolling } from "@/lib/usePolling";
 import { AccountStatement, Property } from "@/types/domain";
 import { accountService } from "../services/account.service";
 
-const POLL_MS = 20_000;
+const POLL_MS = 60_000;
 
 interface Result {
   statement: AccountStatement | null;
@@ -15,7 +16,6 @@ export function useAccountStatement(): Result {
   const [statement, setStatement] = useState<AccountStatement | null>(null);
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading]       = useState(true);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetch = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -33,19 +33,10 @@ export function useAccountStatement(): Result {
 
   useEffect(() => {
     void fetch();
-
-    // Polling silencioso
-    timer.current = setInterval(() => void fetch(true), POLL_MS);
-
-    // Refetch inmediato al volver a la pestaña
-    const onVisible = () => { if (document.visibilityState === "visible") void fetch(true); };
-    document.addEventListener("visibilitychange", onVisible);
-
-    return () => {
-      if (timer.current) clearInterval(timer.current);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
   }, [fetch]);
+
+  // Polling silencioso, pausado con la pestaña oculta
+  usePolling(() => void fetch(true), POLL_MS);
 
   return { statement, properties, loading, refetch: () => fetch(false) };
 }

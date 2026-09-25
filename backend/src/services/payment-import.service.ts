@@ -7,11 +7,12 @@ import { BankEntry } from "../models/BankEntry";
 import { amountDue } from "./charge.service";
 import {
   PaymentService,
-  computeApplication,
-  CREDIT_MIN,
+  allocatePayment,
+  chargeRateCurrency,
   ChargeLike,
 } from "./payment.service";
-import { getRateForDate } from "./exchange-rate.service";
+import { getRateConfig, getRateForDate } from "./exchange-rate.service";
+import { RateCurrency } from "../models/ExchangeRateRecord";
 import {
   amountMatchesBankEntry,
   normalizeRef,
@@ -59,7 +60,7 @@ export interface ImportPreview {
   totalRows: number;
   validRows: number;
   errorRows: number;
-  /** Suma en EUR de las filas válidas. */
+  /** Suma en divisas de las filas válidas. */
   totalEur: number;
   /** Filas que quedarán confirmadas de una vez al casar con el extracto. */
   willConfirm: number;
@@ -314,6 +315,7 @@ interface SimCharge extends ChargeLike {
   moraAmount: number;
   amountPaid: number;
   status: ChargeStatus;
+  currency: RateCurrency;
   ownerId: string | null;
   propertyId: string;
 }
@@ -361,6 +363,7 @@ export const PaymentImportService = {
       moraAmount: Number(c.moraAmount ?? 0),
       amountPaid: Number(c.amountPaid ?? 0),
       status: c.status,
+      currency: chargeRateCurrency(c),
       ownerId: c.property?.owner?.id ?? null,
       propertyId: c.property?.id ?? "",
     }));
@@ -391,10 +394,12 @@ export const PaymentImportService = {
     const freeEntries = await AppDataSource.getRepository(BankEntry).findBy({ matched: false });
     const usedEntries = new Set<string>();
 
+    const { primary } = await getRateConfig();
     const rateCache = new Map<string, number>();
-    const rateFor = async (date: string): Promise<number> => {
-      if (!rateCache.has(date)) rateCache.set(date, (await getRateForDate(date)).rate);
-      return rateCache.get(date)!;
+    const rateFor = async (date: string, currency: RateCurrency): Promise<number> => {
+      const key = `${date}|${currency}`;
+      if (!rateCache.has(key)) rateCache.set(key, (await getRateForDate(date, currency)).rate);
+      return rateCache.get(key)!;
     };
 
     const seenRefs = new Set<string>();
@@ -441,13 +446,6 @@ export const PaymentImportService = {
         out.errors.push(
           `Modalidad no reconocida: "${r.modalidadInvalida}" (solo ${MODALIDADES.join(" o ")})`
         );
-      }
-      if (
-        r.moneda === PaymentCurrency.DIVISAS &&
-        r.modalidad === "Transferencia" &&
-        !r.modalidadInvalida
-      ) {
-        out.warnings.push("En divisas la app solo usa Efectivo");
       }
       if (r.periodoRaw && r.periodo === null) {
         out.errors.push(`Período no reconocido: "${r.periodoRaw}" (usa 2026-07)`);
@@ -545,10 +543,10 @@ export const PaymentImportService = {
       out.targetPeriod = target.period;
       out.targetDescription = target.description;
 
-      // --- Monto en EUR ---
+      // --- Monto en divisas ---
       let eur: number;
       if (r.moneda === PaymentCurrency.BS) {
-        const rate = await rateFor(r.fecha);
+        const rate = await rateFor(r.fecha, target.currency);
         if (r.monto !== null) {
           out.amountBs = Math.round(r.monto * 100) / 100;
           eur = Math.round((out.amountBs / rate) * 100) / 100;
@@ -568,37 +566,43 @@ export const PaymentImportService = {
       out.amountEur = eur;
 
       if (eur <= 0) {
-        out.errors.push("El monto en EUR queda en cero");
+        out.errors.push("El monto en divisas queda en cero");
         rows.push(out);
         continue;
       }
 
       // --- Aplicación sobre la cuota y cascada del excedente ---
-      const applied = computeApplication(target, eur, r.moneda, r.fecha);
-      target.amountPaid = applied.amountPaid;
-      target.status = applied.status;
-      out.targetSettled = applied.status === ChargeStatus.PAID;
-      if (out.targetSettled) settledCharges.add(target.id);
-
-      let excess = applied.excess;
-      if (excess > CREDIT_MIN && property.owner) {
-        for (const other of byOwner.get(property.owner.id) ?? []) {
-          if (excess <= CREDIT_MIN) break;
-          if (other.id === target.id) continue;
-          if (other.status !== ChargeStatus.PENDING && other.status !== ChargeStatus.PARTIAL) {
-            continue;
-          }
-          const step = computeApplication(other, excess, r.moneda, r.fecha);
-          other.amountPaid = step.amountPaid;
-          other.status = step.status;
-          excess = step.excess;
-          if (step.status === ChargeStatus.PAID) {
-            out.cascade.push({ period: other.period, description: other.description });
-            settledCharges.add(other.id);
-          }
+      // Misma aritmética que la confirmación real (`allocatePayment`).
+      const others = (property.owner ? byOwner.get(property.owner.id) : undefined) ?? [];
+      const rates: Partial<Record<RateCurrency, number>> = {};
+      if (r.moneda === PaymentCurrency.BS) {
+        const open = others.filter(
+          (c) => c.status === ChargeStatus.PENDING || c.status === ChargeStatus.PARTIAL
+        );
+        for (const cur of new Set([primary, target.currency, ...open.map((c) => c.currency)])) {
+          rates[cur] = await rateFor(r.fecha, cur);
         }
       }
-      out.creditLeft = excess > CREDIT_MIN ? excess : 0;
+      const { steps, credit } = allocatePayment(
+        [target],
+        others,
+        { currency: r.moneda, amount: eur, amountBs: out.amountBs, paymentDate: r.fecha },
+        rates,
+        primary
+      );
+      for (const { charge, app } of steps) {
+        if (charge.status === ChargeStatus.EXONERATED) continue;
+        charge.amountPaid = app.amountPaid;
+        charge.status = app.status;
+        if (charge === target) {
+          out.targetSettled = app.status === ChargeStatus.PAID;
+          if (out.targetSettled) settledCharges.add(target.id);
+        } else if (app.status === ChargeStatus.PAID) {
+          out.cascade.push({ period: charge.period, description: charge.description });
+          settledCharges.add(charge.id);
+        }
+      }
+      out.creditLeft = property.owner ? credit : 0;
 
       // --- ¿La confirmará sola el extracto ya cargado? ---
       if (ref.length >= MIN_SUFFIX) {
@@ -699,7 +703,7 @@ export const PaymentImportService = {
           paymentDate: src.fecha,
           // Solo se manda el monto cuando la planilla lo trae. Si viene vacío,
           // `create` calcula la deuda exacta de la cuota y así no queda un
-          // céntimo colgando por redondear EUR → Bs → EUR.
+          // céntimo colgando por redondear divisas → Bs → divisas.
           ...(src.monto !== null && src.moneda === PaymentCurrency.BS
             ? { amountBs: Math.round(src.monto * 100) / 100 }
             : {}),
@@ -766,7 +770,7 @@ export const PaymentImportService = {
       ["codigo", "Sí", "Código del departamento tal como aparece en el padrón (hoja \"Unidades\")."],
       ["fecha", "Sí", "Fecha del pago: 2026-07-08 o 08/07/2026. Define la tasa BCV y si aplica mora."],
       ["moneda", "No", "BS o DIVISAS. Si se deja vacío se asume BS."],
-      ["monto", "No", "En Bs si moneda es BS; en EUR si es DIVISAS. Vacío = se cobra la cuota completa."],
+      ["monto", "No", "En Bs si moneda es BS; en $ si es DIVISAS. Vacío = se cobra la cuota completa."],
       [
         "modalidad",
         "No",
@@ -822,7 +826,7 @@ export const PaymentImportService = {
     }
 
     const unidades = XLSX.utils.aoa_to_sheet([
-      ["codigo", "torre", "titular", "cedula", "cuotas pendientes", "deuda EUR", "cuota mas antigua"],
+      ["codigo", "torre", "titular", "cedula", "cuotas pendientes", "deuda REF", "cuota mas antigua"],
       ...properties.map((p) => {
         const pend = (pendingByProp.get(p.id) ?? []).sort((a, b) =>
           String(a.dueDate) < String(b.dueDate) ? -1 : 1
@@ -856,7 +860,7 @@ export const PaymentImportService = {
       );
 
     const cuotas = XLSX.utils.aoa_to_sheet([
-      ["codigo", "periodo", "descripcion", "tipo", "vence", "deuda EUR", "estado"],
+      ["codigo", "periodo", "descripcion", "tipo", "vence", "deuda REF", "tasa", "estado"],
       ...pendientes.map((c) => [
         c.property?.code ?? "",
         c.period,
@@ -864,12 +868,13 @@ export const PaymentImportService = {
         c.type,
         String(c.dueDate),
         Math.round(amountDue(c) * 100) / 100,
+        c.currency ?? "EUR",
         c.status,
       ]),
     ]);
     cuotas["!cols"] = [
       { wch: 16 }, { wch: 10 }, { wch: 34 }, { wch: 10 },
-      { wch: 12 }, { wch: 11 }, { wch: 10 },
+      { wch: 12 }, { wch: 11 }, { wch: 6 }, { wch: 10 },
     ];
     XLSX.utils.book_append_sheet(wb, cuotas, "Cuotas");
 

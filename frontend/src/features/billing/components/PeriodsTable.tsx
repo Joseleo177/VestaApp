@@ -6,7 +6,7 @@ import { TableSkeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { formatBs, formatCurrency, formatPeriod } from "@/lib/format";
+import { formatBs, formatCurrency, formatPeriod, rateLabel } from "@/lib/format";
 import { useExchangeRate } from "@/features/exchange-rate/hooks/useExchangeRate";
 import { PeriodSummary, billingService } from "../services/billing.service";
 import { ApiError } from "@/services/api";
@@ -19,7 +19,7 @@ interface PeriodsTableProps {
 }
 
 export function PeriodsTable({ periods, loading, onSelect, onDeleted }: PeriodsTableProps) {
-  const { data: rate } = useExchangeRate();
+  const { rateOf } = useExchangeRate();
   const [deletingPeriod, setDeletingPeriod] = useState<string | null>(null);
   const [confirmPeriod, setConfirmPeriod] = useState<string | null>(null);
 
@@ -42,7 +42,7 @@ export function PeriodsTable({ periods, loading, onSelect, onDeleted }: PeriodsT
   };
 
   if (loading) {
-    return <Card className="overflow-hidden"><TableSkeleton rows={4} cols={4} /></Card>;
+    return <Card className="overflow-hidden"><TableSkeleton rows={4} cols={5} /></Card>;
   }
 
   if (periods.length === 0) {
@@ -66,13 +66,18 @@ export function PeriodsTable({ periods, loading, onSelect, onDeleted }: PeriodsT
               <tr>
                 <th className="px-5 py-3 font-medium">Período</th>
                 <th className="px-5 py-3 font-medium">Cuotas</th>
-                <th className="px-5 py-3 font-medium">Total base (€)</th>
+                <th className="px-5 py-3 font-medium">Tasa</th>
+                <th className="px-5 py-3 font-medium">Total base (REF)</th>
                 <th className="px-5 py-3 font-medium">Equiv. Bs (hoy)</th>
                 <th className="px-5 py-3 font-medium"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ios-separator">
-              {periods.map((p) => (
+              {periods.map((p) => {
+                // Un lote con cuotas a dos tasas no tiene un único equivalente en Bs.
+                const single = p.currencies?.length === 1 ? p.currencies[0] : null;
+                const rate = single ? rateOf(single) : null;
+                return (
                 <tr
                   key={`${p.period}-${p.type}`}
                   onClick={() => onSelect(p.period, p.type)}
@@ -87,6 +92,11 @@ export function PeriodsTable({ periods, loading, onSelect, onDeleted }: PeriodsT
                     )}
                   </td>
                   <td className="px-5 py-3.5 text-ios-label">{p.count}</td>
+                  <td className="px-5 py-3.5">
+                    <span className="inline-flex rounded-full bg-ios-fill px-2 py-0.5 text-xs font-medium text-ios-label">
+                      {single ? rateLabel(single) : "Mixta"}
+                    </span>
+                  </td>
                   <td className="px-5 py-3.5 font-semibold text-ios-label">
                     {formatCurrency(p.total)}
                   </td>
@@ -105,7 +115,8 @@ export function PeriodsTable({ periods, loading, onSelect, onDeleted }: PeriodsT
                     </Button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -66,6 +66,7 @@ export function BillingPage() {
         type={selectedPeriod?.type ?? null}
         open={!!selectedPeriod}
         onClose={() => setSelectedPeriod(null)}
+        onChanged={refetch}
       />
     </div>
   );

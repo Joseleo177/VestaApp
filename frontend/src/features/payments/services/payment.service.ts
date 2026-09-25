@@ -26,7 +26,7 @@ export const paymentService = {
   /** Registra el pago de una cuota. */
   async create(values: PaymentFormValues): Promise<Payment> {
     const { data } = await api.post<Payment>("/payments", {
-      chargeId: values.chargeId,
+      chargeIds: values.chargeIds,
       currency: values.currency,
       bank: values.modalidad,
       reference: values.reference ?? "",

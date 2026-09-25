@@ -7,6 +7,8 @@ import { User } from "../models/User";
 import { Charge, ChargeStatus, ChargeType } from "../models/Charge";
 import { PaymentCurrency, PaymentStatus } from "../models/Payment";
 import { HttpError } from "../middlewares/error.middleware";
+import { RateCurrency, isRateCurrency } from "../models/ExchangeRateRecord";
+import { assertEnabledCurrency, getRateConfig } from "../services/exchange-rate.service";
 
 function serializeCharge(charge: import("../models/Charge").Charge) {
   const prop = charge.property;
@@ -20,8 +22,11 @@ function serializeCharge(charge: import("../models/Charge").Charge) {
     charge.payments?.find((p) => p.status === PaymentStatus.CONFIRMED) ?? null;
 
   // Pago registrado por el vecino y aún sin revisar por el administrador.
+  // También cuenta un pago de varias cuotas que incluye a esta.
   const pending =
-    charge.payments?.find((p) => p.status === PaymentStatus.PENDING) ?? null;
+    charge.payments?.find((p) => p.status === PaymentStatus.PENDING) ??
+    charge.paymentTargets?.map((t) => t.payment).find((p) => p?.status === PaymentStatus.PENDING) ??
+    null;
 
   // Recibo que cubre esta cuota (directo o cascade) — fuente de verdad para el PDF
   const cr = charge.coveringReceipt ?? null;
@@ -31,6 +36,7 @@ function serializeCharge(charge: import("../models/Charge").Charge) {
     period: charge.period,
     description: charge.description,
     type: charge.type,
+    currency: charge.currency ?? RateCurrency.EUR,
     amount: Number(charge.amount),
     amountPaid: Number(charge.amountPaid ?? 0),
     moraAmount: Number(charge.moraAmount),
@@ -39,6 +45,14 @@ function serializeCharge(charge: import("../models/Charge").Charge) {
     overdue: isOverdue(charge),
     amountDue: amountDue(charge),
     amountDueDivisas: remaining !== null ? remaining : Number(charge.amount),
+    writeOff:
+      Number(charge.writeOffAmount) > 0
+        ? {
+            amount: Number(charge.writeOffAmount),
+            reason: charge.writeOffReason ?? "",
+            at: charge.writtenOffAt ?? null,
+          }
+        : null,
     confirmedPayment: cr
       ? {
           id: cr.payment?.id ?? confirmed?.id ?? null,
@@ -47,6 +61,8 @@ function serializeCharge(charge: import("../models/Charge").Charge) {
           paymentDate: cr.payment?.paymentDate ?? confirmed?.paymentDate ?? null,
           amount: Number(charge.amountPaid ?? 0),
           amountBs: cr.payment?.amountBs ? Number(cr.payment.amountBs) : null,
+          exchangeRate: cr.payment?.exchangeRate ? Number(cr.payment.exchangeRate) : null,
+          rateCurrency: cr.payment?.rateCurrency ?? null,
           currency: cr.payment?.currency ?? confirmed?.currency ?? null,
           ownerName: cr.payment?.submittedBy?.fullName ?? null,
           receiptNumber: cr.receiptNumber,
@@ -59,6 +75,8 @@ function serializeCharge(charge: import("../models/Charge").Charge) {
           paymentDate: confirmed.paymentDate,
           amount: Number(confirmed.amount),
           amountBs: confirmed.amountBs ? Number(confirmed.amountBs) : null,
+          exchangeRate: confirmed.exchangeRate ? Number(confirmed.exchangeRate) : null,
+          rateCurrency: confirmed.rateCurrency ?? null,
           currency: confirmed.currency,
           ownerName: confirmed.submittedBy?.fullName ?? null,
           receiptNumber: null,
@@ -69,6 +87,8 @@ function serializeCharge(charge: import("../models/Charge").Charge) {
           id: pending.id,
           amount: Number(pending.amount),
           amountBs: pending.amountBs ? Number(pending.amountBs) : null,
+          exchangeRate: pending.exchangeRate ? Number(pending.exchangeRate) : null,
+          rateCurrency: pending.rateCurrency ?? null,
           currency: pending.currency,
           reference: pending.reference,
           bank: pending.bank,
@@ -92,7 +112,7 @@ export const ChargeController = {
       const userId = req.user!.sub;
       const [charges, balance, self, properties] = await Promise.all([
         ChargeService.listForUser(userId),
-        ChargeService.balanceForUser(userId),
+        ChargeService.balanceBreakdownForUser(userId),
         AppDataSource.getRepository(User).findOneBy({ id: userId }),
         PropertyService.listForUser(userId),
       ]);
@@ -118,7 +138,9 @@ export const ChargeController = {
       }
 
       res.json({
-        balance,
+        balance: balance.total,
+        // Para el equivalente en Bs: cada parte se convierte con su tasa.
+        balanceByCurrency: balance.byCurrency,
         creditBalance: Math.round(creditBalance * 100) / 100,
         charges: charges.map(serializeCharge),
       });
@@ -130,18 +152,23 @@ export const ChargeController = {
   // POST /api/charges/generate  (admin)
   async generate(req: Request, res: Response, next: NextFunction) {
     try {
-      const { period, amount, moraAmount, dueDate, type, towerIds, propertyIds, description } = req.body;
+      const { period, amount, moraAmount, dueDate, type, currency, towerIds, propertyIds, description } = req.body;
       if (!period || !amount || !dueDate) {
         throw new HttpError(400, "period, amount y dueDate son requeridos");
       }
       const chargeType =
         type === ChargeType.SPECIAL ? ChargeType.SPECIAL : ChargeType.REGULAR;
+      // Sin moneda explícita se cobra a la tasa principal.
+      const chargeCurrency = await assertEnabledCurrency(
+        currency ?? (await getRateConfig()).primary
+      );
       const result = await ChargeService.generateForPeriod({
         period,
         amount: Number(amount),
         moraAmount: Number(moraAmount ?? 0),
         dueDate,
         type: chargeType,
+        currency: chargeCurrency,
         towerIds: Array.isArray(towerIds) ? towerIds : undefined,
         propertyIds: Array.isArray(propertyIds) ? propertyIds : undefined,
         description,
@@ -197,9 +224,9 @@ export const ChargeController = {
       }
       
       // Check for associated payments to provide a clear error message
-      const paymentsCount = await qb.clone()
-        .innerJoin("charge.payments", "payment")
-        .getCount();
+      const paymentsCount =
+        (await qb.clone().innerJoin("charge.payments", "payment").getCount()) +
+        (await qb.clone().innerJoin("charge.paymentTargets", "target").getCount());
         
       if (paymentsCount > 0) {
         throw new HttpError(409, "No se puede eliminar el lote porque hay cuotas con pagos asociados (pendientes, rechazados o confirmados).");
@@ -227,6 +254,55 @@ export const ChargeController = {
       }
       await AppDataSource.getRepository(Charge).remove(charge);
       res.status(204).send();
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // PATCH /api/charges/period/:period/currency?type=  {currency}  (admin)
+  async setPeriodCurrency(req: Request, res: Response, next: NextFunction) {
+    try {
+      // Corregir cuotas viejas es válido aunque la moneda ya esté desactivada.
+      const { currency } = req.body;
+      if (!isRateCurrency(currency)) throw new HttpError(400, "Moneda inválida (USD o EUR)");
+      const type = req.query.type as string | undefined;
+      res.json(await ChargeService.setCurrency(currency, { period: req.params.period, type }));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // PATCH /api/charges/:id/currency  {currency}  (admin)
+  async setCurrency(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { currency } = req.body;
+      if (!isRateCurrency(currency)) throw new HttpError(400, "Moneda inválida (USD o EUR)");
+      const charge = await ChargeService.getById(req.params.id);
+      if (charge.status === ChargeStatus.PAID) {
+        throw new HttpError(409, "La cuota ya está pagada: su tasa quedó fijada por el pago");
+      }
+      await ChargeService.setCurrency(currency, { chargeId: charge.id });
+      charge.currency = currency;
+      res.json(serializeCharge(charge));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // POST /api/charges/:id/write-off  {reason}  (admin) — condonar el saldo de una parcial
+  async writeOff(req: Request, res: Response, next: NextFunction) {
+    try {
+      const charge = await ChargeService.writeOff(req.params.id, String(req.body?.reason ?? ""), req.user!.sub);
+      res.json(serializeCharge(charge));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // DELETE /api/charges/:id/write-off  (admin) — revertir la condonación
+  async revertWriteOff(req: Request, res: Response, next: NextFunction) {
+    try {
+      res.json(serializeCharge(await ChargeService.revertWriteOff(req.params.id)));
     } catch (err) {
       next(err);
     }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Loader2, Receipt, Search, Trash2, Upload, X } from "lucide-react";
-import { Charge, Payment, PaymentStatus } from "@/types/domain";
+import { Payment, PaymentStatus } from "@/types/domain";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { TableSkeleton } from "@/components/ui/Skeleton";
@@ -15,6 +15,7 @@ import { paymentService } from "../services/payment.service";
 import { formatCurrency, formatDate, formatPeriod } from "@/lib/format";
 import { ApiError } from "@/services/api";
 import { cn } from "@/lib/cn";
+import { chargeLabel, coveredCharges } from "@/features/payments/coveredCharges";
 
 const TABS: { label: string; value: string }[] = [
   { label: "Todos", value: "" },
@@ -53,13 +54,11 @@ function searchableText(p: Payment): string {
 }
 
 /**
- * Cuotas que saldó el pago además de la suya: cuando el monto excede la cuota
- * elegida, el excedente cierra otras en cascada y cada una emite su recibo.
+ * Cuotas del pago además de la suya: las que el vecino eligió pagar juntas y
+ * las que cerró el excedente en cascada.
  */
 function CoveredCharges({ payment }: { payment: Payment }) {
-  const extra = (payment.receipts ?? [])
-    .map((r) => r.charge)
-    .filter((c): c is Charge => !!c && c.id !== payment.charge?.id);
+  const extra = coveredCharges(payment).filter((c) => c.id !== payment.charge?.id);
 
   if (extra.length === 0) return null;
 
@@ -67,7 +66,7 @@ function CoveredCharges({ payment }: { payment: Payment }) {
     <div className="mt-1 space-y-0.5">
       {extra.map((c) => (
         <div key={c.id} className="text-xs font-medium text-ios-green">
-          + saldó {formatPeriod(c.period)}
+          + {chargeLabel(c)}
         </div>
       ))}
     </div>

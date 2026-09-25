@@ -2,11 +2,11 @@ import { z } from "zod";
 import { PaymentCurrency } from "@/types/domain";
 
 export const MODALIDADES_BS      = ["Efectivo", "Transferencia"] as const;
-export const MODALIDADES_DIVISAS = ["Efectivo"] as const;
+export const MODALIDADES_DIVISAS = ["Efectivo", "Transferencia"] as const;
 
 export const paymentSchema = z
   .object({
-    chargeId: z.string().min(1, "Selecciona la cuota a pagar"),
+    chargeIds: z.array(z.string()).min(1, "Selecciona al menos una cuota"),
     currency: z.nativeEnum(PaymentCurrency, {
       errorMap: () => ({ message: "Selecciona la moneda de pago" }),
     }),

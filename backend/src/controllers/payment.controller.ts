@@ -10,8 +10,13 @@ export const PaymentController = {
   // POST /api/payments  (copropietario)
   async create(req: Request, res: Response, next: NextFunction) {
     try {
-      const { chargeId, currency, bank, reference, paymentDate, amountBs } = req.body;
-      if (!chargeId || !currency || !bank || !paymentDate) {
+      const { chargeId, chargeIds, currency, bank, reference, paymentDate, amountBs } = req.body;
+      const ids: string[] = Array.isArray(chargeIds)
+        ? chargeIds.filter((id: unknown): id is string => typeof id === "string")
+        : chargeId
+        ? [chargeId]
+        : [];
+      if (ids.length === 0 || !currency || !bank || !paymentDate) {
         throw new HttpError(400, "Faltan campos obligatorios del pago");
       }
       if (currency !== PaymentCurrency.DIVISAS && currency !== PaymentCurrency.BS) {
@@ -21,7 +26,7 @@ export const PaymentController = {
       const payment = await PaymentService.create(
         req.user!.sub,
         {
-          chargeId,
+          chargeIds: ids,
           currency,
           bank,
           reference,
@@ -167,7 +172,7 @@ export const PaymentController = {
     try {
       const isAdmin = req.user!.role === UserRole.ADMIN;
       const rn = req.query.rn as string | undefined;
-      const receipt = await PaymentService.getReceipt(
+      const { receipt, lines } = await PaymentService.getReceipt(
         req.params.id,
         req.user!.sub,
         isAdmin,
@@ -181,12 +186,13 @@ export const PaymentController = {
         SettingsService.get("condo_rif"),
         SettingsService.get("condo_phone"),
       ]);
-      // receipt.charge: cuota específica (cascade) o null → fallback a payment.charge
+      // Un pago = un recibo: `lines` son todas las cuotas que ampara.
       const pdfBuffer = await generateReceiptPdf(
         receipt.payment,
         receipt.receiptNumber,
         { condoName, condoCity, condoAddress, condoRif, condoPhone, issuedAt: receipt.issuedAt },
-        receipt.charge
+        receipt.charge,
+        lines
       );
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="${receipt.receiptNumber}.pdf"`);

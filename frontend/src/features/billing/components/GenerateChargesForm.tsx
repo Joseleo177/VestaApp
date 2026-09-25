@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-import { ChargeType } from "@/types/domain";
+import { ChargeType, RateCurrency } from "@/types/domain";
 import { formatBs } from "@/lib/format";
 import { ApiError } from "@/services/api";
 import { useExchangeRate } from "@/features/exchange-rate/hooks/useExchangeRate";
@@ -12,7 +12,7 @@ import { useTowers } from "@/features/towers/hooks/useTowers";
 import { useUnits } from "@/features/units/hooks/useUnits";
 import { SearchSelect } from "@/components/ui/SearchSelect";
 import { X } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { billingService } from "../services/billing.service";
 import { generateChargesSchema, GenerateChargesValues } from "../schema";
 
@@ -21,7 +21,7 @@ interface GenerateChargesFormProps {
 }
 
 export function GenerateChargesForm({ onGenerated }: GenerateChargesFormProps) {
-  const { data: rate } = useExchangeRate();
+  const { data: rates, rateOf } = useExchangeRate();
   const { towers } = useTowers();
   const { units } = useUnits();
   const thisMonth = new Date().toISOString().slice(0, 7);
@@ -43,6 +43,8 @@ export function GenerateChargesForm({ onGenerated }: GenerateChargesFormProps) {
     handleSubmit,
     watch,
     control,
+    setValue,
+    getValues,
     formState: { errors, isSubmitting },
   } = useForm<GenerateChargesValues>({
     resolver: zodResolver(generateChargesSchema),
@@ -54,6 +56,15 @@ export function GenerateChargesForm({ onGenerated }: GenerateChargesFormProps) {
       propertyIds: [],
     },
   });
+
+  // La tasa principal viene preseleccionada en cuanto se conocen las tasas.
+  useEffect(() => {
+    if (rates && !getValues("currency")) setValue("currency", rates.primary);
+  }, [rates, getValues, setValue]);
+
+  const activeCurrencies = rates?.rates.map((r) => r.currency) ?? [];
+  const currency = watch("currency");
+  const rate = currency ? rateOf(currency) : null;
 
   const amount = watch("amount");
   const type = watch("type");
@@ -109,6 +120,36 @@ export function GenerateChargesForm({ onGenerated }: GenerateChargesFormProps) {
             ))}
           </div>
 
+          {/* Tasa de cobro: solo se elige si hay más de una activa */}
+          {activeCurrencies.length > 1 ? (
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium text-ios-label">Tasa de cobro en Bs</p>
+              <div className="flex gap-3">
+                {activeCurrencies.map((c) => (
+                  <label
+                    key={c}
+                    className={`flex cursor-pointer items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
+                      currency === c
+                        ? "border-brand-600 bg-brand-50 text-brand-700"
+                        : "border-ios-separator text-ios-label hover:border-ios-separator"
+                    }`}
+                  >
+                    <input type="radio" className="hidden" value={c} {...register("currency")} />
+                    {c === RateCurrency.USD ? "BCV Dólar ($)" : "BCV Euro (€)"}
+                    {c === rates?.primary && (
+                      <span className="text-xs font-normal text-ios-secondary">principal</span>
+                    )}
+                  </label>
+                ))}
+              </div>
+              {errors.currency && (
+                <p className="text-xs text-ios-red">{errors.currency.message}</p>
+              )}
+            </div>
+          ) : (
+            <input type="hidden" {...register("currency")} />
+          )}
+
           {/* Campos principales */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Input
@@ -122,7 +163,7 @@ export function GenerateChargesForm({ onGenerated }: GenerateChargesFormProps) {
               id="amount"
               type="number"
               step="0.01"
-              label="Cuota (€)"
+              label="Cuota (REF)"
               placeholder="25.00"
               error={errors.amount?.message}
               {...register("amount")}
@@ -132,7 +173,7 @@ export function GenerateChargesForm({ onGenerated }: GenerateChargesFormProps) {
                 id="moraAmount"
                 type="number"
                 step="0.01"
-                label="Mora (€)"
+                label="Mora (REF)"
                 placeholder="5.00"
                 error={errors.moraAmount?.message}
                 {...register("moraAmount")}
@@ -298,7 +339,7 @@ export function GenerateChargesForm({ onGenerated }: GenerateChargesFormProps) {
               <span className="font-semibold text-ios-label">
                 {formatBs(amount, rate.rate)}
               </span>{" "}
-              a la tasa BCV de hoy.
+              a la tasa BCV {currency === RateCurrency.USD ? "dólar" : "euro"} de hoy.
             </p>
           )}
 

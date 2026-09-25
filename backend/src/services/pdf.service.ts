@@ -2,6 +2,15 @@ import PDFDocument from "pdfkit";
 import path from "path";
 import fs from "fs";
 import { Payment } from "../models/Payment";
+import type { Charge } from "../models/Charge";
+
+/** Una cuota saldada por el pago y la tasa con que se pasa a Bs (null: sin Bs). */
+export interface ReceiptLine {
+  charge: Charge;
+  bsRate: number | null;
+}
+
+const CURRENCY_WORD: Record<string, string> = { USD: "dólar", EUR: "euro" };
 
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -32,7 +41,9 @@ export function generateReceiptPdf(
     condoPhone?: string;
     issuedAt?: Date;
   },
-  chargeOverride?: import("../models/Charge").Charge | null
+  chargeOverride?: import("../models/Charge").Charge | null,
+  /** Cuotas que ampara el recibo; con más de una se listan todas. */
+  lines?: ReceiptLine[]
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: "A4", margin: 55 });
@@ -46,16 +57,33 @@ export function generateReceiptPdf(
     const condoAddress = (opts?.condoAddress ?? "").trim();
     const condoRif = opts?.condoRif ?? "";
     const condoPhone = opts?.condoPhone ?? "";
-    const charge = chargeOverride ?? payment.charge;
+    const charge = lines?.[0]?.charge ?? chargeOverride ?? payment.charge;
+    const multi = (lines?.length ?? 0) > 1;
 
     const base = charge ? Number(charge.amount) : Number(payment.amount);
     const mora = charge ? Number(charge.moraAmount) : 0;
     const moraPaid = charge ? Number(charge.amountPaid) > base + 0.01 : false;
     const total = moraPaid ? base + mora : base;
-    const exRate = payment.exchangeRate ? Number(payment.exchangeRate) : null;
+    // La tasa del pago es la de la moneda de su cuota destino. Una cuota cerrada
+    // en cascada con otra moneda se convirtió con otra tasa: ahí no se muestra
+    // un equivalente en Bs que sería falso, solo la referencia en divisas.
+    const rateCurrency = payment.rateCurrency ?? "EUR";
+    const sameRate = !charge || (charge.currency ?? "EUR") === rateCurrency;
+    // Con `lines` la tasa de cada cuota ya viene resuelta (incluida la de otra moneda).
+    const exRate = lines?.length
+      ? lines[0].bsRate
+      : payment.exchangeRate && sameRate ? Number(payment.exchangeRate) : null;
+    // Tasas a citar al pie: una por moneda presente.
+    const footerRates: [string, number][] = lines?.length
+      ? [...new Map(
+          lines
+            .filter((l) => l.bsRate)
+            .map((l) => [l.charge.currency ?? "EUR", l.bsRate as number] as [string, number])
+        ).entries()]
+      : exRate ? [[rateCurrency, exRate]] : [];
     // Bs total proporcional a esta cuota
     const bsTotal = exRate ? Math.round(total * exRate * 100) / 100
-      : payment.amountBs ? Number(payment.amountBs) : null;
+      : payment.amountBs && sameRate ? Number(payment.amountBs) : null;
 
     // Usar la fecha declarada del pago (cuando se hizo la transferencia), no la de hoy.
     // Se añade T12:00:00 para evitar desfases de zona horaria con fechas tipo "YYYY-MM-DD".
@@ -159,16 +187,27 @@ export function generateReceiptPdf(
 
     // ── Cuerpo ─────────────────────────────────────────────────────────────────
     const owner = payment.property?.owner?.fullName ?? payment.submittedBy?.fullName ?? "—";
-    const unit = payment.property?.code ?? "—";
-    const tower = (payment.property as any)?.tower?.name ?? "";
-    const unitFull = tower ? `${unit} · ${tower}` : unit;
+    // El apartamento es el de la cuota: un pago puede saldar cuotas de otro
+    // departamento del mismo titular.
+    const propOf = (c?: Charge | null) => (c?.property ?? payment.property) as any;
+    const unitName = (p: any) => {
+      const code = p?.code ?? "—";
+      return p?.tower?.name ? `${code} · ${p.tower.name}` : code;
+    };
+    const unitFull = multi
+      ? [...new Set(lines!.map((l) => unitName(propOf(l.charge))))].join(", ")
+      : unitName(propOf(charge));
     const period = charge?.period ? formatPeriod(charge.period) : "—";
     const concepto = charge?.description ?? "Cuota de Recuperacion";
 
     doc.fontSize(11).fillColor("#000000");
     doc.font("Helvetica-Bold").text("Recibo de: ", { continued: true }).font("Helvetica").text(owner);
-    doc.font("Helvetica-Bold").text("Del apartamento: ", { continued: true }).font("Helvetica").text(unitFull);
-    doc.font("Helvetica-Bold").text(`${concepto}: `, { continued: true }).text(period);
+    doc.font("Helvetica-Bold").text(multi ? "Apartamentos: " : "Del apartamento: ", { continued: true }).font("Helvetica").text(unitFull);
+    if (multi) {
+      doc.font("Helvetica-Bold").text("Cuotas pagadas: ", { continued: true }).font("Helvetica").text(String(lines!.length));
+    } else {
+      doc.font("Helvetica-Bold").text(`${concepto}: `, { continued: true }).text(period);
+    }
     doc.moveDown(1.2);
 
     // ── Tabla de montos ────────────────────────────────────────────────────────
@@ -190,19 +229,65 @@ export function generateReceiptPdf(
       { label: "TOTAL", bsAmt: bsTotal, eurAmt: total, bold: true, highlight: true },
     ];
 
-    for (const row of rows) {
+    // Cuota cerrada con saldo condonado: se ve lo que costaba, lo perdonado y
+    // lo que de verdad se pagó.
+    const writeOff = charge ? Number(charge.writeOffAmount ?? 0) : 0;
+    if (writeOff > 0) {
+      const paid = Number(charge!.amountPaid);
+      const expected = Math.round((paid + writeOff) * 100) / 100;
+      const toBs = (n: number) => (exRate ? Math.round(n * exRate * 100) / 100 : null);
+      rows.splice(0, rows.length,
+        { label: "Monto de la cuota", bsAmt: toBs(expected), eurAmt: expected },
+        { label: "Saldo condonado", bsAmt: toBs(writeOff), eurAmt: writeOff },
+        { label: "TOTAL PAGADO", bsAmt: toBs(paid), eurAmt: paid, bold: true, highlight: true },
+      );
+    }
+
+    // Varias cuotas: una fila por cuota (departamento · período, y el concepto
+    // debajo) y el TOTAL. Cada una con la tasa de su moneda.
+    const totalOf = (c: Charge) => {
+      const b = Number(c.amount);
+      const m = Number(c.moraAmount);
+      return Number(c.amountPaid) > b + 0.01 ? b + m : b;
+    };
+    const multiRows: (Row & { sub?: string })[] = multi
+      ? lines!.map((l) => {
+          const t = totalOf(l.charge);
+          return {
+            label: `${propOf(l.charge)?.code ?? "—"} · ${formatPeriod(l.charge.period)}`,
+            sub: l.charge.description,
+            bsAmt: l.bsRate ? Math.round(t * l.bsRate * 100) / 100 : null,
+            eurAmt: t,
+          };
+        })
+      : [];
+    if (multi) {
+      const sumRef = Math.round(multiRows.reduce((a, r) => a + r.eurAmt, 0) * 100) / 100;
+      const allBs = multiRows.every((r) => r.bsAmt != null);
+      const sumBs = allBs ? Math.round(multiRows.reduce((a, r) => a + (r.bsAmt ?? 0), 0) * 100) / 100 : null;
+      rows.splice(0, rows.length, ...multiRows, {
+        label: "TOTAL", bsAmt: sumBs, eurAmt: sumRef, bold: true, highlight: true,
+      });
+    }
+    const hasBs = multi ? rows.some((r) => r.bsAmt != null) : bsTotal !== null;
+
+    for (const row of rows as (Row & { sub?: string })[]) {
       if (row.highlight) {
         doc.rect(tableX, ty, tableW, rowH).fillColor("#f1f5f9").fill();
       }
-      const textY = ty + (rowH - (row.bold ? 12 : 10)) / 2;
+      const textY = ty + (rowH - (row.bold ? 12 : 10)) / 2 - (row.sub ? 5 : 0);
 
       // Columna label
       doc.fillColor(row.bold ? "#000000" : "#000000")
         .font(row.bold ? "Helvetica-Bold" : "Helvetica")
         .fontSize(row.bold ? 12 : 10)
-        .text(row.label, tableX + 8, textY, { width: labelW });
+        .text(row.label, tableX + 8, textY, { width: labelW - 8, lineBreak: false, ellipsis: true });
+      if (row.sub) {
+        doc.fillColor("#475569").font("Helvetica").fontSize(7.5)
+          .text(row.sub, tableX + 8, textY + 12, { width: labelW - 8, lineBreak: false, ellipsis: true });
+      }
 
-      if (bsTotal !== null) {
+      if (hasBs) {
         // Columna Bs (principal)
         const bsText = row.bsAmt != null ? `Bs. ${bs(row.bsAmt)}` : "—";
         doc.fillColor("#000000")
@@ -223,7 +308,7 @@ export function generateReceiptPdf(
           .text(`REF ${eur(row.eurAmt)}`, tableX + labelW, textY, { width: bsW + eurW - 8, align: "right" });
       }
 
-      ty += rowH;
+      ty += rowH + (row.sub ? 6 : 0);
       if (!row.highlight) {
         doc.moveTo(tableX, ty).lineTo(tableX + tableW, ty).strokeColor("#e2e8f0").stroke();
       }
@@ -236,13 +321,25 @@ export function generateReceiptPdf(
     doc.moveDown(1);
     doc.moveTo(55, doc.y).lineTo(55 + pageW, doc.y).strokeColor("#cbd5e1").stroke();
     doc.moveDown(0.5);
-    if (exRate) {
+    if (writeOff > 0 && charge?.writeOffReason) {
+      // Una sola cadena: PDFKit no centra bien un texto `continued` con dos fuentes.
+      doc.fontSize(8).fillColor("#000000").font("Helvetica-Bold")
+        .text(`Motivo de la condonación: ${charge.writeOffReason}`, 55, doc.y, { width: pageW, align: "center" });
+      doc.moveDown(0.4);
+    }
+    const credit = Number(payment.creditAmount ?? 0);
+    if (multi && credit > 0) {
+      doc.fontSize(8).fillColor("#000000").font("Helvetica-Bold")
+        .text(`Saldo a favor abonado con este pago: REF ${eur(credit)}`, 55, doc.y, { width: pageW, align: "center" });
+      doc.moveDown(0.4);
+    }
+    if (footerRates.length > 0) {
       const tasaFmt = new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+      const txt = footerRates
+        .map(([cur, r]) => `Bs. ${tasaFmt.format(r)} por ${CURRENCY_WORD[cur] ?? cur}`)
+        .join("  ·  ");
       doc.fontSize(7.5).fillColor("#000000").font("Helvetica-Bold")
-        .text(
-          `Tasa de cambio aplicada: Bs. ${tasaFmt.format(exRate)}`,
-          55, doc.y, { width: pageW, align: "center" }
-        );
+        .text(`Tasa BCV aplicada: ${txt}`, 55, doc.y, { width: pageW, align: "center" });
       doc.moveDown(0.4);
     }
     doc.fontSize(7.5).fillColor("#000000").font("Helvetica-Bold")

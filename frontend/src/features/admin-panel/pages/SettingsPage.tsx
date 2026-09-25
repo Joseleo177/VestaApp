@@ -17,6 +17,9 @@ interface Settings {
   bank_name:        string;
   bank_beneficiary: string;
   bank_account:     string;
+  bank_usd_name:        string;
+  bank_usd_beneficiary: string;
+  bank_usd_account:     string;
 }
 
 export function SettingsPage() {
@@ -25,6 +28,7 @@ export function SettingsPage() {
     condo_name: "", condo_city: "Caracas", condo_address: "",
     condo_rif: "", condo_phone: "",
     bank_name: "", bank_beneficiary: "", bank_account: "",
+    bank_usd_name: "", bank_usd_beneficiary: "", bank_usd_account: "",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -128,8 +132,8 @@ export function SettingsPage() {
       </Card>
 
       <Card className="p-6 space-y-5">
-        <h2 className="font-semibold text-ios-label">Cuenta bancaria para recaudación</h2>
-        <p className="text-xs text-ios-secondary -mt-2">Se muestra a los propietarios en el formulario de pago.</p>
+        <h2 className="font-semibold text-ios-label">Cuenta bancaria en bolívares</h2>
+        <p className="text-xs text-ios-secondary -mt-2">Se muestra a los propietarios que pagan por transferencia en Bs.</p>
         <Input
           id="bank_name"
           label="Banco"
@@ -153,6 +157,38 @@ export function SettingsPage() {
           disabled={loading}
           value={values.bank_account}
           onChange={set("bank_account")}
+        />
+      </Card>
+
+      <Card className="p-6 space-y-5">
+        <h2 className="font-semibold text-ios-label">Cuenta para transferencias en divisas</h2>
+        <p className="text-xs text-ios-secondary -mt-2">
+          Se muestra a los propietarios que pagan por transferencia en divisas ($). Estos pagos no
+          aparecen en el extracto en Bs, así que se confirman a mano.
+        </p>
+        <Input
+          id="bank_usd_name"
+          label="Banco"
+          placeholder="Ej. Banesco Panamá, Zelle"
+          disabled={loading}
+          value={values.bank_usd_name}
+          onChange={set("bank_usd_name")}
+        />
+        <Input
+          id="bank_usd_beneficiary"
+          label="Beneficiario"
+          placeholder="Ej. Asociacion Civil de Vivienda y Habitat"
+          disabled={loading}
+          value={values.bank_usd_beneficiary}
+          onChange={set("bank_usd_beneficiary")}
+        />
+        <Input
+          id="bank_usd_account"
+          label="Número de cuenta o correo"
+          placeholder="Ej. 0134-... o pagos@correo.com"
+          disabled={loading}
+          value={values.bank_usd_account}
+          onChange={set("bank_usd_account")}
         />
       </Card>
 

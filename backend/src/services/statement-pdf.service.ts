@@ -140,12 +140,12 @@ export function generateAccountStatementPdf(
     let ty = doc.y;
     doc.rect(tableX, ty, tableW, rowH).fillColor("#f1f5f9").fill();
     
-    doc.fillColor("#000000").font("Helvetica-Bold").fontSize(10).text("Saldo a Favor (EUR)", tableX + 8, ty + 8, { width: tableW/2 });
+    doc.fillColor("#000000").font("Helvetica-Bold").fontSize(10).text("Saldo a Favor (REF)", tableX + 8, ty + 8, { width: tableW/2 });
     doc.text(eur(creditBalance), tableX + tableW/2, ty + 8, { width: tableW/2 - 8, align: "right" });
     ty += rowH;
     
     doc.rect(tableX, ty, tableW, rowH).fillColor("#fef2f2").fill();
-    doc.fillColor("#000000").font("Helvetica-Bold").fontSize(10).text("Deuda Total (EUR)", tableX + 8, ty + 8, { width: tableW/2 });
+    doc.fillColor("#000000").font("Helvetica-Bold").fontSize(10).text("Deuda Total (REF)", tableX + 8, ty + 8, { width: tableW/2 });
     doc.text(eur(balance), tableX + tableW/2, ty + 8, { width: tableW/2 - 8, align: "right" });
     ty += rowH;
 

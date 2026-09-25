@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ChargeType } from "@/types/domain";
+import { ChargeType, RateCurrency } from "@/types/domain";
 
 export const generateChargesSchema = z
   .object({
@@ -8,6 +8,9 @@ export const generateChargesSchema = z
     moraAmount: z.coerce.number({ invalid_type_error: "Monto inválido" }).min(0),
     dueDate: z.string().min(1, "Indica la fecha de vencimiento"),
     type: z.nativeEnum(ChargeType),
+    currency: z.nativeEnum(RateCurrency, {
+      errorMap: () => ({ message: "Elige la tasa de cobro" }),
+    }),
     towerIds: z.array(z.string()),
     propertyIds: z.array(z.string()).optional(),
     description: z.string().optional(),

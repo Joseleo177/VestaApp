@@ -6,10 +6,19 @@ import {
   useMemo,
   useState,
 } from "react";
-import { ExchangeRate, exchangeRateService } from "../services/exchange-rate.service";
+import { RateCurrency } from "@/types/domain";
+import {
+  ActiveRates,
+  ExchangeRate,
+  exchangeRateService,
+} from "../services/exchange-rate.service";
 
 interface ExchangeRateContextValue {
-  data: ExchangeRate | null;
+  data: ActiveRates | null;
+  /** Tasa vigente de una moneda; si está desactivada, null. */
+  rateOf: (currency: RateCurrency) => ExchangeRate | null;
+  /** Tasa vigente de la moneda principal. */
+  primary: ExchangeRate | null;
   loading: boolean;
   refresh: () => Promise<void>;
 }
@@ -18,9 +27,9 @@ export const ExchangeRateContext = createContext<ExchangeRateContextValue | null
 
 const REFRESH_INTERVAL = 30 * 60 * 1000; // 30 min
 
-/** Provee la tasa BCV a toda la app (top bar + conversiones a Bs). */
+/** Provee las tasas BCV a toda la app (top bar + conversiones a Bs). */
 export function ExchangeRateProvider({ children }: { children: ReactNode }) {
-  const [data, setData] = useState<ExchangeRate | null>(null);
+  const [data, setData] = useState<ActiveRates | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async (force = false) => {
@@ -40,10 +49,17 @@ export function ExchangeRateProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(id);
   }, [load]);
 
-  const value = useMemo<ExchangeRateContextValue>(
-    () => ({ data, loading, refresh: () => load(true) }),
-    [data, loading, load]
-  );
+  const value = useMemo<ExchangeRateContextValue>(() => {
+    const rateOf = (currency: RateCurrency) =>
+      data?.rates.find((r) => r.currency === currency) ?? null;
+    return {
+      data,
+      rateOf,
+      primary: data ? rateOf(data.primary) : null,
+      loading,
+      refresh: () => load(true),
+    };
+  }, [data, loading, load]);
 
   return (
     <ExchangeRateContext.Provider value={value}>

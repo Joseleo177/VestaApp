@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { usePolling } from "@/lib/usePolling";
 import { PropertyWithBalance } from "../types";
 import { adminService } from "../services/admin.service";
 
-const POLL_MS = 20_000;
+const POLL_MS = 60_000;
 
 interface Result {
   properties: PropertyWithBalance[];
@@ -15,7 +16,6 @@ interface Result {
 export function useProperties(): Result {
   const [properties, setProperties] = useState<PropertyWithBalance[]>([]);
   const [loading, setLoading] = useState(true);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetch = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -29,16 +29,9 @@ export function useProperties(): Result {
 
   useEffect(() => {
     void fetch();
-    timer.current = setInterval(() => void fetch(true), POLL_MS);
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void fetch(true);
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      if (timer.current) clearInterval(timer.current);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
   }, [fetch]);
+
+  usePolling(() => void fetch(true), POLL_MS);
 
   return { properties, loading, refetch: () => fetch(true) };
 }

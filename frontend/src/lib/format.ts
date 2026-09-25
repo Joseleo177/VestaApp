@@ -1,16 +1,16 @@
 /** Formateadores reutilizables de moneda y fechas. */
 
-// `narrowSymbol` da "€16.170,00" en vez de "EUR 16.170,00": tres caracteres
-// menos, que es la diferencia entre caber o no en las tarjetas del dashboard.
-// Además coincide con las etiquetas "(€)" de los formularios.
-const currencyFmt = new Intl.NumberFormat("es-VE", {
-  style: "currency",
-  currency: "EUR",
-  currencyDisplay: "narrowSymbol",
+// Los montos de cuotas y pagos son "REF": se pagan tal cual en $ (efectivo o
+// transferencia) o en Bs a la tasa de la cuota, que puede ser la del dólar o la
+// del euro. Con "$" una cuota a tasa € parecía cobrarse en dos monedas.
+const refFmt = new Intl.NumberFormat("es-VE", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
 });
 
 export function formatCurrency(value: number | string): string {
-  return currencyFmt.format(Number(value));
+  const n = Number(value);
+  return `${n < 0 ? "-" : ""}REF ${refFmt.format(Math.abs(n))}`;
 }
 
 const bsFmt = new Intl.NumberFormat("es-VE", {
@@ -18,7 +18,7 @@ const bsFmt = new Intl.NumberFormat("es-VE", {
   maximumFractionDigits: 2,
 });
 
-/** Convierte un monto USD a bolívares usando la tasa dada. */
+/** Convierte un monto en divisas a bolívares usando la tasa dada. */
 export function formatBs(usd: number | string, rate: number): string {
   return `Bs. ${bsFmt.format(Number(usd) * rate)}`;
 }
@@ -65,4 +65,14 @@ export function formatPeriod(period: string): string {
 /** ¿La fecha límite ya pasó? */
 export function isOverdue(dueDate: string): boolean {
   return new Date(dueDate).getTime() < new Date().setHours(0, 0, 0, 0);
+}
+
+/** Etiqueta corta de la tasa BCV con que se cobra una cuota en Bs. */
+export function rateLabel(currency: string | null | undefined): string {
+  return currency === "USD" ? "Bs a tasa $" : "Bs a tasa €";
+}
+
+/** "Bs/USD" o "Bs/EUR". */
+export function rateUnit(currency: string | null | undefined): string {
+  return currency === "USD" ? "Bs/USD" : "Bs/EUR";
 }

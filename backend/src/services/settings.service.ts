@@ -12,6 +12,14 @@ const DEFAULTS: Record<string, string> = {
   bank_name:        "",
   bank_beneficiary: "",
   bank_account:     "",
+  // Cuenta para transferencias en divisas (otro banco u otra cuenta).
+  bank_usd_name:        "",
+  bank_usd_beneficiary: "",
+  bank_usd_account:     "",
+  // Tasas BCV: se editan por /exchange-rate/config, que las valida.
+  rate_primary:     "EUR",
+  rate_usd_enabled: "true",
+  rate_eur_enabled: "true",
 };
 
 const repo = () => AppDataSource.getRepository(Setting);

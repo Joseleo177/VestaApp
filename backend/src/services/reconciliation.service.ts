@@ -93,10 +93,10 @@ export function amountMatchesBankEntry(
   bankMonto: number
 ): boolean {
   const tol = 0.02;
-  if (payment.currency === PaymentCurrency.BS && payment.amountBs != null) {
-    return Math.abs(Number(payment.amountBs) - bankMonto) <= tol;
-  }
-  return Math.abs(Number(payment.amount) - bankMonto) <= tol;
+  // El extracto es de la cuenta en Bs: una transferencia en divisas llega a
+  // otra cuenta y nunca puede casar con él, aunque la referencia coincida.
+  if (payment.currency !== PaymentCurrency.BS || payment.amountBs == null) return false;
+  return Math.abs(Number(payment.amountBs) - bankMonto) <= tol;
 }
 
 export const ReconciliationService = {
@@ -249,7 +249,7 @@ export const ReconciliationService = {
         const registrado =
           refMatch.currency === PaymentCurrency.BS && refMatch.amountBs != null
             ? `Bs. ${Number(refMatch.amountBs).toLocaleString("es-VE")}`
-            : `EUR ${Number(refMatch.amount).toFixed(2)}`;
+            : `REF ${Number(refMatch.amount).toFixed(2)} en divisas`;
         result.review.push({
           bankRef: normalizeRef(row.referencia),
           bankAmount: row.monto,

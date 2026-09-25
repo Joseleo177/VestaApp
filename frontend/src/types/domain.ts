@@ -31,6 +31,15 @@ export enum PaymentCurrency {
   BS = "BS",
 }
 
+/**
+ * Tasa BCV con la que una cuota se convierte a Bs. El monto de la cuota siempre
+ * es en divisas ($); la moneda solo decide qué tasa aplica al pagar en Bs.
+ */
+export enum RateCurrency {
+  USD = "USD",
+  EUR = "EUR",
+}
+
 export interface User {
   id: string;
   cedula: string;
@@ -67,6 +76,8 @@ export interface ChargeConfirmedPayment {
   paymentDate: string;
   amount: number;
   amountBs: number | null;
+  exchangeRate?: number | null;
+  rateCurrency?: RateCurrency | null;
   currency: PaymentCurrency;
   ownerName: string | null;
   receiptNumber: string | null;
@@ -77,6 +88,8 @@ export interface ChargePendingPayment {
   id: string;
   amount: number;
   amountBs: number | null;
+  exchangeRate?: number | null;
+  rateCurrency?: RateCurrency | null;
   currency: PaymentCurrency;
   reference: string;
   bank: string;
@@ -89,6 +102,8 @@ export interface Charge {
   description: string;
   type: ChargeType;
   amount: number;
+  /** Tasa con que se convierte a Bs. */
+  currency: RateCurrency;
   amountPaid?: number;
   moraAmount?: number;
   dueDate: string;
@@ -96,6 +111,8 @@ export interface Charge {
   overdue?: boolean;
   amountDue?: number;
   amountDueDivisas?: number;
+  /** Saldo que el admin condonó al cerrar la cuota parcial. */
+  writeOff?: { amount: number; reason: string; at: string | null } | null;
   confirmedPayment?: ChargeConfirmedPayment | null;
   pendingPayment?: ChargePendingPayment | null;
   property?: { id: string; code: string; tower?: { id: string; name: string } | null };
@@ -121,6 +138,8 @@ export interface Payment {
   amount: number;
   currency: PaymentCurrency;
   exchangeRate?: number | null;
+  /** Moneda de `exchangeRate` (solo pagos en Bs). */
+  rateCurrency?: RateCurrency | null;
   amountBs?: number | null;
   bank: string;
   reference: string;
@@ -130,11 +149,17 @@ export interface Payment {
   reviewedAt?: string | null;
   rejectReason?: string | null;
   receipts?: Receipt[] | null;
+  /** Cuotas elegidas para un pago de varias cuotas, en orden. */
+  targets?: { position: number; charge: Charge }[] | null;
+  /** Lo que el pago aplicó a cada cuota al confirmarse. */
+  applications?: { amount: number; charge: Charge }[] | null;
   createdAt: string;
 }
 
 export interface AccountStatement {
   balance: number;
+  /** Deuda separada por tasa, para calcular el equivalente en Bs. */
+  balanceByCurrency?: Record<RateCurrency, number>;
   creditBalance: number;
   charges: Charge[];
 }

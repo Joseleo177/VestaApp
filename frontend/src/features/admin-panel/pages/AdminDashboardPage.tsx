@@ -49,7 +49,7 @@ function KpiCard({ icon, label, value, sub, color, loading }: KpiCardProps) {
         {loading ? (
           <div className="mt-1 h-6 w-16 animate-pulse rounded bg-ios-separator" />
         ) : (
-          // Los conteos son cortos, pero un monto como "€16.170,00" no cabe a
+          // Los conteos son cortos, pero un monto como "REF 16.170,00" no cabe a
           // text-2xl en la columna del grid: se baja un escalón y se permite
           // que parta de línea antes que recortar una cifra de dinero.
           <p

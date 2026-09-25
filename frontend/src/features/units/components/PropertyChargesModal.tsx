@@ -16,6 +16,7 @@ import { paymentService } from "@/features/payments/services/payment.service";
 import { PropertyWithBalance } from "@/features/admin-panel/types";
 
 import { PaymentForm } from "@/features/payments/components/PaymentForm";
+import { WriteOffDialog } from "@/features/billing/components/WriteOffDialog";
 
 interface PropertyChargesModalProps {
   property: PropertyWithBalance | null;
@@ -37,6 +38,25 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Charge | null>(null);
   const [paymentTarget, setPaymentTarget] = useState<Charge | null>(null);
+  const [writeOffTarget, setWriteOffTarget] = useState<Charge | null>(null);
+  const [revertTarget, setRevertTarget] = useState<Charge | null>(null);
+
+  const replaceCharge = (updated: Charge) =>
+    setCharges((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+
+  const handleRevertWriteOff = async () => {
+    if (!revertTarget) return;
+    setBusyId(revertTarget.id);
+    try {
+      replaceCharge(await billingService.revertWriteOff(revertTarget.id));
+      toast.success("Condonación revertida: la cuota vuelve a parcial");
+      setRevertTarget(null);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo revertir");
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   useEffect(() => {
     if (!open || !property) return;
@@ -165,8 +185,19 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
                           pagado {formatCurrency(c.amountPaid ?? 0)}
                         </div>
                       )}
+                      {c.writeOff && (
+                        <div className="text-xs text-ios-purple">
+                          condonado {formatCurrency(c.writeOff.amount)}
+                        </div>
+                      )}
                     </div>
                   </div>
+
+                  {c.writeOff && (
+                    <p className="mt-1.5 break-words text-xs text-ios-purple">
+                      Motivo de la condonación: {c.writeOff.reason}
+                    </p>
+                  )}
 
                   {/* Datos del pago confirmado */}
                   {cp && (
@@ -207,6 +238,22 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
                         Registrar pago
                       </Button>
                     )}
+                    {c.status === ChargeStatus.PARTIAL && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setWriteOffTarget(c)}
+                        disabled={busy || !!c.pendingPayment}
+                        title={c.pendingPayment ? "Tiene un pago pendiente de revisión" : "Perdonar el saldo restante"}
+                      >
+                        Condonar saldo
+                      </Button>
+                    )}
+                    {c.writeOff && (
+                      <Button size="sm" variant="ghost" onClick={() => setRevertTarget(c)} disabled={busy}>
+                        Revertir condonación
+                      </Button>
+                    )}
                     {canExonerate && (
                       <Button
                         size="sm"
@@ -236,6 +283,25 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
           </ul>
         )}
       </Modal>
+
+      <WriteOffDialog
+        charge={writeOffTarget}
+        onClose={() => setWriteOffTarget(null)}
+        onDone={(updated) => {
+          replaceCharge(updated);
+          setWriteOffTarget(null);
+        }}
+      />
+
+      <ConfirmDialog
+        open={revertTarget !== null}
+        onClose={() => setRevertTarget(null)}
+        onConfirm={() => void handleRevertWriteOff()}
+        title="Revertir condonación"
+        description={`La cuota de ${revertTarget ? formatPeriod(revertTarget.period) : ""} vuelve a quedar parcial con ${revertTarget?.writeOff ? formatCurrency(revertTarget.writeOff.amount) : ""} pendiente, y se anula el recibo emitido al condonar.`}
+        confirmLabel="Revertir"
+        loading={busyId === revertTarget?.id}
+      />
 
       <ConfirmDialog
         open={deleteTarget !== null}

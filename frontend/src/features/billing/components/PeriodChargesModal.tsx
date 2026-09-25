@@ -5,19 +5,22 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { Pagination } from "@/components/ui/Pagination";
-import { Charge, ChargeStatus, ChargeType } from "@/types/domain";
-import { formatCurrency, formatDate, formatPeriod } from "@/lib/format";
+import { Charge, ChargeStatus, ChargeType, RateCurrency } from "@/types/domain";
+import { formatCurrency, formatDate, formatPeriod, rateLabel } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { usePagination } from "@/lib/usePagination";
 import { ApiError } from "@/services/api";
 import { billingService } from "../services/billing.service";
 import { paymentService } from "@/features/payments/services/payment.service";
+import { WriteOffDialog } from "./WriteOffDialog";
 
 interface PeriodChargesModalProps {
   period: string | null;
   type: string | null;
   open: boolean;
   onClose: () => void;
+  /** Se llamó tras cambiar la tasa de cuotas: el listado de períodos la muestra. */
+  onChanged?: () => void;
 }
 
 const STATUS_META: Record<ChargeStatus, { label: string; cls: string }> = {
@@ -27,21 +30,63 @@ const STATUS_META: Record<ChargeStatus, { label: string; cls: string }> = {
   [ChargeStatus.PARTIAL]: { label: "Parcial", cls: "bg-ios-orange/10 text-ios-orange" },
 };
 
-export function PeriodChargesModal({ period, type, open, onClose }: PeriodChargesModalProps) {
+export function PeriodChargesModal({ period, type, open, onClose, onChanged }: PeriodChargesModalProps) {
   const [charges, setCharges] = useState<Charge[]>([]);
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [changingAll, setChangingAll] = useState(false);
+  const [writeOffTarget, setWriteOffTarget] = useState<Charge | null>(null);
 
-  useEffect(() => {
-    if (!open || !period) return;
+  const load = () => {
+    if (!period) return;
     setLoading(true);
     billingService
       .listForPeriod(period, type ?? undefined)
       .then(setCharges)
       .catch(() => toast.error("No se pudieron cargar las cuotas"))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    if (!open || !period) return;
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, period, type]);
+
+  const otherCurrency = (c: RateCurrency) =>
+    c === RateCurrency.USD ? RateCurrency.EUR : RateCurrency.USD;
+
+  /** Cambia la tasa de todas las cuotas no pagadas del lote. */
+  const changeAll = async (currency: RateCurrency) => {
+    if (!period || !type) return;
+    setChangingAll(true);
+    try {
+      const { updated } = await billingService.setPeriodCurrency(period, type as ChargeType, currency);
+      toast.success(`${updated} cuotas pasan a ${rateLabel(currency)}`);
+      load();
+      onChanged?.();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo cambiar la tasa");
+    } finally {
+      setChangingAll(false);
+    }
+  };
+
+  const changeOne = async (charge: Charge) => {
+    setBusyId(charge.id);
+    try {
+      const updated = await billingService.setChargeCurrency(charge.id, otherCurrency(charge.currency));
+      setCharges((prev) => prev.map((c) => (c.id === charge.id ? { ...c, currency: updated.currency } : c)));
+      onChanged?.();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo cambiar la tasa");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const unpaid = charges.filter((c) => c.status !== ChargeStatus.PAID);
 
   const paged = usePagination(charges, 20);
 
@@ -74,12 +119,33 @@ export function PeriodChargesModal({ period, type, open, onClose }: PeriodCharge
   };
 
   return (
+    <>
     <Modal
       open={open}
       onClose={onClose}
       title={period ? `Cuotas — ${formatPeriod(period)}` : "Cuotas"}
       className="max-w-2xl"
     >
+      {!loading && unpaid.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl bg-ios-fill px-3 py-2 text-xs text-ios-secondary">
+          <span>Tasa de las cuotas no pagadas:</span>
+          {[RateCurrency.USD, RateCurrency.EUR].map((c) => (
+            <Button
+              key={c}
+              size="sm"
+              variant="outline"
+              disabled={changingAll || unpaid.every((u) => u.currency === c)}
+              onClick={() => void changeAll(c)}
+            >
+              Todas a tasa {c === RateCurrency.USD ? "$" : "€"}
+            </Button>
+          ))}
+          <span className="basis-full">
+            Las pagadas conservan la tasa con que se pagaron. También puedes cambiar una sola
+            tocando su etiqueta de tasa.
+          </span>
+        </div>
+      )}
       {loading ? (
         <TableSkeleton rows={4} cols={4} />
       ) : (
@@ -108,15 +174,35 @@ export function PeriodChargesModal({ period, type, open, onClose }: PeriodCharge
                   <td className="py-2.5">
                     <div className="text-ios-label text-xs">{c.description}</div>
                     {c.type === ChargeType.SPECIAL && (
-                      <span className="mt-0.5 inline-flex rounded-full bg-ios-purple/10 px-2 py-0.5 text-xs font-medium text-ios-purple">
+                      <span className="mt-0.5 mr-1 inline-flex rounded-full bg-ios-purple/10 px-2 py-0.5 text-xs font-medium text-ios-purple">
                         Especial
                       </span>
+                    )}
+                    {c.status === ChargeStatus.PAID ? (
+                      <span className="mt-0.5 inline-flex rounded-full bg-ios-fill px-2 py-0.5 text-xs font-medium text-ios-secondary">
+                        {rateLabel(c.currency)}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => void changeOne(c)}
+                        disabled={busyId === c.id}
+                        title={`Cambiar a ${rateLabel(otherCurrency(c.currency))}`}
+                        className="mt-0.5 inline-flex rounded-full bg-ios-fill px-2 py-0.5 text-xs font-medium text-ios-label hover:bg-brand-50 disabled:opacity-50"
+                      >
+                        {rateLabel(c.currency)} ⇄
+                      </button>
                     )}
                   </td>
                   <td className="py-2.5 text-ios-label">
                     {formatCurrency(c.amountDue ?? c.amount)}
                     {c.overdue && c.status === ChargeStatus.PENDING && (
                       <span className="ml-1 text-xs text-ios-red">(mora)</span>
+                    )}
+                    {c.writeOff && (
+                      <div className="mt-0.5 text-xs text-ios-purple">
+                        Condonado {formatCurrency(c.writeOff.amount)}: {c.writeOff.reason}
+                      </div>
                     )}
                     {c.confirmedPayment && (
                       <div className="mt-0.5 font-mono text-xs text-ios-green">
@@ -154,6 +240,17 @@ export function PeriodChargesModal({ period, type, open, onClose }: PeriodCharge
                       ) : (
                         <span className="text-xs text-ios-tertiary">—</span>
                       )
+                    ) : c.status === ChargeStatus.PARTIAL ? (
+                      // Con abono no se exonera (se perdería lo pagado): se condona el resto.
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setWriteOffTarget(c)}
+                        disabled={busyId === c.id || !!c.pendingPayment}
+                        title={c.pendingPayment ? "Tiene un pago pendiente de revisión" : "Perdonar el saldo restante"}
+                      >
+                        Condonar
+                      </Button>
                     ) : (
                       <Button
                         size="sm"
@@ -182,5 +279,14 @@ export function PeriodChargesModal({ period, type, open, onClose }: PeriodCharge
         </div>
       )}
     </Modal>
+      <WriteOffDialog
+        charge={writeOffTarget}
+        onClose={() => setWriteOffTarget(null)}
+        onDone={(updated) => {
+          setCharges((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+          setWriteOffTarget(null);
+        }}
+      />
+    </>
   );
 }

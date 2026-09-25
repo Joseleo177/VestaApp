@@ -1,8 +1,8 @@
 import { CalendarClock, CheckCircle2, PiggyBank, Wallet } from "lucide-react";
-import { AccountStatement, Charge, ChargeStatus, Payment } from "@/types/domain";
+import { AccountStatement, Charge, ChargeStatus, Payment, RateCurrency } from "@/types/domain";
 import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { formatBs, formatCurrency, formatDate, isOverdue } from "@/lib/format";
+import { formatCurrency, formatDate, isOverdue } from "@/lib/format";
 import { useExchangeRate } from "@/features/exchange-rate/hooks/useExchangeRate";
 import { cn } from "@/lib/cn";
 
@@ -21,7 +21,7 @@ function nextDueCharge(charges: Charge[]): Charge | undefined {
 
 /** Widget KPI: monto pendiente, fecha límite (badge rojo si vencida), último pago, saldo a favor. */
 export function FinancialSummary({ statement, lastConfirmed, loading, creditBalance = 0 }: FinancialSummaryProps) {
-  const { data: rate } = useExchangeRate();
+  const { rateOf } = useExchangeRate();
 
   const cols = creditBalance > 0 ? "sm:grid-cols-4" : "sm:grid-cols-3";
 
@@ -39,6 +39,21 @@ export function FinancialSummary({ statement, lastConfirmed, loading, creditBala
   }
 
   const balance = statement?.balance ?? 0;
+
+  // Cada parte de la deuda se convierte con la tasa de su moneda. Si falta una
+  // tasa (moneda desactivada) no se muestra un equivalente incompleto.
+  const balanceBs = (() => {
+    const parts = statement?.balanceByCurrency;
+    if (!parts) return null;
+    let total = 0;
+    for (const c of [RateCurrency.USD, RateCurrency.EUR]) {
+      if (!parts[c]) continue;
+      const r = rateOf(c);
+      if (!r) return null;
+      total += parts[c] * r.rate;
+    }
+    return total;
+  })();
   const due = statement ? nextDueCharge(statement.charges) : undefined;
   const overdue = due ? isOverdue(due.dueDate) : false;
   const pendingCount = statement?.charges.filter(
@@ -67,7 +82,15 @@ export function FinancialSummary({ statement, lastConfirmed, loading, creditBala
           {balance > 0
             ? (
               <span className="space-y-0.5 flex flex-col">
-                {rate && <span>≈ {formatBs(balance, rate.rate)}</span>}
+                {balanceBs !== null && (
+                  <span>
+                    ≈ Bs.{" "}
+                    {balanceBs.toLocaleString("es-VE", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                )}
                 <span>
                   {pendingCount} cuota{pendingCount !== 1 ? "s" : ""} pendiente{pendingCount !== 1 ? "s" : ""}
                   {hasOverdue && <span className="ml-1 text-ios-red font-medium">· incluye mora</span>}

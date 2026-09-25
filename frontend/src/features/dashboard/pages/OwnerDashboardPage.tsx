@@ -122,6 +122,9 @@ function ChargesTable({ charges, loading, onPay }: ChargesTableProps) {
                   {isPartial && (c.amountPaid ?? 0) > 0 && (
                     <p className="text-xs text-ios-orange">pagado: {formatCurrency(c.amountPaid ?? 0)}</p>
                   )}
+                  {c.writeOff && (
+                    <p className="text-xs text-ios-purple">saldo condonado: {formatCurrency(c.writeOff.amount)}</p>
+                  )}
                   <p className="text-xs text-ios-secondary">Vence {formatDate(c.dueDate)}</p>
                   {c.confirmedPayment && (
                     <p className="mt-0.5 font-mono text-xs text-ios-secondary">
@@ -204,6 +207,11 @@ function ChargesTable({ charges, loading, onPay }: ChargesTableProps) {
                     {isPartial && (c.amountPaid ?? 0) > 0 && (
                       <div className="text-xs font-normal text-ios-orange">
                         pagado: {formatCurrency(c.amountPaid ?? 0)}
+                      </div>
+                    )}
+                    {c.writeOff && (
+                      <div className="text-xs font-normal text-ios-purple">
+                        saldo condonado: {formatCurrency(c.writeOff.amount)}
                       </div>
                     )}
                   </td>

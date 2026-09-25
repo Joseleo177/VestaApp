@@ -27,6 +27,26 @@ router.delete(
   ChargeController.deletePeriod
 );
 router.patch(
+  "/period/:period/currency",
+  authorize(UserRole.ADMIN),
+  ChargeController.setPeriodCurrency
+);
+router.patch(
+  "/:id/currency",
+  authorize(UserRole.ADMIN),
+  ChargeController.setCurrency
+);
+router.post(
+  "/:id/write-off",
+  authorize(UserRole.ADMIN),
+  ChargeController.writeOff
+);
+router.delete(
+  "/:id/write-off",
+  authorize(UserRole.ADMIN),
+  ChargeController.revertWriteOff
+);
+router.patch(
   "/:id/exonerate",
   authorize(UserRole.ADMIN),
   ChargeController.setExonerated

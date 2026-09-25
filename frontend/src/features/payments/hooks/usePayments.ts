@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { usePolling } from "@/lib/usePolling";
 import { Payment } from "@/types/domain";
 import { paymentService } from "../services/payment.service";
 
-const POLL_MS = 20_000;
+const POLL_MS = 60_000;
 
 interface UsePaymentsResult {
   payments: Payment[];
@@ -15,7 +16,6 @@ export function usePayments(): UsePaymentsResult {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState<string | null>(null);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetch = useCallback(async (silent = false) => {
     if (!silent) { setLoading(true); setError(null); }
@@ -30,19 +30,10 @@ export function usePayments(): UsePaymentsResult {
 
   useEffect(() => {
     void fetch();
-
-    // Polling silencioso
-    timer.current = setInterval(() => void fetch(true), POLL_MS);
-
-    // Refetch inmediato al volver a la pestaña
-    const onVisible = () => { if (document.visibilityState === "visible") void fetch(true); };
-    document.addEventListener("visibilitychange", onVisible);
-
-    return () => {
-      if (timer.current) clearInterval(timer.current);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
   }, [fetch]);
+
+  // Polling silencioso, pausado con la pestaña oculta
+  usePolling(() => void fetch(true), POLL_MS);
 
   return { payments, loading, error, refetch: () => fetch(false) };
 }

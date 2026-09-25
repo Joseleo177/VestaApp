@@ -4,10 +4,11 @@ import { CheckCircle2, XCircle, Building2, Calendar, Hash, Banknote, ArrowRightL
 import { Drawer } from "@/components/ui/Drawer";
 import { Button } from "@/components/ui/Button";
 import { Payment, PaymentCurrency } from "@/types/domain";
-import { formatCurrency, formatDate, formatPeriod } from "@/lib/format";
+import { formatCurrency, formatDate } from "@/lib/format";
 import { paymentService } from "@/features/payments/services/payment.service";
 import { ApiError } from "@/services/api";
 import { cn } from "@/lib/cn";
+import { chargeLabel, coveredCharges } from "@/features/payments/coveredCharges";
 
 interface PaymentReviewDrawerProps {
   payment: Payment | null;
@@ -107,8 +108,12 @@ export function PaymentReviewDrawer({ payment, open, onClose, onResolved }: Paym
 
         {/* Detalle del pago */}
         <div className="rounded-xl border border-ios-separator px-4">
-          {payment.charge?.period && (
-            <InfoRow icon={Calendar} label="Período" value={formatPeriod(payment.charge.period)} />
+          {coveredCharges(payment).length > 0 && (
+            <InfoRow
+              icon={Calendar}
+              label={coveredCharges(payment).length > 1 ? "Cuotas" : "Período"}
+              value={coveredCharges(payment).map(chargeLabel).join(", ")}
+            />
           )}
           <InfoRow
             icon={Banknote}
@@ -127,7 +132,7 @@ export function PaymentReviewDrawer({ payment, open, onClose, onResolved }: Paym
             <InfoRow
               icon={ArrowRightLeft}
               label="Tasa BCV"
-              value={`Bs. ${Number(payment.exchangeRate).toLocaleString("es-VE", { minimumFractionDigits: 2 })} / EUR`}
+              value={`Bs. ${Number(payment.exchangeRate).toLocaleString("es-VE", { minimumFractionDigits: 2 })} / ${payment.rateCurrency ?? "EUR"}`}
             />
           )}
           <InfoRow icon={Building2} label="Modalidad" value={payment.bank} />

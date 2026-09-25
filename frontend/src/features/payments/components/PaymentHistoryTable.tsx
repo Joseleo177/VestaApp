@@ -5,10 +5,11 @@ import { TableSkeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Pagination } from "@/components/ui/Pagination";
 import { Receipt } from "lucide-react";
-import { formatCurrency, formatDate, formatPeriod } from "@/lib/format";
+import { formatCurrency, formatDate } from "@/lib/format";
 import { usePagination } from "@/lib/usePagination";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { StatusBadge } from "./StatusBadge";
+import { chargeLabel, coveredCharges } from "../coveredCharges";
 
 interface PaymentHistoryTableProps {
   payments: Payment[];
@@ -56,7 +57,7 @@ export function PaymentHistoryTable({ payments, loading }: PaymentHistoryTablePr
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-semibold text-ios-label">
-                  {payment.charge ? formatPeriod(payment.charge.period) : "—"}
+                  {coveredCharges(payment).map(chargeLabel).join(", ") || "—"}
                 </p>
                 <p className="text-xs text-ios-secondary">{formatDate(payment.paymentDate)}</p>
                 {showUnit && payment.property && (
@@ -71,7 +72,7 @@ export function PaymentHistoryTable({ payments, loading }: PaymentHistoryTablePr
                 <p className="text-xs text-ios-secondary">
                   {payment.currency === PaymentCurrency.BS && payment.amountBs
                     ? `Bs. ${payment.amountBs.toLocaleString("es-VE")}`
-                    : "Divisas (€)"}
+                    : "Divisas ($)"}
                 </p>
               </div>
               <div className="text-right">
@@ -107,7 +108,7 @@ export function PaymentHistoryTable({ payments, loading }: PaymentHistoryTablePr
               <tr key={payment.id} className="hover:bg-ios-fill">
                 <td className="px-5 py-3.5">
                   <div className="font-medium text-ios-label">
-                    {payment.charge ? formatPeriod(payment.charge.period) : "—"}
+                    {coveredCharges(payment).map(chargeLabel).join(", ") || "—"}
                   </div>
                   <div className="text-xs text-ios-secondary">
                     {formatDate(payment.paymentDate)}
@@ -125,7 +126,7 @@ export function PaymentHistoryTable({ payments, loading }: PaymentHistoryTablePr
                   <div className="text-xs text-ios-secondary">
                     {payment.currency === PaymentCurrency.BS && payment.amountBs
                       ? `Bs. ${payment.amountBs.toLocaleString("es-VE")}`
-                      : "Divisas (€)"}
+                      : "Divisas ($)"}
                   </div>
                 </td>
                 <td className="px-5 py-3.5">
