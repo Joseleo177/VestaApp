@@ -66,7 +66,9 @@ function searchableText(p: Payment): string {
  * fue a cada una y al saldo a favor.
  */
 function CoveredCharges({ payment }: { payment: Payment }) {
-  if (hasInformativeBreakdown(payment)) return <PaymentBreakdown payment={payment} />;
+  if (hasInformativeBreakdown(payment)) {
+    return <PaymentBreakdown payment={payment} className="max-w-[21rem]" />;
+  }
 
   const extra = coveredCharges(payment).filter((c) => c.id !== payment.charge?.id);
 
@@ -75,7 +77,7 @@ function CoveredCharges({ payment }: { payment: Payment }) {
   return (
     <div className="mt-1 space-y-0.5">
       {extra.map((c) => (
-        <div key={c.id} className="max-w-sm truncate text-xs font-medium text-ios-green">
+        <div key={c.id} className="max-w-[21rem] truncate text-xs font-medium text-ios-green">
           + {chargeLabelFull(c)}
         </div>
       ))}
@@ -272,8 +274,9 @@ export function AllPaymentsPage() {
         </Card>
       ) : (
         <Card className="overflow-hidden">
-          {/* Vista móvil: tarjetas. La tabla de 7 columnas no cabe en un teléfono. */}
-          <div className="divide-y divide-ios-separator sm:hidden">
+          {/* Tarjetas hasta 1280 px: la tabla necesita ~1070 px para mostrar
+              desglose y acciones sin desplazamiento lateral. */}
+          <div className="divide-y divide-ios-separator xl:hidden">
             {paged.items.map((p) => (
               <div key={p.id} className="p-4">
                 <div className="flex items-start justify-between gap-3">
@@ -356,28 +359,27 @@ export function AllPaymentsPage() {
             ))}
           </div>
 
-          {/* Vista escritorio: tabla */}
-          <div className="hidden overflow-x-auto sm:block">
+          {/* Pantallas anchas: tabla */}
+          <div className="hidden overflow-x-auto xl:block">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-ios-separator text-[11px] font-semibold uppercase tracking-wider text-ios-secondary">
                 <tr>
-                  <th className="px-5 py-3 font-medium">Copropietario</th>
-                  <th className="px-5 py-3 font-medium">Período / Depa</th>
-                  <th className="px-5 py-3 font-medium">Monto</th>
-                  <th className="px-5 py-3 font-medium">Referencia</th>
-                  <th className="px-5 py-3 font-medium">Fecha</th>
-                  <th className="px-5 py-3 font-medium">Estado</th>
-                  <th className="px-5 py-3 text-right font-medium">Acciones</th>
+                  <th className="px-4 py-3 font-medium">Copropietario</th>
+                  <th className="px-4 py-3 font-medium">Período / Depa</th>
+                  <th className="px-4 py-3 font-medium">Monto</th>
+                  <th className="px-4 py-3 font-medium">Referencia</th>
+                  <th className="px-4 py-3 font-medium">Estado</th>
+                  <th className="px-4 py-3 text-right font-medium">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-ios-separator">
                 {paged.items.map((p) => (
                   <tr key={p.id} className="hover:bg-ios-fill">
-                    <td className="px-5 py-3.5">
+                    <td className="px-4 py-3.5">
                       <div className="font-medium text-ios-label">{p.submittedBy?.fullName ?? "—"}</div>
                       <div className="text-xs text-ios-secondary">C.I. {p.submittedBy?.cedula ?? "—"}</div>
                     </td>
-                    <td className="px-5 py-3.5">
+                    <td className="px-4 py-3.5">
                       <div className="font-medium text-ios-label">
                         {p.charge ? formatPeriod(p.charge.period) : "—"}
                       </div>
@@ -387,25 +389,26 @@ export function AllPaymentsPage() {
                       </div>
                       <CoveredCharges payment={p} />
                     </td>
-                    <td className="whitespace-nowrap px-5 py-3.5">
+                    <td className="whitespace-nowrap px-4 py-3.5">
                       <div className="font-semibold text-ios-label">{formatCurrency(p.amount)}</div>
                       {p.amountBs && (
                         <div className="text-xs text-ios-secondary">Bs. {Number(p.amountBs).toLocaleString("es-VE")}</div>
                       )}
                     </td>
-                    <td className="px-5 py-3.5">
+                    <td className="px-4 py-3.5">
                       <div className="font-mono text-xs text-ios-label">{p.reference}</div>
                       <div className="text-xs text-ios-secondary">{p.bank}</div>
+                      {/* La fecha va aquí y no en su columna: así la tabla cabe sin desplazar. */}
+                      <div className="text-xs text-ios-secondary">{formatDate(p.paymentDate)}</div>
                     </td>
-                    <td className="px-5 py-3.5 text-xs text-ios-secondary">{formatDate(p.paymentDate)}</td>
-                    <td className="px-5 py-3.5">
+                    <td className="px-4 py-3.5">
                       <StatusBadge status={p.status} />
                       {p.status === PaymentStatus.REJECTED && p.rejectReason && (
                         <div className="mt-1 text-xs text-ios-red">{p.rejectReason}</div>
                       )}
                     </td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex justify-end gap-1.5">
+                    <td className="px-4 py-3.5">
+                      <div className="flex flex-nowrap justify-end gap-1.5">
                         {p.status === PaymentStatus.PENDING ? (
                           <>
                             <Button
@@ -421,8 +424,10 @@ export function AllPaymentsPage() {
                               variant="danger"
                               onClick={() => setRejectTarget(p)}
                               disabled={busyId === p.id}
+                              title="Rechazar pago"
+                              aria-label="Rechazar pago"
                             >
-                              Rechazar
+                              <X className="h-3.5 w-3.5" />
                             </Button>
                           </>
                         ) : null}

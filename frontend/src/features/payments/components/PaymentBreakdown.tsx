@@ -61,10 +61,10 @@ export function PaymentBreakdown({
       ? chargeLabelFull(charge)
       : `${formatPeriod(charge.period)}${charge.description ? ` · ${charge.description}` : ""}`;
 
-  // Ancho tope: sin él, la línea más larga estira la columna de la tabla y
-  // empuja las acciones fuera de la vista.
+  // En una tabla quien lo usa le da un ancho tope (`className`): sin él, la
+  // línea más larga estira la columna y empuja las acciones fuera de la vista.
   return (
-    <ul className={cn("mt-1 max-w-sm space-y-0.5 text-xs", className)}>
+    <ul className={cn("mt-1 space-y-0.5 text-xs", className)}>
       {lines.map(({ charge, amount }) => (
         <li key={charge.id} className="flex justify-between gap-3 text-ios-green">
           <span className="min-w-0 truncate" title={chargeLabelFull(charge)}>
