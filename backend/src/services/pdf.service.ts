@@ -231,23 +231,23 @@ export function generateReceiptPdf(
       { label: "TOTAL", bsAmt: bsTotal, eurAmt: total, bold: true, highlight: true },
     ];
 
-    // Cuota cerrada con saldo condonado: se ve lo que costaba, lo perdonado y
-    // lo que de verdad se pagó.
+    // Cuota cerrada con saldo condonado: el recibo solo acredita lo que se
+    // pagó. La condonación queda en el sistema, no en el recibo del vecino.
     const writeOff = charge ? Number(charge.writeOffAmount ?? 0) : 0;
     if (writeOff > 0) {
       const paid = Number(charge!.amountPaid);
-      const expected = Math.round((paid + writeOff) * 100) / 100;
-      const toBs = (n: number) => (exRate ? Math.round(n * exRate * 100) / 100 : null);
+      const paidBs = exRate ? Math.round(paid * exRate * 100) / 100 : null;
       rows.splice(0, rows.length,
-        { label: "Monto de la cuota", bsAmt: toBs(expected), eurAmt: expected },
-        { label: "Saldo condonado", bsAmt: toBs(writeOff), eurAmt: writeOff },
-        { label: "TOTAL PAGADO", bsAmt: toBs(paid), eurAmt: paid, bold: true, highlight: true },
+        { label: "Monto", bsAmt: paidBs, eurAmt: paid },
+        { label: "TOTAL", bsAmt: paidBs, eurAmt: paid, bold: true, highlight: true },
       );
     }
 
     // Varias cuotas: una fila por cuota (departamento · período, y el concepto
     // debajo) y el TOTAL. Cada una con la tasa de su moneda.
     const totalOf = (c: Charge) => {
+      // Condonada: vale lo pagado, igual que con una sola cuota.
+      if (Number(c.writeOffAmount ?? 0) > 0) return Number(c.amountPaid);
       const b = Number(c.amount);
       const m = Number(c.moraAmount);
       return Number(c.amountPaid) > b + 0.01 ? b + m : b;
@@ -323,12 +323,6 @@ export function generateReceiptPdf(
     doc.moveDown(1);
     doc.moveTo(55, doc.y).lineTo(55 + pageW, doc.y).strokeColor("#cbd5e1").stroke();
     doc.moveDown(0.5);
-    if (writeOff > 0 && charge?.writeOffReason) {
-      // Una sola cadena: PDFKit no centra bien un texto `continued` con dos fuentes.
-      doc.fontSize(8).fillColor("#000000").font("Helvetica-Bold")
-        .text(`Motivo de la condonación: ${charge.writeOffReason}`, 55, doc.y, { width: pageW, align: "center" });
-      doc.moveDown(0.4);
-    }
     const credit = Number(payment.creditAmount ?? 0);
     if (multi && credit > 0) {
       doc.fontSize(8).fillColor("#000000").font("Helvetica-Bold")
