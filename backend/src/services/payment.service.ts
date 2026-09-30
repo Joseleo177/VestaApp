@@ -1,4 +1,4 @@
-import { EntityManager, In, IsNull } from "typeorm";
+import { EntityManager, In, IsNull, SelectQueryBuilder } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { Payment, PaymentStatus, PaymentCurrency } from "../models/Payment";
 import { Charge, ChargeStatus } from "../models/Charge";
@@ -370,6 +370,74 @@ async function issueReceipt(
 
 import { UserRole } from "../models/User";
 
+/** Campos de cuota que usan las listas de pagos: etiqueta, concepto y orden. */
+const chargeListFields = (charge: string, property: string) => [
+  `${charge}.id`, `${charge}.period`, `${charge}.description`, `${charge}.dueDate`,
+  `${property}.id`, `${property}.code`,
+];
+
+/**
+ * Listas de pagos (la del admin y el historial del vecino). Con `find`, las
+ * relaciones eager arrastraban en cada pago y en cada cuota la propiedad con
+ * torre, titular y autorizado completos (~5 KB por pago) en 13 consultas en
+ * serie. Aquí va una consulta con lo de uno a uno y solo los campos que la
+ * pantalla usa, y luego las tres colecciones en paralelo. El QueryBuilder no
+ * carga relaciones eager, así que no se cuela nada más.
+ */
+async function loadPaymentList(
+  filter: (qb: SelectQueryBuilder<Payment>) => void
+): Promise<Payment[]> {
+  const qb = paymentRepo()
+    .createQueryBuilder("p")
+    .leftJoin("p.property", "prop")
+    .leftJoin("p.submittedBy", "sub")
+    .leftJoin("p.charge", "ch")
+    .leftJoin("ch.property", "chp")
+    .select("p")
+    .addSelect(["prop.id", "prop.code", "sub.id", "sub.fullName", "sub.cedula", ...chargeListFields("ch", "chp")])
+    .orderBy("p.createdAt", "DESC");
+  filter(qb);
+  const payments = await qb.getMany();
+  if (payments.length === 0) return payments;
+
+  const ids = payments.map((p) => p.id);
+  // Cada colección con la cuota que toca (y su departamento, para la etiqueta).
+  const children = <T extends { payment?: Payment }>(entity: new () => T, fields: string[]) =>
+    AppDataSource.getRepository<T>(entity)
+      .createQueryBuilder("x")
+      .innerJoin("x.payment", "xp")
+      .leftJoin("x.charge", "c")
+      .leftJoin("c.property", "cp")
+      .select(["x.id", ...fields, "xp.id", ...chargeListFields("c", "cp")])
+      .where("xp.id IN (:...ids)", { ids })
+      .getMany();
+  const [applications, targets, receipts] = await Promise.all([
+    children(PaymentApplication, ["x.amount"]),
+    children(PaymentTarget, ["x.position"]),
+    // Solo para pagos antiguos sin aplicaciones: sus recibos dicen qué saldaron.
+    children(Receipt, ["x.receiptNumber", "x.voidedAt"]),
+  ]);
+
+  const group = <T extends { payment?: Payment }>(rows: T[]) => {
+    const map = new Map<string, T[]>();
+    for (const row of rows) {
+      const key = row.payment!.id;
+      delete row.payment; // el pago ya es el padre: no se repite en el JSON
+      map.set(key, [...(map.get(key) ?? []), row]);
+    }
+    return map;
+  };
+  const appsBy = group(applications);
+  const targetsBy = group(targets);
+  const receiptsBy = group(receipts);
+  for (const p of payments) {
+    p.applications = appsBy.get(p.id) ?? [];
+    p.targets = targetsBy.get(p.id) ?? [];
+    p.receipts = receiptsBy.get(p.id) ?? [];
+  }
+  return payments;
+}
+
 /** Tope de cuotas por pago: sobra para dos departamentos con meses atrasados. */
 const MAX_CHARGES_PER_PAYMENT = 36;
 
@@ -514,15 +582,7 @@ export const PaymentService = {
   async listForUser(userId: string): Promise<Payment[]> {
     const propertyIds = await PropertyService.accessiblePropertyIds(userId);
     if (propertyIds.length === 0) return [];
-    return paymentRepo().find({
-      where: { property: { id: In(propertyIds) } },
-      order: { createdAt: "DESC" },
-      relations: { receipts: true, targets: { charge: true }, applications: { charge: true } },
-      // Con un solo JOIN, recibos × cuotas elegidas × aplicaciones (y la
-      // propiedad de cada cuota) multiplican las filas: segundos por consulta.
-      // Por separado son consultas pequeñas.
-      relationLoadStrategy: "query",
-    });
+    return loadPaymentList((qb) => qb.where("prop.id IN (:...propertyIds)", { propertyIds }));
   },
 
   async listPending(): Promise<Payment[]> {
@@ -535,17 +595,8 @@ export const PaymentService = {
   },
 
   async listAll(status?: PaymentStatus): Promise<Payment[]> {
-    return paymentRepo().find({
-      where: status ? { status } : undefined,
-      order: { createdAt: "DESC" },
-      // La cuota de cada recibo revela todas las cuotas que saldó el pago,
-      // incluidas las cerradas en cascada con el excedente.
-      relations: {
-        receipts: { charge: true },
-        targets: { charge: true },
-        applications: { charge: true },
-      },
-      relationLoadStrategy: "query",
+    return loadPaymentList((qb) => {
+      if (status) qb.where("p.status = :status", { status });
     });
   },
 

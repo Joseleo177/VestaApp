@@ -30,6 +30,10 @@ export function createApp() {
         cb(new Error(`CORS: origen no permitido — ${origin}`));
       },
       credentials: true,
+      // El navegador guarda la respuesta del preflight (OPTIONS) en vez de
+      // repetirlo antes de cada llamada: cada uno era otra ida al servidor.
+      // Chrome la limita a 2 h.
+      maxAge: 7200,
     })
   );
   app.use(express.json({ limit: "1mb" }));
