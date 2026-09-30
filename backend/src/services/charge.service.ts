@@ -4,7 +4,7 @@ import { Property } from "../models/Property";
 import { PaymentCurrency } from "../models/Payment";
 import { RateCurrency, isRateCurrency } from "../models/ExchangeRateRecord";
 import { HttpError } from "../middlewares/error.middleware";
-import { applyCreditBalance, CREDIT_MIN } from "./payment.service";
+import { CREDIT_MIN } from "./payment.service";
 import { PaymentStatus } from "../models/Payment";
 import { PaymentApplication } from "../models/PaymentApplication";
 import { Receipt } from "../models/Receipt";
@@ -280,21 +280,10 @@ export const ChargeService = {
       })
     );
 
+    // El saldo a favor NO se aplica solo a las cuotas nuevas: las saldaba sin
+    // pago ni recibo, y si el pago que lo originó resultaba duplicado o se
+    // borraba, la cuota quedaba pagada con dinero que no existía.
     await repo().save(charges);
-
-    // Auto-aplicar saldo a favor de propietarios con crédito acumulado
-    const ownerIds = [...new Set(
-      properties.map((p) => (p as Property & { owner?: { id: string } }).owner?.id).filter(Boolean) as string[]
-    )];
-    if (ownerIds.length > 0) {
-      // Cargar propietarios solo si la query incluyó owner
-      const allOwnerIds = ownerIds.length > 0 ? ownerIds : [];
-      await AppDataSource.transaction(async (manager) => {
-        for (const ownerId of allOwnerIds) {
-          await applyCreditBalance(manager, ownerId);
-        }
-      });
-    }
 
     return { created: charges.length };
   },

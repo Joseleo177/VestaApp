@@ -58,6 +58,25 @@ export function refsMatch(a: string, b: string): boolean {
   return shorter.length >= MIN_SUFFIX && longer.endsWith(shorter);
 }
 
+/**
+ * ¿Es el mismo pago registrado dos veces? Sí si la referencia es idéntica, o si
+ * una es sufijo de la otra y son del mismo día: la misma transferencia llega a
+ * veces con la referencia completa y otras solo con los últimos dígitos
+ * (44727770 / 727770). El sufijo solo no basta, porque seis dígitos pueden
+ * coincidir entre transferencias distintas.
+ */
+export function isSamePayment(
+  a: { reference: string; paymentDate: string | null },
+  b: { reference: string; paymentDate: string | null }
+): boolean {
+  const na = normalizeRef(a.reference);
+  const nb = normalizeRef(b.reference);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  const day = (d: string | null) => (d ? String(d).slice(0, 10) : null);
+  return !!day(a.paymentDate) && day(a.paymentDate) === day(b.paymentDate) && refsMatch(na, nb);
+}
+
 function detectColumns(headers: string[]): {
   refCol: string;
   amountCol: string;

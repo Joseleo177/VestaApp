@@ -15,6 +15,7 @@ import { getRateConfig, getRateForDate } from "./exchange-rate.service";
 import { RateCurrency } from "../models/ExchangeRateRecord";
 import {
   amountMatchesBankEntry,
+  isSamePayment,
   normalizeRef,
   refsMatch,
   MIN_SUFFIX,
@@ -380,16 +381,13 @@ export const PaymentImportService = {
     for (const list of byProperty.values()) list.sort(byDueDate);
     for (const list of byOwner.values()) list.sort(byDueDate);
 
-    // Referencias ya registradas: un pago con la misma referencia sería rechazado.
-    const existingRefs = new Set(
-      (
-        await AppDataSource.getRepository(Payment).find({
-          select: { reference: true, status: true },
-        })
-      )
-        .filter((p) => p.status !== PaymentStatus.REJECTED && p.reference)
-        .map((p) => normalizeRef(p.reference))
-    );
+    // Pagos ya registrados: `create` rechaza el que repita uno (misma referencia,
+    // o una que termina igual el mismo día), así que se avisa desde la vista previa.
+    const existing = (
+      await AppDataSource.getRepository(Payment).find({
+        select: { reference: true, paymentDate: true, status: true },
+      })
+    ).filter((p) => p.status !== PaymentStatus.REJECTED && p.reference);
 
     const freeEntries = await AppDataSource.getRepository(BankEntry).findBy({ matched: false });
     const usedEntries = new Set<string>();
@@ -402,7 +400,7 @@ export const PaymentImportService = {
       return rateCache.get(key)!;
     };
 
-    const seenRefs = new Set<string>();
+    const seen: { reference: string; paymentDate: string | null }[] = [];
     // Cuotas que quedan saldadas, por id: dos filas pueden cerrar entre ambas
     // una misma cuota, y eso es UNA cuota saldada, no dos.
     const settledCharges = new Set<string>();
@@ -456,9 +454,18 @@ export const PaymentImportService = {
 
       const ref = normalizeRef(r.referencia);
       if (ref) {
-        if (seenRefs.has(ref)) out.errors.push("Referencia repetida dentro de la planilla");
-        else if (existingRefs.has(ref)) out.errors.push("Ya existe un pago con esa referencia");
-        seenRefs.add(ref);
+        const self = { reference: r.referencia, paymentDate: r.fecha };
+        const dupe = existing.find((p) => isSamePayment(p, self));
+        if (seen.some((s) => isSamePayment(s, self))) {
+          out.errors.push("Referencia repetida dentro de la planilla");
+        } else if (dupe) {
+          out.errors.push(
+            normalizeRef(dupe.reference) === ref
+              ? "Ya existe un pago con esa referencia"
+              : `Ya existe un pago del mismo día con la referencia ${dupe.reference}: parece la misma transferencia`
+          );
+        }
+        seen.push(self);
       }
 
       // --- Resolución del departamento ---

@@ -12,7 +12,7 @@ import { amountDue, clearWriteOff } from "./charge.service";
 import { PropertyService } from "./property.service";
 import { getRateConfig, getRateForDate } from "./exchange-rate.service";
 import { RateCurrency } from "../models/ExchangeRateRecord";
-import { ReconciliationService } from "./reconciliation.service";
+import { ReconciliationService, isSamePayment } from "./reconciliation.service";
 import { SettingsService } from "./settings.service";
 
 function normalizeRef(s: string): string {
@@ -107,25 +107,6 @@ export function computeApplication(
     status:
       amountPaid >= totalExpected - 0.01 ? ChargeStatus.PAID : ChargeStatus.PARTIAL,
   };
-}
-
-/**
- * Aplica hasta `paidAmount` divisas a la cuota, respetando lo que realmente se
- * debe. Retorna el excedente (> 0 si el pago supera la deuda de esta cuota).
- * Solo lo usa el saldo a favor, que no proviene de un pago concreto.
- */
-async function applyCreditToCharge(
-  manager: TxManager,
-  charge: Charge,
-  paidAmount: number
-): Promise<number> {
-  const result = computeApplication(charge, paidAmount, PaymentCurrency.DIVISAS);
-  if (charge.status === ChargeStatus.EXONERATED) return result.excess;
-
-  charge.amountPaid = result.amountPaid;
-  charge.status = result.status;
-  await manager.save(Charge, charge);
-  return result.excess;
 }
 
 export const CREDIT_MIN = 0.10; // excedente menor a esto se absorbe sin guardar
@@ -355,34 +336,6 @@ async function issueReceipt(
   return receipt;
 }
 
-/**
- * Aplica el saldo a favor del propietario a sus cuotas pendientes (por vencimiento ASC).
- * Llamado automáticamente al generar nuevas cuotas.
- */
-export async function applyCreditBalance(manager: TxManager, ownerId: string): Promise<void> {
-  const user = await manager.findOneBy(User, { id: ownerId });
-  if (!user || Number(user.creditBalance) <= CREDIT_MIN) return;
-
-  const pending = await manager.find(Charge, {
-    where: [
-      { property: { owner: { id: ownerId } }, status: ChargeStatus.PENDING },
-      { property: { owner: { id: ownerId } }, status: ChargeStatus.PARTIAL },
-    ],
-    order: { dueDate: "ASC" },
-    relations: { property: { owner: true } },
-  });
-
-  let credit = Number(user.creditBalance);
-  for (const charge of pending) {
-    if (credit <= CREDIT_MIN) break;
-    // Crédito en divisas sin mora (ya se pagó antes)
-    credit = await applyCreditToCharge(manager, charge, credit);
-  }
-
-  user.creditBalance = Math.round(Math.max(0, credit) * 100) / 100;
-  await manager.save(User, user);
-}
-
 import { UserRole } from "../models/User";
 
 /** Tope de cuotas por pago: sobra para dos departamentos con meses atrasados. */
@@ -430,19 +383,27 @@ export const PaymentService = {
     }
     const charge = charges[0];
 
-    // Evitar registro duplicado: misma referencia bancaria ya existe (PENDING o CONFIRMED).
+    // Evitar registro duplicado: misma referencia bancaria ya existe (PENDING o
+    // CONFIRMED), o una que la contiene como sufijo el mismo día — la misma
+    // transferencia registrada una vez completa y otra con los últimos dígitos.
     // Se omite para pagos en efectivo (referencia vacía).
     if (input.reference && input.reference.trim().length > 0) {
-      const duplicate = await paymentRepo().findOne({
+      const open = [PaymentStatus.PENDING, PaymentStatus.CONFIRMED];
+      const candidates = await paymentRepo().find({
         where: [
-          { reference: input.reference, status: PaymentStatus.PENDING },
-          { reference: input.reference, status: PaymentStatus.CONFIRMED },
+          { reference: input.reference, status: In(open) },
+          { paymentDate: input.paymentDate, status: In(open) },
         ],
       });
+      const duplicate = candidates.find((p) => isSamePayment(p, input));
       if (duplicate) {
+        const exact = normalizeRef(duplicate.reference) === normalizeRef(input.reference);
         throw new HttpError(
           409,
-          "Ya existe un pago registrado con esa referencia bancaria. " +
+          (exact
+            ? "Ya existe un pago registrado con esa referencia bancaria. "
+            : `Ya existe un pago del mismo día con la referencia ${duplicate.reference}, ` +
+              "que termina igual: parece la misma transferencia. ") +
             "Si crees que es un error, contacta al administrador."
         );
       }
