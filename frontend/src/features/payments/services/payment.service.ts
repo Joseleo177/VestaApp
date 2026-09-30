@@ -36,12 +36,13 @@ export const paymentService = {
     return data;
   },
 
-  async confirm(paymentId: string): Promise<void> {
-    await api.post(`/payments/${paymentId}/confirm`);
+  /** `allowSettled`: confirmar aunque sus cuotas ya estén pagadas (ver `useSettledGuard`). */
+  async confirm(paymentId: string, allowSettled = false): Promise<void> {
+    await api.post(`/payments/${paymentId}/confirm`, { allowSettled });
   },
 
-  async confirmPartial(paymentId: string, amount: number): Promise<void> {
-    await api.post(`/payments/${paymentId}/confirm-partial`, { amount });
+  async confirmPartial(paymentId: string, amount: number, allowSettled = false): Promise<void> {
+    await api.post(`/payments/${paymentId}/confirm-partial`, { amount, allowSettled });
   },
 
   async reject(paymentId: string, reason: string): Promise<void> {

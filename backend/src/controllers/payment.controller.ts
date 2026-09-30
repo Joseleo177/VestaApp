@@ -112,11 +112,15 @@ export const PaymentController = {
   // POST /api/payments/:id/confirm  (admin)
   async confirm(req: Request, res: Response, next: NextFunction) {
     try {
-      const receipt = await PaymentService.confirm(req.params.id, req.user!.sub);
+      // `allowSettled`: el admin ya vio el aviso de que las cuotas estaban pagadas.
+      const receipt = await PaymentService.confirm(req.params.id, req.user!.sub, {
+        allowSettled: req.body?.allowSettled === true,
+      });
+      // Un abono que no salda ninguna cuota no emite recibo: se confirma igual.
       res.json({
-        message: "Pago confirmado y recibo generado",
-        receiptNumber: receipt.receiptNumber,
-        receiptId: receipt.id,
+        message: receipt ? "Pago confirmado y recibo generado" : "Pago confirmado (abono parcial, sin recibo)",
+        receiptNumber: receipt?.receiptNumber ?? null,
+        receiptId: receipt?.id ?? null,
       });
     } catch (err) {
       next(err);
@@ -133,12 +137,15 @@ export const PaymentController = {
       const receipt = await PaymentService.confirmPartial(
         req.params.id,
         Number(amount),
-        req.user!.sub
+        req.user!.sub,
+        { allowSettled: req.body?.allowSettled === true }
       );
       res.json({
-        message: "Pago confirmado parcialmente y recibo generado",
-        receiptNumber: receipt.receiptNumber,
-        receiptId: receipt.id,
+        message: receipt
+          ? "Pago confirmado parcialmente y recibo generado"
+          : "Pago confirmado (abono parcial, sin recibo)",
+        receiptNumber: receipt?.receiptNumber ?? null,
+        receiptId: receipt?.id ?? null,
       });
     } catch (err) {
       next(err);

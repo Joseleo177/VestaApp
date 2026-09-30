@@ -232,6 +232,35 @@ function paymentTargets(payment: Payment): Charge[] {
   return payment.charge ? [payment.charge] : [];
 }
 
+export const SETTLED_TARGETS = "CHARGES_ALREADY_SETTLED";
+
+/**
+ * Un pago cuyas cuotas ya están todas pagadas (o exoneradas) no les abona nada:
+ * todo su monto se va a la cascada o al saldo a favor. Casi siempre es la misma
+ * transferencia registrada dos veces, así que el admin tiene que confirmarlo a
+ * sabiendas. Un segundo abono a una cuota que sigue parcial pasa sin preguntar.
+ */
+function assertTargetsOpen(payment: Payment, allowSettled: boolean): void {
+  if (allowSettled) return;
+  const targets = paymentTargets(payment);
+  const closed = (c: Charge) =>
+    c.status === ChargeStatus.PAID || c.status === ChargeStatus.EXONERATED;
+  if (targets.length === 0 || !targets.every(closed)) return;
+
+  const several = targets.length > 1;
+  // Algunas descripciones ya traen el período ("Cuota de asociación 2026-07").
+  const which = targets
+    .map((c) => (c.description.includes(c.period) ? c.description : `${c.description} ${c.period}`))
+    .join(", ");
+  throw new HttpError(
+    409,
+    `${several ? "Las cuotas de este pago ya están pagadas" : "La cuota de este pago ya está pagada"} ` +
+      `(${which}). Si lo confirmas, el monto irá a otras cuotas pendientes del titular ` +
+      "o a su saldo a favor. Si es la misma transferencia registrada dos veces, recházalo.",
+    SETTLED_TARGETS
+  );
+}
+
 /**
  * Aplica un pago confirmado: salda las cuotas elegidas, reparte el excedente en
  * cascada sobre las demás cuotas abiertas del titular y deja el sobrante como
@@ -526,8 +555,16 @@ export const PaymentService = {
     return payment;
   },
 
-  /** Confirma un pago usando el monto registrado por el cliente. */
-  async confirm(paymentId: string, adminId: string | null): Promise<Receipt> {
+  /**
+   * Confirma un pago usando el monto registrado por el cliente. Si todas sus
+   * cuotas ya están pagadas se niega salvo `allowSettled` (ver `assertTargetsOpen`);
+   * la conciliación automática nunca lo pasa, así que esos pagos quedan en revisión.
+   */
+  async confirm(
+    paymentId: string,
+    adminId: string | null,
+    opts: { allowSettled?: boolean } = {}
+  ): Promise<Receipt | null> {
     const receipt = await AppDataSource.transaction(async (manager) => {
       const payment = await manager.findOne(Payment, {
         where: { id: paymentId },
@@ -537,6 +574,7 @@ export const PaymentService = {
       if (payment.status === PaymentStatus.CONFIRMED) {
         throw new HttpError(409, "El pago ya fue confirmado");
       }
+      assertTargetsOpen(payment, !!opts.allowSettled);
 
       payment.status = PaymentStatus.CONFIRMED;
       if (adminId) payment.reviewedBy = { id: adminId } as User;
@@ -561,7 +599,7 @@ export const PaymentService = {
         await manager.save(BankEntry, bankEntry);
       }
 
-      return issueReceipt(manager, payment, settled, adminId) as Promise<Receipt>;
+      return issueReceipt(manager, payment, settled, adminId);
     });
 
     return receipt;
@@ -575,8 +613,9 @@ export const PaymentService = {
   async confirmPartial(
     paymentId: string,
     bankAmountBs: number,
-    adminId: string | null
-  ): Promise<Receipt> {
+    adminId: string | null,
+    opts: { allowSettled?: boolean } = {}
+  ): Promise<Receipt | null> {
     return AppDataSource.transaction(async (manager) => {
       const payment = await manager.findOne(Payment, {
         where: { id: paymentId },
@@ -586,6 +625,7 @@ export const PaymentService = {
       if (payment.status === PaymentStatus.CONFIRMED) {
         throw new HttpError(409, "El pago ya fue confirmado");
       }
+      assertTargetsOpen(payment, !!opts.allowSettled);
 
       // Convertir monto banco (Bs) a divisas usando la tasa que tenía el pago.
       // Si el pago era en divisas, el monto se trata directamente como divisas.
@@ -620,7 +660,7 @@ export const PaymentService = {
 
       const settled = await settlePayment(manager, payment);
 
-      return issueReceipt(manager, payment, settled, adminId) as Promise<Receipt>;
+      return issueReceipt(manager, payment, settled, adminId);
     });
   },
 

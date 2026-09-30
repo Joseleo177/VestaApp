@@ -17,6 +17,7 @@ import { ApiError } from "@/services/api";
 import { cn } from "@/lib/cn";
 import { chargeLabel, coveredCharges } from "@/features/payments/coveredCharges";
 import { PaymentBreakdown, hasInformativeBreakdown } from "../components/PaymentBreakdown";
+import { useSettledGuard } from "../hooks/useSettledGuard";
 
 const TABS: { label: string; value: string }[] = [
   { label: "Todos", value: "" },
@@ -86,6 +87,7 @@ export function AllPaymentsPage() {
   const [rejectTarget, setRejectTarget] = useState<Payment | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const { guard, dialog: settledDialog } = useSettledGuard();
 
   const load = useCallback(async (status: string) => {
     setLoading(true);
@@ -115,9 +117,13 @@ export function AllPaymentsPage() {
   const handleConfirm = async (payment: Payment) => {
     setBusyId(payment.id);
     try {
-      await paymentService.confirm(payment.id);
-      toast.success("Pago confirmado");
-      void load(tab);
+      await guard(
+        (allowSettled) => paymentService.confirm(payment.id, allowSettled),
+        () => {
+          toast.success("Pago confirmado");
+          void load(tab);
+        }
+      );
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo confirmar");
     } finally {
@@ -424,6 +430,8 @@ export function AllPaymentsPage() {
         </Card>
       )}
     </div>
+
+    {settledDialog}
 
     <PaymentImportModal
       open={importOpen}

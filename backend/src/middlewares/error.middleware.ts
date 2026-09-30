@@ -4,7 +4,8 @@ import { Request, Response, NextFunction } from "express";
  * Error de aplicación con código HTTP explícito.
  */
 export class HttpError extends Error {
-  constructor(public status: number, message: string) {
+  /** `code` distingue errores que el frontend sabe resolver (p. ej. pidiendo confirmación). */
+  constructor(public status: number, message: string, public code?: string) {
     super(message);
   }
 }
@@ -20,7 +21,7 @@ export function errorHandler(
   _next: NextFunction
 ): void {
   if (err instanceof HttpError) {
-    res.status(err.status).json({ message: err.message });
+    res.status(err.status).json(err.code ? { message: err.message, code: err.code } : { message: err.message });
     return;
   }
 

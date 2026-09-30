@@ -19,6 +19,7 @@ import {
   BankEntry,
 } from "../services/reconciliation.service";
 import { paymentService } from "@/features/payments/services/payment.service";
+import { useSettledGuard } from "@/features/payments/hooks/useSettledGuard";
 import { formatDate } from "@/lib/format";
 
 function formatAmt(n: number) {
@@ -58,6 +59,7 @@ export function BankStatementPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ReconciliationResult | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const { guard, dialog: settledDialog } = useSettledGuard();
 
   // Entradas guardadas en DB
   const [entries, setEntries] = useState<BankEntry[]>([]);
@@ -164,16 +166,23 @@ export function BankStatementPage() {
     }
   };
 
+  const moveToConfirmed = (m: ReviewMatch) =>
+    setResult((r) => r && {
+      ...r,
+      review: r.review.filter((x) => x.paymentId !== m.paymentId),
+      confirmed: [...r.confirmed, m],
+    });
+
   const handleConfirmFull = async (m: ReviewMatch) => {
     setBusyId(m.paymentId);
     try {
-      await paymentService.confirm(m.paymentId);
-      toast.success("Pago confirmado");
-      setResult((r) => r && {
-        ...r,
-        review: r.review.filter((x) => x.paymentId !== m.paymentId),
-        confirmed: [...r.confirmed, m],
-      });
+      await guard(
+        (allowSettled) => paymentService.confirm(m.paymentId, allowSettled),
+        () => {
+          toast.success("Pago confirmado");
+          moveToConfirmed(m);
+        }
+      );
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo confirmar");
     } finally { setBusyId(null); }
@@ -182,13 +191,13 @@ export function BankStatementPage() {
   const handleConfirmPartial = async (m: ReviewMatch) => {
     setBusyId(m.paymentId);
     try {
-      await paymentService.confirmPartial(m.paymentId, m.bankAmount);
-      toast.success(`Confirmado parcial: ${formatAmt(m.bankAmount)}`);
-      setResult((r) => r && {
-        ...r,
-        review: r.review.filter((x) => x.paymentId !== m.paymentId),
-        confirmed: [...r.confirmed, m],
-      });
+      await guard(
+        (allowSettled) => paymentService.confirmPartial(m.paymentId, m.bankAmount, allowSettled),
+        () => {
+          toast.success(`Confirmado parcial: ${formatAmt(m.bankAmount)}`);
+          moveToConfirmed(m);
+        }
+      );
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo confirmar parcialmente");
     } finally { setBusyId(null); }
@@ -502,6 +511,8 @@ export function BankStatementPage() {
           </Card>
         )}
       </div>
+
+      {settledDialog}
     </div>
   );
 }

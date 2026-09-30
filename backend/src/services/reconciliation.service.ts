@@ -4,6 +4,7 @@ import { Payment, PaymentCurrency, PaymentStatus } from "../models/Payment";
 import { BankEntry } from "../models/BankEntry";
 import { User } from "../models/User";
 import { PaymentService } from "./payment.service";
+import { HttpError } from "../middlewares/error.middleware";
 import { stripAccents, parseDate, parseAmount } from "../utils/sheet";
 
 export interface ConfirmedMatch {
@@ -253,7 +254,8 @@ export const ReconciliationService = {
             ownerName: refMatch.submittedBy?.fullName ?? "-",
             propertyCode: refMatch.property?.code ?? "-",
           });
-        } catch {
+        } catch (err) {
+          // p. ej. un pago cuyas cuotas ya están pagadas: el admin decide a mano.
           result.review.push({
             bankRef: normalizeRef(row.referencia),
             bankAmount: row.monto,
@@ -261,7 +263,7 @@ export const ReconciliationService = {
             paymentId: refMatch.id,
             ownerName: refMatch.submittedBy?.fullName ?? "-",
             propertyCode: refMatch.property?.code ?? "-",
-            reason: "Error al confirmar automaticamente",
+            reason: err instanceof HttpError ? err.message : "Error al confirmar automaticamente",
           });
         }
       } else {

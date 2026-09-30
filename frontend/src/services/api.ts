@@ -39,6 +39,7 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 // --- Response: captura errores globales ---
 interface ApiErrorBody {
   message?: string;
+  code?: string;
 }
 
 api.interceptors.response.use(
@@ -59,13 +60,14 @@ api.interceptors.response.use(
       toast.error("Error del servidor. Intenta más tarde.");
     }
 
-    return Promise.reject(new ApiError(message, status));
+    return Promise.reject(new ApiError(message, status, error.response?.data?.code));
   }
 );
 
 /** Error normalizado para que las features manejen mensajes consistentes. */
 export class ApiError extends Error {
-  constructor(message: string, public status?: number) {
+  /** `code` identifica errores que la pantalla sabe resolver (p. ej. pidiendo confirmación). */
+  constructor(message: string, public status?: number, public code?: string) {
     super(message);
     this.name = "ApiError";
   }

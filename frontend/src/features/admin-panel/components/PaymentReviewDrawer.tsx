@@ -9,6 +9,7 @@ import { paymentService } from "@/features/payments/services/payment.service";
 import { ApiError } from "@/services/api";
 import { cn } from "@/lib/cn";
 import { chargeLabel, coveredCharges } from "@/features/payments/coveredCharges";
+import { useSettledGuard } from "@/features/payments/hooks/useSettledGuard";
 
 interface PaymentReviewDrawerProps {
   payment: Payment | null;
@@ -45,15 +46,20 @@ export function PaymentReviewDrawer({ payment, open, onClose, onResolved }: Paym
   const [action, setAction]       = useState<"confirm" | "reject" | null>(null);
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason]       = useState("");
+  const { guard, dialog: settledDialog } = useSettledGuard();
 
   if (!payment) return null;
 
   const handleConfirm = async () => {
     setAction("confirm");
     try {
-      await paymentService.confirm(payment.id);
-      toast.success("Pago aprobado. Recibo PDF generado.");
-      onResolved();
+      await guard(
+        (allowSettled) => paymentService.confirm(payment.id, allowSettled),
+        () => {
+          toast.success("Pago aprobado");
+          onResolved();
+        }
+      );
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo aprobar");
     } finally {
@@ -89,6 +95,7 @@ export function PaymentReviewDrawer({ payment, open, onClose, onResolved }: Paym
     .toUpperCase();
 
   return (
+    <>
     <Drawer open={open} onClose={onClose} title="Validar pago">
       <div className="space-y-5">
 
@@ -182,5 +189,7 @@ export function PaymentReviewDrawer({ payment, open, onClose, onResolved }: Paym
         )}
       </div>
     </Drawer>
+    {settledDialog}
+    </>
   );
 }
