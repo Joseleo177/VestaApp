@@ -193,6 +193,9 @@ export function generateAccountStatementPdf(
             status = "VENCIDA";
         } else if (c.status === ChargeStatus.PENDING) {
             status = "PENDIENTE";
+        } else if (c.status === ChargeStatus.PAID && Number(c.writeOffAmount ?? 0) > 0) {
+            // El recibo solo acredita lo pagado; lo perdonado se ve aquí.
+            status = "CONDONADA";
         } else if (c.status === ChargeStatus.PAID) {
             status = "PAGADA";
         } else if (c.status === ChargeStatus.PARTIAL) {
@@ -213,7 +216,29 @@ export function generateAccountStatementPdf(
     }
     
     doc.rect(detailX, doc.y, tableW, ty - doc.y).strokeColor("#cbd5e1").stroke();
-    
+
+    // Cuotas condonadas: cuánto pagó el vecino y cuánto se le perdonó.
+    const condonadas = charges.filter(
+        (c) => c.status === ChargeStatus.PAID && Number(c.writeOffAmount ?? 0) > 0
+    );
+    if (condonadas.length > 0) {
+        if (ty > doc.page.height - 120) {
+            doc.addPage();
+            ty = 55;
+        }
+        doc.fillColor("#000000").font("Helvetica-Bold").fontSize(9)
+            .text("Cuotas condonadas", detailX, ty + 10, { width: tableW });
+        doc.font("Helvetica").fontSize(8.5);
+        for (const c of condonadas) {
+            doc.text(
+                `${c.period} · ${c.description || "Cuota"}: pagado REF ${eur(Number(c.amountPaid))}` +
+                    ` · condonado REF ${eur(Number(c.writeOffAmount))}`,
+                detailX, doc.y + 2, { width: tableW }
+            );
+        }
+        ty = doc.y;
+    }
+
     // ── Firma / Sello ──────────────────────────────────────────────────────────
     const firmaCandidates = [
       path.join(process.cwd(), "assets", "FIRMA.png"),

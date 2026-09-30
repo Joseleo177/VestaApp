@@ -327,13 +327,6 @@ export const ChargeService = {
       const remaining = amountDue(charge);
       if (remaining <= 0) throw new HttpError(409, "La cuota no tiene saldo pendiente");
 
-      charge.writeOffAmount = remaining;
-      charge.writeOffReason = motivo;
-      charge.writtenOffAt = new Date();
-      charge.writtenOffBy = { id: adminId } as User;
-      charge.status = ChargeStatus.PAID;
-      await manager.save(Charge, charge);
-
       // El recibo va con el último pago que abonó a la cuota. Sin registro de
       // aplicaciones (pagos antiguos) se usa el último pago confirmado.
       const lastApp = await manager.findOne(PaymentApplication, {
@@ -347,6 +340,16 @@ export const ChargeService = {
           .filter((p) => p.status === PaymentStatus.CONFIRMED)
           .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
 
+      charge.writeOffAmount = remaining;
+      charge.writeOffReason = motivo;
+      charge.writtenOffAt = new Date();
+      charge.writtenOffBy = { id: adminId } as User;
+      charge.status = ChargeStatus.PAID;
+      await manager.save(Charge, charge);
+
+      // Sin un pago detrás (abonos del saldo a favor automático de antes) no
+      // hay dinero que acreditar con un recibo: la cuota se cierra igual y la
+      // condonación queda a la vista en el estado de cuenta del vecino.
       if (payment) {
         const prefix = await SettingsService.get("receipt_prefix");
         const num = await SettingsService.nextReceiptNumber();

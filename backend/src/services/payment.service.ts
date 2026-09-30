@@ -911,6 +911,27 @@ export const PaymentService = {
         if (fresh) reissued.push(fresh.receiptNumber);
       }
 
+      // Ninguna cuota que perdió su recibo puede seguir pagada sin uno. Con
+      // pagos antiguos la reversión puede quedarse corta; entonces no se anula
+      // nada (la transacción se deshace) y se revisa a mano.
+      const detachedIds = [...coveredBy.values()].flat();
+      if (detachedIds.length > 0) {
+        const orphans = (
+          await manager.find(Charge, {
+            where: { id: In(detachedIds), status: ChargeStatus.PAID },
+            relations: { coveringReceipt: true },
+          })
+        ).filter((c) => !c.coveringReceipt);
+        if (orphans.length > 0) {
+          const which = orphans.map((c) => `${c.description} (${c.period})`).join(", ");
+          throw new HttpError(
+            409,
+            `No se puede anular: ${which} quedaría pagada sin recibo. Es un pago antiguo ` +
+              "sin registro de aplicaciones; hay que corregirlo a mano."
+          );
+        }
+      }
+
       // El pago ya no aporta nada: fuera sus aplicaciones. Se conserva, anulado.
       await manager.delete(PaymentApplication, { payment: { id: payment.id } });
       await manager.update(Payment, payment.id, {
