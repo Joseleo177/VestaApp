@@ -15,7 +15,7 @@ import { paymentService } from "../services/payment.service";
 import { formatCurrency, formatDate, formatPeriod } from "@/lib/format";
 import { ApiError } from "@/services/api";
 import { cn } from "@/lib/cn";
-import { chargeLabel, coveredCharges } from "@/features/payments/coveredCharges";
+import { chargeLabelFull, coveredCharges } from "@/features/payments/coveredCharges";
 import { PaymentBreakdown, hasInformativeBreakdown } from "../components/PaymentBreakdown";
 import { useSettledGuard } from "../hooks/useSettledGuard";
 
@@ -36,8 +36,9 @@ function norm(value: string | null | undefined): string {
 
 /**
  * Texto sobre el que busca el filtro: todo lo que la fila muestra y que el
- * admin podría teclear — nombre, cédula, departamento, referencia, banco y el
- * período tanto en letras ("septiembre") como en número ("2026-09").
+ * admin podría teclear — nombre, cédula, departamento, referencia, banco, el
+ * concepto de la cuota y el período tanto en letras ("septiembre") como en
+ * número ("2026-09").
  */
 function searchableText(p: Payment): string {
   return norm(
@@ -49,6 +50,7 @@ function searchableText(p: Payment): string {
       p.bank,
       p.charge?.period,
       p.charge ? formatPeriod(p.charge.period) : null,
+      p.charge?.description,
     ]
       .filter(Boolean)
       .join(" ")
@@ -71,7 +73,7 @@ function CoveredCharges({ payment }: { payment: Payment }) {
     <div className="mt-1 space-y-0.5">
       {extra.map((c) => (
         <div key={c.id} className="text-xs font-medium text-ios-green">
-          + {chargeLabel(c)}
+          + {chargeLabelFull(c)}
         </div>
       ))}
     </div>
@@ -256,6 +258,7 @@ export function AllPaymentsPage() {
                     </div>
                     <div className="text-xs text-ios-secondary">
                       {p.charge ? formatPeriod(p.charge.period) : "—"} · {p.property?.code ?? "—"}
+                      {p.charge?.description && ` · ${p.charge.description}`}
                     </div>
                     <CoveredCharges payment={p} />
                   </div>
@@ -353,7 +356,10 @@ export function AllPaymentsPage() {
                       <div className="font-medium text-ios-label">
                         {p.charge ? formatPeriod(p.charge.period) : "—"}
                       </div>
-                      <div className="text-xs text-ios-secondary">{p.property?.code ?? "—"}</div>
+                      <div className="text-xs text-ios-secondary">
+                        {p.property?.code ?? "—"}
+                        {p.charge?.description && ` · ${p.charge.description}`}
+                      </div>
                       <CoveredCharges payment={p} />
                     </td>
                     <td className="px-5 py-3.5">

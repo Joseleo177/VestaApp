@@ -1,7 +1,7 @@
 import { Payment } from "@/types/domain";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { chargeLabel } from "../coveredCharges";
+import { chargeLabelFull } from "../coveredCharges";
 
 /**
  * A qué cuotas fue el dinero de un pago confirmado y cuánto a cada una, más lo
@@ -60,7 +60,7 @@ export function PaymentBreakdown({
     <ul className={cn("mt-1 space-y-0.5 text-xs", className)}>
       {lines.map(({ charge, amount }) => (
         <li key={charge.id} className="flex justify-between gap-3 text-ios-green">
-          <span className="truncate">→ {chargeLabel(charge)}</span>
+          <span className="truncate">→ {chargeLabelFull(charge)}</span>
           <span className="shrink-0 font-medium tabular-nums">{formatCurrency(amount)}</span>
         </li>
       ))}

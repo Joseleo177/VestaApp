@@ -24,3 +24,12 @@ export function coveredCharges(payment: Payment): Charge[] {
 export function chargeLabel(c: Charge): string {
   return c.property?.code ? `${c.property.code} · ${formatPeriod(c.period)}` : formatPeriod(c.period);
 }
+
+/**
+ * "Apt 4B · Abril 2026 · Reparación Sistema de Bombeo". Un mismo mes puede
+ * tener varias cuotas (la regular y especiales), y sin el concepto no se sabe
+ * a cuál fue un pago.
+ */
+export function chargeLabelFull(c: Charge): string {
+  return c.description ? `${chargeLabel(c)} · ${c.description}` : chargeLabel(c);
+}

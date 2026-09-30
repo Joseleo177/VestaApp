@@ -8,7 +8,7 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import { paymentService } from "@/features/payments/services/payment.service";
 import { ApiError } from "@/services/api";
 import { cn } from "@/lib/cn";
-import { chargeLabel, coveredCharges } from "@/features/payments/coveredCharges";
+import { chargeLabelFull, coveredCharges } from "@/features/payments/coveredCharges";
 import { useSettledGuard } from "@/features/payments/hooks/useSettledGuard";
 
 interface PaymentReviewDrawerProps {
@@ -119,7 +119,7 @@ export function PaymentReviewDrawer({ payment, open, onClose, onResolved }: Paym
             <InfoRow
               icon={Calendar}
               label={coveredCharges(payment).length > 1 ? "Cuotas" : "Período"}
-              value={coveredCharges(payment).map(chargeLabel).join(", ")}
+              value={coveredCharges(payment).map(chargeLabelFull).join(", ")}
             />
           )}
           <InfoRow

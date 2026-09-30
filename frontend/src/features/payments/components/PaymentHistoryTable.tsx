@@ -10,7 +10,7 @@ import { usePagination } from "@/lib/usePagination";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { StatusBadge } from "./StatusBadge";
 import { PaymentBreakdown } from "./PaymentBreakdown";
-import { chargeLabel, coveredCharges } from "../coveredCharges";
+import { chargeLabelFull, coveredCharges } from "../coveredCharges";
 
 interface PaymentHistoryTableProps {
   payments: Payment[];
@@ -58,7 +58,7 @@ export function PaymentHistoryTable({ payments, loading }: PaymentHistoryTablePr
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-semibold text-ios-label">
-                  {coveredCharges(payment).map(chargeLabel).join(", ") || "—"}
+                  {coveredCharges(payment).map(chargeLabelFull).join(", ") || "—"}
                 </p>
                 <p className="text-xs text-ios-secondary">{formatDate(payment.paymentDate)}</p>
                 {showUnit && payment.property && (
@@ -110,7 +110,7 @@ export function PaymentHistoryTable({ payments, loading }: PaymentHistoryTablePr
               <tr key={payment.id} className="hover:bg-ios-fill">
                 <td className="px-5 py-3.5">
                   <div className="font-medium text-ios-label">
-                    {coveredCharges(payment).map(chargeLabel).join(", ") || "—"}
+                    {coveredCharges(payment).map(chargeLabelFull).join(", ") || "—"}
                   </div>
                   <div className="text-xs text-ios-secondary">
                     {formatDate(payment.paymentDate)}
