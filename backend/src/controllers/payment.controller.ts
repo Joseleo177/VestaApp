@@ -167,8 +167,22 @@ export const PaymentController = {
   // DELETE /api/payments/:id  (admin)
   async delete(req: Request, res: Response, next: NextFunction) {
     try {
-      await PaymentService.delete(req.params.id);
-      res.status(204).send();
+      // Con cuotas que ya tienen recibo el borrado exige motivo y anula en vez
+      // de borrar (ver `PaymentService.delete`).
+      const result = await PaymentService.delete(req.params.id, {
+        voidReason: typeof req.body?.voidReason === "string" ? req.body.voidReason : undefined,
+        adminId: req.user!.sub,
+      });
+      if (!result) {
+        res.status(204).send();
+        return;
+      }
+      res.json({
+        message:
+          `Pago anulado. Recibos anulados: ${result.voided.join(", ") || "—"}` +
+          (result.reissued.length ? `. Reemitidos: ${result.reissued.join(", ")}` : ""),
+        ...result,
+      });
     } catch (err) {
       next(err);
     }
@@ -197,7 +211,10 @@ export const PaymentController = {
       const pdfBuffer = await generateReceiptPdf(
         receipt.payment,
         receipt.receiptNumber,
-        { condoName, condoCity, condoAddress, condoRif, condoPhone, issuedAt: receipt.issuedAt },
+        {
+          condoName, condoCity, condoAddress, condoRif, condoPhone, issuedAt: receipt.issuedAt,
+          voided: receipt.voidedAt ? { at: receipt.voidedAt, reason: receipt.voidReason ?? null } : null,
+        },
         receipt.charge,
         lines
       );

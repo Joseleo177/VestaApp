@@ -49,8 +49,16 @@ export const paymentService = {
     await api.post(`/payments/${paymentId}/reject`, { reason });
   },
 
-  async delete(paymentId: string): Promise<void> {
-    await api.delete(`/payments/${paymentId}`);
+  /**
+   * Elimina un pago. Si tocó cuotas con recibo, el backend exige `voidReason`
+   * (error `RECEIPTS_ISSUED`) y en vez de borrar lo anula junto con sus recibos;
+   * entonces devuelve el mensaje con los recibos anulados y reemitidos.
+   */
+  async delete(paymentId: string, voidReason?: string): Promise<string | null> {
+    const res = await api.delete<{ message?: string } | "">(`/payments/${paymentId}`, {
+      data: voidReason ? { voidReason } : undefined,
+    });
+    return res.data && typeof res.data === "object" ? res.data.message ?? null : null;
   },
 
   /** Descarga el recibo PDF como blob y dispara la descarga en el navegador. */

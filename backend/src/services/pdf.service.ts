@@ -40,6 +40,8 @@ export function generateReceiptPdf(
     condoRif?: string;
     condoPhone?: string;
     issuedAt?: Date;
+    /** Recibo anulado: se imprime con sello y el motivo. */
+    voided?: { at: Date; reason: string | null } | null;
   },
   chargeOverride?: import("../models/Charge").Charge | null,
   /** Cuotas que ampara el recibo; con más de una se listan todas. */
@@ -365,6 +367,24 @@ export function generateReceiptPdf(
       const firmaW = 180;
       doc.moveDown(1);
       doc.image(firmaFile, 55 + (pageW - firmaW) / 2, doc.y, { width: firmaW });
+    }
+
+    // ── Sello de anulación ───────────────────────────────────────────────────
+    if (opts?.voided) {
+      const cx = doc.page.width / 2;
+      const cy = doc.page.height / 2;
+      doc.save();
+      doc.rotate(-30, { origin: [cx, cy] });
+      doc.fillOpacity(0.18).fillColor("#D32F2F").font("Helvetica-Bold").fontSize(110)
+        .text("ANULADO", 0, cy - 55, { width: doc.page.width, align: "center", lineBreak: false });
+      doc.restore();
+
+      const fecha = opts.voided.at.toLocaleDateString("es-VE");
+      doc.fillOpacity(1).fillColor("#D32F2F").font("Helvetica-Bold").fontSize(9)
+        .text(
+          `RECIBO ANULADO el ${fecha}${opts.voided.reason ? ` — Motivo: ${opts.voided.reason}` : ""}`,
+          55, doc.page.height - 90, { width: pageW, align: "center" }
+        );
     }
 
     doc.end();

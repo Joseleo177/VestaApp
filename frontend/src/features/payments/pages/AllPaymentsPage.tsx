@@ -19,6 +19,9 @@ import { chargeLabelFull, coveredCharges } from "@/features/payments/coveredChar
 import { PaymentBreakdown, hasInformativeBreakdown } from "../components/PaymentBreakdown";
 import { useSettledGuard } from "../hooks/useSettledGuard";
 
+/** Código con que el backend pide motivo para anular un pago cuyas cuotas tienen recibo. */
+const RECEIPTS_ISSUED = "RECEIPTS_ISSUED";
+
 const TABS: { label: string; value: string }[] = [
   { label: "Todos", value: "" },
   { label: "Pendientes", value: PaymentStatus.PENDING },
@@ -87,6 +90,7 @@ export function AllPaymentsPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Payment | null>(null);
   const [rejectTarget, setRejectTarget] = useState<Payment | null>(null);
+  const [voidTarget, setVoidTarget] = useState<{ payment: Payment; message: string } | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [search, setSearch] = useState("");
   const { guard, dialog: settledDialog } = useSettledGuard();
@@ -157,7 +161,28 @@ export function AllPaymentsPage() {
       toast.success("Pago eliminado");
       void load(tab);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar");
+      // Tocó cuotas con recibo: no se borra, se anula con motivo.
+      if (err instanceof ApiError && err.code === RECEIPTS_ISSUED) {
+        setVoidTarget({ payment: deleteTarget, message: err.message });
+      } else {
+        toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar");
+      }
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleVoidConfirm = async (reason?: string) => {
+    if (!voidTarget || !reason) return;
+    const target = voidTarget.payment;
+    setBusyId(target.id);
+    try {
+      const message = await paymentService.delete(target.id, reason);
+      toast.success(message ?? "Pago anulado");
+      setVoidTarget(null);
+      void load(tab);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo anular");
     } finally {
       setBusyId(null);
     }
@@ -453,6 +478,20 @@ export function AllPaymentsPage() {
       description={`¿Eliminar el pago de ${deleteTarget?.submittedBy?.fullName ?? "este copropietario"}? Si estaba confirmado, la cuota volverá a su estado anterior.`}
       confirmLabel="Eliminar"
       loading={busyId === deleteTarget?.id}
+    />
+
+    <ConfirmDialog
+      open={voidTarget !== null}
+      onClose={() => setVoidTarget(null)}
+      onConfirm={handleVoidConfirm}
+      title="Anular pago y recibos"
+      description={
+        `${voidTarget?.message ?? ""} Las cuotas vuelven a su estado anterior y el pago ` +
+        "queda como anulado en el historial."
+      }
+      confirmLabel="Anular"
+      loading={busyId === voidTarget?.payment.id}
+      prompt={{ label: "Motivo de la anulación", placeholder: "Ej. Transferencia registrada dos veces", required: true }}
     />
 
     <ConfirmDialog

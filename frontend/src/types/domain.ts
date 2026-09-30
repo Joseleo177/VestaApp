@@ -139,6 +139,9 @@ export interface Receipt {
   issuedAt: string;
   /** Cuota que ampara este recibo (directa o cerrada en cascada). */
   charge?: Charge | null;
+  /** Anulado al eliminar un pago que tocó sus cuotas: se conserva, no se borra. */
+  voidedAt?: string | null;
+  voidReason?: string | null;
 }
 
 export interface Payment {

@@ -40,4 +40,19 @@ export class Receipt {
 
   @CreateDateColumn({ name: "issued_at" })
   issuedAt!: Date;
+
+  /**
+   * Anulación: un recibo emitido no se borra. Si se elimina un pago que tocó
+   * cuotas con recibo, esos recibos quedan anulados con su motivo y el pago se
+   * conserva (rechazado) como registro.
+   */
+  @Column({ name: "voided_at", type: "timestamptz", nullable: true })
+  voidedAt?: Date | null;
+
+  @Column({ name: "void_reason", type: "text", nullable: true })
+  voidReason?: string | null;
+
+  @ManyToOne(() => User, { nullable: true, eager: false, onDelete: "SET NULL" })
+  @JoinColumn({ name: "voided_by" })
+  voidedBy?: User | null;
 }

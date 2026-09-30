@@ -1,4 +1,4 @@
-import { EntityManager, In } from "typeorm";
+import { EntityManager, In, IsNull } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { Payment, PaymentStatus, PaymentCurrency } from "../models/Payment";
 import { Charge, ChargeStatus } from "../models/Charge";
@@ -233,6 +233,9 @@ function paymentTargets(payment: Payment): Charge[] {
 }
 
 export const SETTLED_TARGETS = "CHARGES_ALREADY_SETTLED";
+export const RECEIPTS_ISSUED = "RECEIPTS_ISSUED";
+/** Motivo con que queda un pago anulado; lo distingue de uno rechazado en revisión. */
+const VOID_PREFIX = "Anulado: ";
 
 /**
  * Un pago cuyas cuotas ya están todas pagadas (o exoneradas) no les abona nada:
@@ -680,8 +683,18 @@ export const PaymentService = {
    * Elimina un pago. Si estaba confirmado, devuelve a cada cuota exactamente lo
    * que este pago le había aportado (ver `PaymentApplication`) y ajusta el saldo
    * a favor con el remanente.
+   *
+   * Un recibo emitido no se borra. Si alguna cuota que el pago tocó tiene
+   * recibo, se exige `voidReason`: esos recibos quedan anulados, a las cuotas
+   * que siguen pagadas por otro pago se les emite uno nuevo, y el pago se
+   * conserva como rechazado ("Anulado: …") para que sus recibos anulados sigan
+   * teniendo a qué referirse. Devuelve los números anulados y reemitidos, o
+   * null si el pago se borró sin tocar recibos.
    */
-  async delete(paymentId: string): Promise<void> {
+  async delete(
+    paymentId: string,
+    opts: { voidReason?: string; adminId?: string | null } = {}
+  ): Promise<{ voided: string[]; reissued: string[] } | null> {
     return AppDataSource.transaction(async (manager) => {
       const payment = await manager.findOne(Payment, {
         where: { id: paymentId },
@@ -689,10 +702,74 @@ export const PaymentService = {
       });
       if (!payment) throw new HttpError(404, "Pago no encontrado");
 
-      // Nullear coveringReceipt en las cuotas ANTES de revertir estados
-      // (evita FK violation al borrar los recibos más adelante)
-      if (payment.receipts?.length) {
-        const receiptIds = payment.receipts.map((r) => r.id);
+      const confirmed = payment.status === PaymentStatus.CONFIRMED;
+      const activeReceipts = (payment.receipts ?? []).filter((r) => !r.voidedAt);
+      const annulled =
+        payment.status === PaymentStatus.REJECTED && !!payment.rejectReason?.startsWith(VOID_PREFIX);
+      if (annulled || (!confirmed && payment.receipts?.length)) {
+        throw new HttpError(
+          409,
+          "Este pago fue anulado: se conserva como registro de la anulación y sus recibos"
+        );
+      }
+
+      const applications = confirmed
+        ? await manager.find(PaymentApplication, {
+            where: { payment: { id: payment.id } },
+            relations: { charge: true },
+          })
+        : [];
+
+      // Cuotas que el borrado va a reabrir y los recibos vigentes que las
+      // amparan (del propio pago o de otro que las terminó de pagar).
+      const touchedIds = [
+        ...new Set(
+          applications.length
+            ? applications.map((a) => a.charge.id)
+            : confirmed
+            ? [payment.charge?.id, ...activeReceipts.map((r) => r.charge?.id)]
+            : []
+        ),
+      ].filter((id): id is string => !!id);
+      const touched = touchedIds.length
+        ? await manager.find(Charge, {
+            where: { id: In(touchedIds) },
+            relations: { coveringReceipt: { payment: true } },
+          })
+        : [];
+      const affected = new Map<string, Receipt>(activeReceipts.map((r) => [r.id, r]));
+      for (const c of touched) {
+        const r = c.coveringReceipt;
+        if (r && !r.voidedAt) affected.set(r.id, r);
+      }
+
+      // Un pago con recibos ya anulados (de una anulación anterior) tampoco se
+      // borra: se anula, para no perder el registro de esos recibos.
+      const voiding = affected.size > 0 || activeReceipts.length !== (payment.receipts?.length ?? 0);
+      const reason = (opts.voidReason ?? "").trim();
+      if (voiding && reason.length < 5) {
+        const numbers = [...affected.values()].map((r) => r.receiptNumber).join(", ");
+        throw new HttpError(
+          409,
+          `Este pago tocó cuotas con recibo emitido${numbers ? ` (${numbers})` : ""}. ` +
+            "Un recibo no se borra: indica el motivo y quedará anulado.",
+          RECEIPTS_ISSUED
+        );
+      }
+
+      // Qué cuotas amparaba cada recibo afectado, para reemitir a las que sigan
+      // pagadas. Luego se sueltan ANTES de revertir estados.
+      const coveredBy = new Map<string, string[]>();
+      if (affected.size > 0) {
+        const receiptIds = [...affected.keys()];
+        const covered = await manager.find(Charge, {
+          where: { coveringReceipt: { id: In(receiptIds) } },
+          relations: { coveringReceipt: true },
+        });
+        for (const c of covered) {
+          const rid = c.coveringReceipt!.id;
+          coveredBy.set(rid, [...(coveredBy.get(rid) ?? []), c.id]);
+        }
         await manager
           .createQueryBuilder()
           .update(Charge)
@@ -701,18 +778,12 @@ export const PaymentService = {
           .execute();
       }
 
-      if (payment.status === PaymentStatus.CONFIRMED) {
+      if (confirmed) {
         // Se devuelve SOLO lo que este pago aportó a cada cuota, según el
         // registro de aplicaciones. Antes se recorrían todas las cuotas del
         // titular restando a ojo, y el borrado le quitaba el dinero a cuotas
         // que había saldado otro pago distinto.
-        const applications = await manager.find(PaymentApplication, {
-          where: { payment: { id: payment.id } },
-          relations: { charge: true },
-        });
-
         let reverted = 0;
-        const writeOffCleared: string[] = [];
 
         if (applications.length > 0) {
           for (const app of applications) {
@@ -725,7 +796,7 @@ export const PaymentService = {
             charge.status =
               charge.amountPaid > CREDIT_MIN ? ChargeStatus.PARTIAL : ChargeStatus.PENDING;
             // La condonación se decidió sobre este abono: sin él ya no aplica.
-            if (Number(charge.writeOffAmount) > 0) { clearWriteOff(charge); writeOffCleared.push(charge.id); }
+            if (Number(charge.writeOffAmount) > 0) clearWriteOff(charge);
             await manager.save(Charge, charge);
             reverted = Math.round((reverted + amount) * 100) / 100;
           }
@@ -753,12 +824,12 @@ export const PaymentService = {
           );
           charge.status =
             charge.amountPaid > CREDIT_MIN ? ChargeStatus.PARTIAL : ChargeStatus.PENDING;
-          if (Number(charge.writeOffAmount) > 0) { clearWriteOff(charge); writeOffCleared.push(charge.id); }
+          if (Number(charge.writeOffAmount) > 0) clearWriteOff(charge);
           await manager.save(Charge, charge);
           reverted = directApplied;
 
           let remaining = Math.round(Math.max(0, Number(payment.amount) - directApplied) * 100) / 100;
-          for (const receipt of payment.receipts ?? []) {
+          for (const receipt of activeReceipts) {
             if (remaining <= CREDIT_MIN) break;
             const cc = await manager.findOne(Charge, { where: { id: receipt.charge?.id } });
             if (!cc || cc.id === charge.id) continue;
@@ -766,26 +837,11 @@ export const PaymentService = {
             if (toReverse <= CREDIT_MIN) continue;
             cc.amountPaid = Math.round((Number(cc.amountPaid) - toReverse) * 100) / 100;
             cc.status = cc.amountPaid > CREDIT_MIN ? ChargeStatus.PARTIAL : ChargeStatus.PENDING;
-            if (Number(cc.writeOffAmount) > 0) { clearWriteOff(cc); writeOffCleared.push(cc.id); }
+            if (Number(cc.writeOffAmount) > 0) clearWriteOff(cc);
             await manager.save(Charge, cc);
             remaining = Math.round((remaining - toReverse) * 100) / 100;
             reverted = Math.round((reverted + toReverse) * 100) / 100;
           }
-        }
-
-        // Una cuota condonada que este borrado reabrió aún apunta al recibo de
-        // la condonación si lo emitió otro pago: ese recibo ya no ampara nada.
-        const ownReceipts = new Set((payment.receipts ?? []).map((r) => r.id));
-        for (const chargeId of writeOffCleared) {
-          const c = await manager.findOne(Charge, {
-            where: { id: chargeId },
-            relations: { coveringReceipt: true },
-          });
-          const stale = c?.coveringReceipt;
-          if (!c || !stale || ownReceipts.has(stale.id)) continue;
-          c.coveringReceipt = null;
-          await manager.save(Charge, c);
-          await manager.remove(Receipt, stale);
         }
 
         // Lo que el pago no dejó en ninguna cuota había ido al saldo a favor.
@@ -826,19 +882,55 @@ export const PaymentService = {
         }
       }
 
-      if (payment.receipts?.length) {
-        await manager.remove(Receipt, payment.receipts);
+      if (!voiding) {
+        // Sin recibos de por medio (pendiente, rechazado o abono parcial).
+        await manager.remove(Payment, payment);
+        return null;
       }
 
-      await manager.remove(Payment, payment);
+      const now = new Date();
+      const voidedBy = opts.adminId ? ({ id: opts.adminId } as User) : null;
+      for (const r of affected.values()) {
+        r.voidedAt = now;
+        r.voidReason = reason;
+        r.voidedBy = voidedBy;
+        await manager.save(Receipt, r);
+      }
+
+      // Un recibo anulado de OTRO pago puede amparar además cuotas que este
+      // borrado no tocó y siguen pagadas: se les emite uno nuevo de ese pago.
+      const reissued: string[] = [];
+      for (const [rid, chargeIds] of coveredBy) {
+        const other = affected.get(rid)?.payment;
+        if (!other || other.id === payment.id) continue;
+        const stillPaid = await manager.find(Charge, {
+          where: { id: In(chargeIds), status: ChargeStatus.PAID },
+          order: { dueDate: "ASC", period: "ASC", description: "ASC" },
+        });
+        const fresh = await issueReceipt(manager, other, stillPaid, opts.adminId ?? null);
+        if (fresh) reissued.push(fresh.receiptNumber);
+      }
+
+      // El pago ya no aporta nada: fuera sus aplicaciones. Se conserva, anulado.
+      await manager.delete(PaymentApplication, { payment: { id: payment.id } });
+      await manager.update(Payment, payment.id, {
+        status: PaymentStatus.REJECTED,
+        rejectReason: `${VOID_PREFIX}${reason}`,
+        reviewedBy: voidedBy ?? undefined,
+        reviewedAt: now,
+        creditAmount: 0,
+      });
+
+      return { voided: [...affected.values()].map((r) => r.receiptNumber), reissued };
     });
   },
 
   async getReceipt(paymentId: string, requesterId: string, isAdmin: boolean, receiptNumber?: string) {
     // Si se pasa receiptNumber, buscar por número único (más preciso para recibos cascade)
+    // Sin número se entrega el vigente; un anulado solo se pide por su número.
     const where = receiptNumber
       ? { receiptNumber }
-      : { payment: { id: paymentId } };
+      : { payment: { id: paymentId }, voidedAt: IsNull() };
     const receipt = await receiptRepo().findOne({
       where,
       relations: {
