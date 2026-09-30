@@ -75,7 +75,7 @@ function CoveredCharges({ payment }: { payment: Payment }) {
   return (
     <div className="mt-1 space-y-0.5">
       {extra.map((c) => (
-        <div key={c.id} className="text-xs font-medium text-ios-green">
+        <div key={c.id} className="max-w-sm truncate text-xs font-medium text-ios-green">
           + {chargeLabelFull(c)}
         </div>
       ))}
@@ -387,7 +387,7 @@ export function AllPaymentsPage() {
                       </div>
                       <CoveredCharges payment={p} />
                     </td>
-                    <td className="px-5 py-3.5">
+                    <td className="whitespace-nowrap px-5 py-3.5">
                       <div className="font-semibold text-ios-label">{formatCurrency(p.amount)}</div>
                       {p.amountBs && (
                         <div className="text-xs text-ios-secondary">Bs. {Number(p.amountBs).toLocaleString("es-VE")}</div>

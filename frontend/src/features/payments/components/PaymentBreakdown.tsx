@@ -1,5 +1,5 @@
-import { Payment } from "@/types/domain";
-import { formatCurrency } from "@/lib/format";
+import { Charge, Payment } from "@/types/domain";
+import { formatCurrency, formatPeriod } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { chargeLabelFull } from "../coveredCharges";
 
@@ -55,12 +55,21 @@ export function PaymentBreakdown({
 }) {
   if (!hasInformativeBreakdown(payment)) return null;
   const { lines, credit } = paymentBreakdown(payment);
+  // El departamento solo se nombra si es otro que el del pago: la fila ya lo dice.
+  const label = (charge: Charge) =>
+    charge.property?.code && charge.property.code !== payment.property?.code
+      ? chargeLabelFull(charge)
+      : `${formatPeriod(charge.period)}${charge.description ? ` · ${charge.description}` : ""}`;
 
+  // Ancho tope: sin él, la línea más larga estira la columna de la tabla y
+  // empuja las acciones fuera de la vista.
   return (
-    <ul className={cn("mt-1 space-y-0.5 text-xs", className)}>
+    <ul className={cn("mt-1 max-w-sm space-y-0.5 text-xs", className)}>
       {lines.map(({ charge, amount }) => (
         <li key={charge.id} className="flex justify-between gap-3 text-ios-green">
-          <span className="truncate">→ {chargeLabelFull(charge)}</span>
+          <span className="min-w-0 truncate" title={chargeLabelFull(charge)}>
+            → {label(charge)}
+          </span>
           <span className="shrink-0 font-medium tabular-nums">{formatCurrency(amount)}</span>
         </li>
       ))}
