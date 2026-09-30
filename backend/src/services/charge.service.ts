@@ -71,7 +71,11 @@ export const ChargeService = {
         payments: { submittedBy: true },
         paymentTargets: { payment: { submittedBy: true } },
         coveringReceipt: { payment: { submittedBy: true } },
+        applications: { payment: true },
       },
+      // Pagos × cuotas elegidas × aplicaciones en un solo JOIN multiplican las
+      // filas; por separado son consultas pequeñas.
+      relationLoadStrategy: "query",
     });
   },
 
@@ -192,7 +196,11 @@ export const ChargeService = {
         payments: { submittedBy: true },
         paymentTargets: { payment: { submittedBy: true } },
         coveringReceipt: { payment: { submittedBy: true } },
+        applications: { payment: true },
       },
+      // Pagos × cuotas elegidas × aplicaciones en un solo JOIN multiplican las
+      // filas; por separado son consultas pequeñas.
+      relationLoadStrategy: "query",
     });
   },
 
@@ -390,7 +398,11 @@ export const ChargeService = {
         payments: { submittedBy: true },
         paymentTargets: { payment: { submittedBy: true } },
         coveringReceipt: { payment: { submittedBy: true } },
+        applications: { payment: true },
       },
+      // Pagos × cuotas elegidas × aplicaciones en un solo JOIN multiplican las
+      // filas; por separado son consultas pequeñas.
+      relationLoadStrategy: "query",
     });
     if (!charge) throw new HttpError(404, "Cuota no encontrada");
     return charge;

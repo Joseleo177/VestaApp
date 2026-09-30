@@ -82,6 +82,21 @@ function serializeCharge(charge: import("../models/Charge").Charge) {
           receiptNumber: null,
         }
       : null,
+    // Todos los pagos que abonaron a la cuota, en el orden en que se aplicaron.
+    // Una cuota puede sumar varios (un abono parcial y el que la cerró);
+    // `confirmedPayment` solo dice cuál emitió el recibo. Null si la consulta
+    // no cargó la relación.
+    applications: charge.applications
+      ? [...charge.applications]
+          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+          .map((a) => ({
+            paymentId: a.payment?.id ?? null,
+            reference: a.payment?.reference ?? null,
+            bank: a.payment?.bank ?? null,
+            paymentDate: a.payment?.paymentDate ?? null,
+            amount: Number(a.amount),
+          }))
+      : null,
     pendingPayment: pending
       ? {
           id: pending.id,

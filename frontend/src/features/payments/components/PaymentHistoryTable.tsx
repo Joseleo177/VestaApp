@@ -9,6 +9,7 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import { usePagination } from "@/lib/usePagination";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { StatusBadge } from "./StatusBadge";
+import { PaymentBreakdown } from "./PaymentBreakdown";
 import { chargeLabel, coveredCharges } from "../coveredCharges";
 
 interface PaymentHistoryTableProps {
@@ -63,6 +64,7 @@ export function PaymentHistoryTable({ payments, loading }: PaymentHistoryTablePr
                 {showUnit && payment.property && (
                   <p className="text-xs font-medium text-brand-600">{payment.property.code}</p>
                 )}
+                <PaymentBreakdown payment={payment} />
               </div>
               <StatusBadge status={payment.status} />
             </div>
@@ -118,6 +120,7 @@ export function PaymentHistoryTable({ payments, loading }: PaymentHistoryTablePr
                       {payment.property.code}
                     </div>
                   )}
+                  <PaymentBreakdown payment={payment} className="max-w-xs" />
                 </td>
                 <td className="px-5 py-3.5">
                   <div className="font-semibold text-ios-label">

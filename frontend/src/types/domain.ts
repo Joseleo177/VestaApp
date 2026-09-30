@@ -96,6 +96,15 @@ export interface ChargePendingPayment {
   paymentDate: string;
 }
 
+/** Lo que un pago confirmado aportó a una cuota. */
+export interface ChargeApplication {
+  paymentId: string | null;
+  reference: string | null;
+  bank: string | null;
+  paymentDate: string | null;
+  amount: number;
+}
+
 export interface Charge {
   id: string;
   period: string;
@@ -115,6 +124,8 @@ export interface Charge {
   writeOff?: { amount: number; reason: string; at: string | null } | null;
   confirmedPayment?: ChargeConfirmedPayment | null;
   pendingPayment?: ChargePendingPayment | null;
+  /** Todos los pagos que abonaron a la cuota, en orden (vacío en pagos antiguos). */
+  applications?: ChargeApplication[] | null;
   property?: { id: string; code: string; tower?: { id: string; name: string } | null };
   createdAt?: string;
 }
@@ -152,7 +163,9 @@ export interface Payment {
   /** Cuotas elegidas para un pago de varias cuotas, en orden. */
   targets?: { position: number; charge: Charge }[] | null;
   /** Lo que el pago aplicó a cada cuota al confirmarse. */
-  applications?: { amount: number; charge: Charge }[] | null;
+  applications?: { amount: number | string; charge: Charge }[] | null;
+  /** Sobrante que no cupo en ninguna cuota y fue al saldo a favor. */
+  creditAmount?: number | string | null;
   createdAt: string;
 }
 

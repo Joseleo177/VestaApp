@@ -28,7 +28,7 @@ export class PaymentApplication {
   @JoinColumn({ name: "payment_id" })
   payment!: Payment;
 
-  @ManyToOne(() => Charge, { onDelete: "CASCADE", nullable: false })
+  @ManyToOne(() => Charge, (c) => c.applications, { onDelete: "CASCADE", nullable: false })
   @JoinColumn({ name: "charge_id" })
   charge!: Charge;
 

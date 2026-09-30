@@ -133,6 +133,7 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
             {charges.map((c) => {
               const cp = c.confirmedPayment;
               const receiptNumber = cp?.receiptNumber ?? null;
+              const apps = c.applications ?? [];
               const canPay =
                 c.status === ChargeStatus.PENDING || c.status === ChargeStatus.PARTIAL;
               const canExonerate =
@@ -199,8 +200,29 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
                     </p>
                   )}
 
-                  {/* Datos del pago confirmado */}
-                  {cp && (
+                  {/* Pagos que abonaron a la cuota, con cuánto aportó cada uno.
+                      Los pagos anteriores al registro de aplicaciones no lo
+                      tienen: para esos queda la línea del pago confirmado. */}
+                  {apps.length > 0 ? (
+                    <ul className="mt-1.5 space-y-0.5 font-mono text-xs">
+                      {apps.map((a, i) => (
+                        <li
+                          key={`${a.paymentId ?? "?"}-${i}`}
+                          className="flex justify-between gap-3 text-ios-green"
+                        >
+                          <span className="min-w-0 break-words">
+                            {[a.reference, a.bank, a.paymentDate ? formatDate(a.paymentDate) : null]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </span>
+                          <span className="shrink-0">{formatCurrency(a.amount)}</span>
+                        </li>
+                      ))}
+                      {receiptNumber && (
+                        <li className="text-ios-secondary">Recibo {receiptNumber}</li>
+                      )}
+                    </ul>
+                  ) : cp ? (
                     <p className="mt-1.5 break-words font-mono text-xs text-ios-green">
                       {[cp.reference, cp.bank, cp.paymentDate ? formatDate(cp.paymentDate) : null]
                         .filter(Boolean)
@@ -209,6 +231,13 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
                         <span className="text-ios-secondary"> · Recibo {receiptNumber}</span>
                       )}
                     </p>
+                  ) : (
+                    c.status === ChargeStatus.PAID &&
+                    !c.writeOff && (
+                      <p className="mt-1.5 text-xs text-ios-orange">
+                        Pagada sin ningún pago asociado
+                      </p>
+                    )
                   )}
 
                   {/* Acciones: se reacomodan en varias líneas si el ancho aprieta */}

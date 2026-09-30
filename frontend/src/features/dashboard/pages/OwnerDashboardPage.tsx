@@ -24,6 +24,40 @@ const STATUS_META: Record<ChargeStatus, { label: string; cls: string }> = {
   [ChargeStatus.PARTIAL]:    { label: "Parcial",    cls: "bg-ios-orange/10 text-ios-orange" },
 };
 
+/**
+ * Pagos que abonaron a la cuota. Con más de uno (un abono parcial y el que la
+ * cerró) se dice cuánto puso cada uno; los pagos anteriores al registro de
+ * aplicaciones solo tienen el pago confirmado.
+ */
+function ChargePayments({ charge }: { charge: Charge }) {
+  const apps = charge.applications ?? [];
+  const cp = charge.confirmedPayment;
+
+  if (apps.length === 0) {
+    if (!cp) return null;
+    return (
+      <div className="mt-1 font-mono text-xs text-ios-secondary">
+        {cp.reference} · {cp.bank}
+        {cp.paymentDate && <><br />{formatDate(cp.paymentDate)}</>}
+      </div>
+    );
+  }
+
+  const withAmounts = apps.length > 1 || charge.status !== ChargeStatus.PAID;
+  return (
+    <ul className="mt-1 space-y-0.5 font-mono text-xs text-ios-secondary">
+      {apps.map((a, i) => (
+        <li key={`${a.paymentId ?? "?"}-${i}`}>
+          {[a.reference, a.bank].filter(Boolean).join(" · ")}
+          <br />
+          {a.paymentDate ? formatDate(a.paymentDate) : ""}
+          {withAmounts && <span className="text-ios-label"> · {formatCurrency(a.amount)}</span>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 interface ChargesTableProps {
   charges: Charge[];
   loading: boolean;
@@ -126,11 +160,7 @@ function ChargesTable({ charges, loading, onPay }: ChargesTableProps) {
                     <p className="text-xs text-ios-purple">saldo condonado: {formatCurrency(c.writeOff.amount)}</p>
                   )}
                   <p className="text-xs text-ios-secondary">Vence {formatDate(c.dueDate)}</p>
-                  {c.confirmedPayment && (
-                    <p className="mt-0.5 font-mono text-xs text-ios-secondary">
-                      {c.confirmedPayment.reference} · {c.confirmedPayment.bank}
-                    </p>
-                  )}
+                  <ChargePayments charge={c} />
                 </div>
                 <div className="flex gap-2 shrink-0">
                   {canPay && !c.pendingPayment && (
@@ -236,12 +266,7 @@ function ChargesTable({ charges, loading, onPay }: ChargesTableProps) {
                         {formatCurrency(c.pendingPayment.amount)} esperando validación
                       </div>
                     )}
-                    {c.confirmedPayment && (
-                      <div className="mt-1 font-mono text-xs text-ios-secondary">
-                        {c.confirmedPayment.reference} · {c.confirmedPayment.bank}
-                        <br />{formatDate(c.confirmedPayment.paymentDate)}
-                      </div>
-                    )}
+                    <ChargePayments charge={c} />
                   </td>
                   <td className="px-5 py-3.5 text-right">
                     {canPay && !c.pendingPayment && (

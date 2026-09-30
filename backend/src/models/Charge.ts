@@ -13,6 +13,7 @@ import { Receipt } from "./Receipt";
 import { RateCurrency } from "./ExchangeRateRecord";
 import { User } from "./User";
 import { PaymentTarget } from "./PaymentTarget";
+import { PaymentApplication } from "./PaymentApplication";
 
 export enum ChargeStatus {
   PENDING = "PENDING",
@@ -89,6 +90,10 @@ export class Charge {
   /** Pagos de varias cuotas que incluyen a esta (ver `PaymentTarget`). */
   @OneToMany(() => PaymentTarget, (t) => t.charge)
   paymentTargets?: PaymentTarget[];
+
+  /** Lo que cada pago confirmado aportó a esta cuota (ver `PaymentApplication`). */
+  @OneToMany(() => PaymentApplication, (a) => a.charge)
+  applications?: PaymentApplication[];
 
   /** Recibo que cubre esta cuota (puede ser de un pago en cascada). */
   @ManyToOne(() => Receipt, { nullable: true, eager: false })

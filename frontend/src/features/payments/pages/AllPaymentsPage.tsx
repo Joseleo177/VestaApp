@@ -16,6 +16,7 @@ import { formatCurrency, formatDate, formatPeriod } from "@/lib/format";
 import { ApiError } from "@/services/api";
 import { cn } from "@/lib/cn";
 import { chargeLabel, coveredCharges } from "@/features/payments/coveredCharges";
+import { PaymentBreakdown, hasInformativeBreakdown } from "../components/PaymentBreakdown";
 
 const TABS: { label: string; value: string }[] = [
   { label: "Todos", value: "" },
@@ -55,9 +56,12 @@ function searchableText(p: Payment): string {
 
 /**
  * Cuotas del pago además de la suya: las que el vecino eligió pagar juntas y
- * las que cerró el excedente en cascada.
+ * las que cerró el excedente en cascada. Si el pago está confirmado, con cuánto
+ * fue a cada una y al saldo a favor.
  */
 function CoveredCharges({ payment }: { payment: Payment }) {
+  if (hasInformativeBreakdown(payment)) return <PaymentBreakdown payment={payment} />;
+
   const extra = coveredCharges(payment).filter((c) => c.id !== payment.charge?.id);
 
   if (extra.length === 0) return null;
