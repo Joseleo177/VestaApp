@@ -18,6 +18,16 @@ export function paymentBreakdown(payment: Payment) {
         Number(b.charge.id === payment.charge?.id) - Number(a.charge.id === payment.charge?.id) ||
         String(a.charge.dueDate).localeCompare(String(b.charge.dueDate))
     );
+  // La cuota del pago con 0: ya estaba pagada cuando se confirmó. Solo en pagos
+  // del registro de aplicaciones (`creditAmount` definido); en los antiguos la
+  // ausencia no significa nada.
+  if (
+    payment.creditAmount != null &&
+    payment.charge &&
+    !lines.some((l) => l.charge.id === payment.charge!.id)
+  ) {
+    lines.unshift({ charge: payment.charge, amount: 0 });
+  }
   const credit = Number(payment.creditAmount ?? 0);
   return { lines, credit: credit > 0 ? credit : 0 };
 }
@@ -29,12 +39,11 @@ export function paymentBreakdown(payment: Payment) {
  */
 export function hasInformativeBreakdown(payment: Payment): boolean {
   const { lines, credit } = paymentBreakdown(payment);
+  // Un pago que no abonó a ninguna cuota y fue entero al saldo a favor es el
+  // caso que más importa ver: suele ser un duplicado.
+  if (credit > 0) return true;
   if (lines.length === 0) return false;
-  return (
-    lines.length > 1 ||
-    credit > 0 ||
-    Math.abs(lines[0]!.amount - Number(payment.amount)) > 0.005
-  );
+  return lines.length > 1 || Math.abs(lines[0]!.amount - Number(payment.amount)) > 0.005;
 }
 
 export function PaymentBreakdown({
