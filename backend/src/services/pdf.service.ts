@@ -1,7 +1,7 @@
 import PDFDocument from "pdfkit";
 import path from "path";
 import fs from "fs";
-import { Payment } from "../models/Payment";
+import { Payment, PaymentCurrency } from "../models/Payment";
 import type { Charge } from "../models/Charge";
 
 /** Una cuota saldada por el pago y la tasa con que se pasa a Bs (null: sin Bs). */
@@ -83,8 +83,19 @@ export function generateReceiptPdf(
             .map((l) => [l.charge.currency ?? "EUR", l.bsRate as number] as [string, number])
         ).entries()]
       : exRate ? [[rateCurrency, exRate]] : [];
+    // Los REF van redondeados a centavos, así que REF × tasa se aleja de lo
+    // transferido hasta media centésima por tasa (24.000 Bs / 466,6014 = 51,44
+    // REF, y 51,44 × 466,6014 = 24.001,98). Si la diferencia es solo ese
+    // redondeo, el recibo muestra los Bs que de verdad se pagaron.
+    const transferredBs =
+      payment.currency === PaymentCurrency.BS && payment.amountBs != null ? Number(payment.amountBs) : null;
+    const snapBs = (computed: number | null, rateSum: number): number | null =>
+      computed != null && transferredBs != null && Math.abs(computed - transferredBs) <= rateSum * 0.005 + 0.01
+        ? transferredBs
+        : computed;
+
     // Bs total proporcional a esta cuota
-    const bsTotal = exRate ? Math.round(total * exRate * 100) / 100
+    const bsTotal = exRate ? snapBs(Math.round(total * exRate * 100) / 100, exRate)
       : payment.amountBs && sameRate ? Number(payment.amountBs) : null;
 
     // Usar la fecha declarada del pago (cuando se hizo la transferencia), no la de hoy.
@@ -244,7 +255,7 @@ export function generateReceiptPdf(
     const writeOff = charge ? Number(charge.writeOffAmount ?? 0) : 0;
     if (writeOff > 0) {
       const paid = Number(charge!.amountPaid);
-      const paidBs = exRate ? Math.round(paid * exRate * 100) / 100 : null;
+      const paidBs = exRate ? snapBs(Math.round(paid * exRate * 100) / 100, exRate) : null;
       rows.splice(0, rows.length,
         { label: "Monto", bsAmt: paidBs, eurAmt: paid },
         { label: "TOTAL", bsAmt: paidBs, eurAmt: paid, bold: true, highlight: true },
@@ -274,7 +285,13 @@ export function generateReceiptPdf(
     if (multi) {
       const sumRef = Math.round(multiRows.reduce((a, r) => a + r.eurAmt, 0) * 100) / 100;
       const allBs = multiRows.every((r) => r.bsAmt != null);
-      const sumBs = allBs ? Math.round(multiRows.reduce((a, r) => a + (r.bsAmt ?? 0), 0) * 100) / 100 : null;
+      const rawBs = allBs ? Math.round(multiRows.reduce((a, r) => a + (r.bsAmt ?? 0), 0) * 100) / 100 : null;
+      const sumBs = snapBs(rawBs, lines!.reduce((a, l) => a + (l.bsRate ?? 0), 0));
+      // La diferencia del redondeo va a la última fila para que sumen el TOTAL.
+      if (sumBs != null && rawBs != null && sumBs !== rawBs) {
+        const last = multiRows[multiRows.length - 1];
+        last.bsAmt = Math.round(((last.bsAmt ?? 0) + sumBs - rawBs) * 100) / 100;
+      }
       rows.splice(0, rows.length, ...multiRows, {
         label: "TOTAL", bsAmt: sumBs, eurAmt: sumRef, bold: true, highlight: true,
       });
