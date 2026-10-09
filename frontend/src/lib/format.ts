@@ -76,3 +76,16 @@ export function rateLabel(currency: string | null | undefined): string {
 export function rateUnit(currency: string | null | undefined): string {
   return currency === "USD" ? "Bs/USD" : "Bs/EUR";
 }
+
+/**
+ * Documento tal como se muestra: "V-9.613.328", o "J-50440139-0" para un RIF
+ * de 9 dígitos. La cédula se guarda solo en dígitos; la letra va aparte.
+ */
+export function formatDocumentId(tipo: string | null | undefined, cedula: string | null | undefined): string {
+  if (!cedula) return "—";
+  const digits = cedula.replace(/\D/g, "");
+  if (!digits || digits !== cedula) return cedula;
+  const t = tipo || "V";
+  if ((t === "J" || t === "G") && digits.length === 9) return `${t}-${digits.slice(0, 8)}-${digits.slice(8)}`;
+  return `${t}-${digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+}

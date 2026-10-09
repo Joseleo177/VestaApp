@@ -20,6 +20,37 @@ export enum UserRole {
   AUTHORIZED = "AUTHORIZED",
 }
 
+/** Letra del documento de identidad: V/E cédula, J/G RIF. */
+export enum DocumentType {
+  V = "V",
+  E = "E",
+  J = "J",
+  G = "G",
+}
+
+export function isDocumentType(value: unknown): value is DocumentType {
+  return Object.values(DocumentType).includes(value as DocumentType);
+}
+
+/**
+ * Documento tal como se imprime: "V-9.613.328", o "J-50440139-0" para un RIF
+ * de 9 dígitos. Una cédula no numérica (p. ej. la del admin) va tal cual.
+ */
+export function formatDocumentId(tipo: DocumentType | null | undefined, cedula: string): string {
+  const digits = cedula.replace(/\D/g, "");
+  if (!digits || digits !== cedula) return cedula;
+  const t = tipo ?? DocumentType.V;
+  if ((t === DocumentType.J || t === DocumentType.G) && digits.length === 9) {
+    return `${t}-${digits.slice(0, 8)}-${digits.slice(8)}`;
+  }
+  return `${t}-${digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+}
+
+/** Rótulo del documento: "RIF" para J/G, "C.I." para V/E. */
+export function documentLabel(tipo: DocumentType | null | undefined): string {
+  return tipo === DocumentType.J || tipo === DocumentType.G ? "RIF" : "C.I.";
+}
+
 @Entity({ name: "users" })
 export class User {
   @PrimaryGeneratedColumn("uuid")
@@ -27,6 +58,13 @@ export class User {
 
   @Column({ unique: true })
   cedula!: string;
+
+  /**
+   * Letra del documento (V/E cédula, J/G RIF). Va aparte de `cedula`, que es
+   * la credencial de login y se guarda solo con dígitos.
+   */
+  @Column({ name: "cedula_tipo", type: "varchar", length: 1, default: DocumentType.V })
+  cedulaTipo!: DocumentType;
 
   // select:false => nunca se incluye en consultas por defecto (evita filtrarlo
   // al serializar relaciones eager como property.owner o payment.submittedBy).

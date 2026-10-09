@@ -196,7 +196,7 @@ export function ReportsPage() {
                 label="Seleccionar propietario"
                 value={selectedUserId}
                 onChange={setSelectedUserId}
-                options={users.map(u => ({ value: u.id, label: `${u.fullName} (V-${u.cedula})` }))}
+                options={users.map(u => ({ value: u.id, label: `${u.fullName} (${u.cedulaTipo ?? "V"}-${u.cedula})` }))}
                 placeholder={loadingUsers ? "Cargando usuarios..." : "Buscar por nombre o cédula..."}
                 disabled={loadingUsers}
               />

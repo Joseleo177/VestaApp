@@ -1,7 +1,8 @@
-import { UserRole } from "@/types/domain";
+import { DocumentType, UserRole } from "@/types/domain";
 
 export interface CreateUserInput {
   cedula: string;
+  cedulaTipo?: DocumentType;
   password: string;
   fullName: string;
   phone?: string;

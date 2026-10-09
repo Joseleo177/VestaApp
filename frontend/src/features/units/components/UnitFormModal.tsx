@@ -57,13 +57,13 @@ export function UnitFormModal({
   const ownerOptions: SearchOption[] = owners.map((o) => ({
     value: o.id,
     label: o.fullName,
-    hint: `C.I. ${o.cedula}`,
+    hint: `${o.cedulaTipo ?? "V"}-${o.cedula}`,
   }));
 
   const authorizedOptions: SearchOption[] = authorizedCandidates.map((u) => ({
     value: u.id,
     label: u.id === ownerId ? `${u.fullName} (titular)` : u.fullName,
-    hint: `C.I. ${u.cedula}`,
+    hint: `${u.cedulaTipo ?? "V"}-${u.cedula}`,
   }));
 
   const onSubmit = async (values: UnitFormValues) => {

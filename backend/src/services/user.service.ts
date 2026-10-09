@@ -1,14 +1,22 @@
 import bcrypt from "bcryptjs";
 import { AppDataSource } from "../config/data-source";
-import { User, UserRole } from "../models/User";
+import { DocumentType, User, UserRole, isDocumentType } from "../models/User";
 import { HttpError } from "../middlewares/error.middleware";
 
 const repo = () => AppDataSource.getRepository(User);
+
+/** Valida la letra del documento; sin ella queda la que ya tenía (o V al crear). */
+export function parseDocumentType(value: unknown): DocumentType | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (!isDocumentType(value)) throw new HttpError(400, "Tipo de documento inválido (V, E, J o G)");
+  return value;
+}
 
 /** Vista pública del usuario (nunca expone el hash de contraseña). */
 export interface PublicUser {
   id: string;
   cedula: string;
+  cedulaTipo: DocumentType;
   fullName: string;
   phone?: string;
   email?: string;
@@ -21,6 +29,7 @@ export function toPublicUser(u: User): PublicUser {
   return {
     id: u.id,
     cedula: u.cedula,
+    cedulaTipo: u.cedulaTipo,
     fullName: u.fullName,
     phone: u.phone,
     email: u.email,
@@ -32,6 +41,7 @@ export function toPublicUser(u: User): PublicUser {
 
 export interface CreateUserInput {
   cedula: string;
+  cedulaTipo?: DocumentType;
   password: string;
   fullName: string;
   phone?: string;
@@ -41,6 +51,7 @@ export interface CreateUserInput {
 
 export interface UpdateUserInput {
   cedula?: string;
+  cedulaTipo?: DocumentType;
   fullName?: string;
   phone?: string;
   email?: string;
@@ -66,6 +77,7 @@ export const UserService = {
 
     const user = repo().create({
       cedula: input.cedula,
+      cedulaTipo: input.cedulaTipo ?? DocumentType.V,
       passwordHash: await bcrypt.hash(input.password, 10),
       fullName: input.fullName,
       phone: input.phone,
@@ -83,6 +95,7 @@ export const UserService = {
       if (exists) throw new HttpError(409, "La cédula ya está en uso");
       user.cedula = input.cedula;
     }
+    if (input.cedulaTipo !== undefined) user.cedulaTipo = input.cedulaTipo;
     if (input.fullName !== undefined) user.fullName = input.fullName;
     if (input.phone !== undefined) user.phone = input.phone;
     if (input.email !== undefined) user.email = input.email;

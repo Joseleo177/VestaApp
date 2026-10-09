@@ -12,7 +12,7 @@ import { usePagination } from "@/lib/usePagination";
 import { StatusBadge } from "../components/StatusBadge";
 import { PaymentImportModal } from "../components/PaymentImportModal";
 import { paymentService } from "../services/payment.service";
-import { formatCurrency, formatDate, formatPeriod } from "@/lib/format";
+import { formatCurrency, formatDate, formatDocumentId, formatPeriod } from "@/lib/format";
 import { ApiError } from "@/services/api";
 import { cn } from "@/lib/cn";
 import { chargeLabelFull, coveredCharges } from "@/features/payments/coveredCharges";
@@ -377,7 +377,7 @@ export function AllPaymentsPage() {
                   <tr key={p.id} className="hover:bg-ios-fill">
                     <td className="px-4 py-3.5">
                       <div className="font-medium text-ios-label">{p.submittedBy?.fullName ?? "—"}</div>
-                      <div className="text-xs text-ios-secondary">C.I. {p.submittedBy?.cedula ?? "—"}</div>
+                      <div className="text-xs text-ios-secondary">{formatDocumentId(p.submittedBy?.cedulaTipo, p.submittedBy?.cedula)}</div>
                     </td>
                     <td className="px-4 py-3.5">
                       <div className="font-medium text-ios-label">

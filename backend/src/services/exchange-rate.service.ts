@@ -41,8 +41,21 @@ let configCache: { value: RateConfig; at: number } | null = null;
 
 const repo = () => AppDataSource.getRepository(ExchangeRateRecord);
 
-function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+/**
+ * Fecha de hoy en Venezuela (UTC-4, sin horario de verano). En UTC, desde las
+ * 8 pm ya era "mañana" y la tasa del día se guardaba con la fecha siguiente.
+ */
+export function todayStr(): string {
+  return new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+/**
+ * Fecha valor de la tasa según la API ("2026-10-12T00:00:00-04:00"). El BCV
+ * publica en la tarde la tasa del siguiente día hábil, así que no siempre es hoy.
+ */
+function effectiveDate(fechaActualizacion: unknown): string {
+  const date = typeof fechaActualizacion === "string" ? fechaActualizacion.slice(0, 10) : "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayStr();
 }
 
 function toRate(record: ExchangeRateRecord, source = record.source): ExchangeRate {
@@ -169,28 +182,31 @@ export async function listRates(
   });
 }
 
+/** Tasa guardada que rige en `date`: la de ese día o la más reciente anterior. */
+function latestUpTo(date: string, currency: RateCurrency): Promise<ExchangeRateRecord | null> {
+  return repo()
+    .createQueryBuilder("r")
+    .where("r.currency = :currency", { currency })
+    .andWhere("r.date <= :date", { date })
+    .orderBy("r.date", "DESC")
+    .getOne();
+}
+
 /**
  * Devuelve la tasa de una moneda aplicable a una fecha concreta:
  * 1. Tasa exacta de ese día.
  * 2. Tasa más reciente anterior a esa fecha (fin de semana / feriado).
- * 3. Solo para hoy (o ayer, por el desfase UTC): tasa activa de hoy.
+ * 3. Solo para hoy: tasa activa de hoy.
  *
  * Una fecha pasada sin tasa guardada no se degrada a la de hoy: un pago de
  * marzo valorado a la tasa de octubre abona a la cuota una fracción de lo
  * que se transfirió. Se exige cargar la tasa de esa fecha.
  */
 export async function getRateForDate(date: string, currency: RateCurrency): Promise<ExchangeRate> {
-  const record = await repo()
-    .createQueryBuilder("r")
-    .where("r.currency = :currency", { currency })
-    .andWhere("r.date <= :date", { date })
-    .orderBy("r.date", "DESC")
-    .getOne();
-
+  const record = await latestUpTo(date, currency);
   if (record) return toRate(record);
 
-  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  if (date >= yesterday) return getExchangeRate(currency);
+  if (date >= todayStr()) return getExchangeRate(currency);
 
   throw new HttpError(
     422,
@@ -203,8 +219,9 @@ export async function getRateForDate(date: string, currency: RateCurrency): Prom
  * Obtiene la tasa vigente de una moneda con la siguiente prioridad:
  * 1. Caché en memoria (< 15 min) — si `force` es false.
  * 2. Tasa del día en DB.
- * 3. API BCV externa → persiste el resultado en DB (solo si la moneda está activa).
- * 4. Tasa más reciente en DB (degradación).
+ * 3. API BCV externa → persiste el resultado con su fecha valor (solo si la
+ *    moneda está activa) y devuelve la que rige hoy.
+ * 4. Tasa más reciente en DB hasta hoy (degradación).
  */
 export async function getExchangeRate(currency: RateCurrency, force = false): Promise<ExchangeRate> {
   const hit = cache.get(currency);
@@ -230,9 +247,15 @@ export async function getExchangeRate(currency: RateCurrency, force = false): Pr
       const data = (await res.json()) as BcvResponse;
       if (typeof data.promedio !== "number") throw new Error("Respuesta BCV inválida");
 
-      // saveRate actualiza la caché en memoria también.
-      await saveRate(data.promedio, currency, "BCV");
-      return cache.get(currency)!.value;
+      // Se guarda con su fecha valor: en la tarde el BCV ya publicó la del
+      // siguiente día hábil, y guardarla como de hoy pisaba la tasa vigente.
+      await saveRate(data.promedio, currency, "BCV", undefined, effectiveDate(data.fechaActualizacion));
+      const current = await latestUpTo(todayStr(), currency);
+      if (current) {
+        const value = toRate(current);
+        cache.set(currency, { value, at: Date.now() });
+        return value;
+      }
     } catch (err) {
       fetchError = err as Error;
     }
@@ -240,7 +263,8 @@ export async function getExchangeRate(currency: RateCurrency, force = false): Pr
 
   if (hit) return hit.value;
 
-  const latest = await repo().findOne({ where: { currency }, order: { date: "DESC" } });
+  // La más reciente que ya rige; una publicada para el día hábil siguiente no.
+  const latest = await latestUpTo(todayStr(), currency);
   if (latest) {
     const value = toRate(latest, `${latest.source} (${latest.date})`);
     cache.set(currency, { value, at: Date.now() });

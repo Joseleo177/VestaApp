@@ -6,6 +6,7 @@ import {
   listRates,
   saveRate,
   saveRateConfig,
+  todayStr,
 } from "../services/exchange-rate.service";
 import { ExchangeRateRecord, isRateCurrency } from "../models/ExchangeRateRecord";
 
@@ -81,8 +82,7 @@ export const ExchangeRateController = {
           res.status(400).json({ message: "Fecha inválida, use formato YYYY-MM-DD" });
           return;
         }
-        const today = new Date().toISOString().slice(0, 10);
-        if (date > today) {
+        if (date > todayStr()) {
           res.status(400).json({ message: "No se puede registrar una tasa para una fecha futura" });
           return;
         }

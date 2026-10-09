@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Modal } from "@/components/ui/Modal";
 import { Input, Select } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-import { User, UserRole } from "@/types/domain";
+import { DOCUMENT_TYPES, User, UserRole } from "@/types/domain";
 import { ApiError } from "@/services/api";
 import { userService } from "../services/user.service";
 import { buildUserSchema, UserFormValues } from "../schema";
@@ -29,6 +29,7 @@ export function UserFormModal({ open, user, onClose, onSaved }: UserFormModalPro
     resolver: zodResolver(buildUserSchema(isEditing)),
     values: {
       fullName: user?.fullName ?? "",
+      cedulaTipo: user?.cedulaTipo ?? "V",
       cedula: user?.cedula ?? "",
       phone: user?.phone ?? "",
       email: user?.email ?? "",
@@ -43,6 +44,7 @@ export function UserFormModal({ open, user, onClose, onSaved }: UserFormModalPro
         await userService.update(user.id, {
           fullName: values.fullName,
           cedula: values.cedula,
+          cedulaTipo: values.cedulaTipo,
           phone: values.phone,
           email: values.email || undefined,
           role: values.role,
@@ -53,6 +55,7 @@ export function UserFormModal({ open, user, onClose, onSaved }: UserFormModalPro
         await userService.create({
           fullName: values.fullName,
           cedula: values.cedula,
+          cedulaTipo: values.cedulaTipo,
           phone: values.phone,
           email: values.email || undefined,
           role: values.role,
@@ -80,14 +83,34 @@ export function UserFormModal({ open, user, onClose, onSaved }: UserFormModalPro
           {...register("fullName")}
         />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Input
-            id="cedula"
-            type="text"
-            label="Número de cédula"
-            placeholder="Ej. 12345678"
-            error={errors.cedula?.message}
-            {...register("cedula")}
-          />
+          {/* La letra va aparte: la cédula es la credencial de login y se
+              guarda solo con dígitos. */}
+          <div className="space-y-1.5">
+            <label htmlFor="cedula" className="block text-[13px] font-medium text-ios-secondary">
+              C.I./RIF
+            </label>
+            <div className="flex gap-2">
+              <div className="w-[4.5rem] shrink-0">
+                <Select id="cedulaTipo" aria-label="Tipo de documento" {...register("cedulaTipo")}>
+                  {DOCUMENT_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="min-w-0 flex-1">
+                <Input
+                  id="cedula"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Ej. 12345678"
+                  error={errors.cedula?.message}
+                  {...register("cedula")}
+                />
+              </div>
+            </div>
+          </div>
           <Input
             id="phone"
             label="Teléfono (opcional)"

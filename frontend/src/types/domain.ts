@@ -40,9 +40,14 @@ export enum RateCurrency {
   EUR = "EUR",
 }
 
+/** Letra del documento: V/E cédula, J/G RIF. */
+export type DocumentType = "V" | "E" | "J" | "G";
+export const DOCUMENT_TYPES: DocumentType[] = ["V", "E", "J", "G"];
+
 export interface User {
   id: string;
   cedula: string;
+  cedulaTipo?: DocumentType;
   fullName: string;
   phone?: string;
   email?: string;

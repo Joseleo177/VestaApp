@@ -8,7 +8,7 @@ import { TableSkeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { Pagination } from "@/components/ui/Pagination";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatDocumentId } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { matchesTerm } from "@/lib/search";
 import { usePagination } from "@/lib/usePagination";
@@ -100,7 +100,7 @@ export function UsersTable({ users, loading, onEdit, onChanged }: UsersTableProp
               <tr key={user.id} className="hover:bg-ios-fill">
                 <td className="px-5 py-3.5">
                   <div className="font-medium text-ios-label">{user.fullName}</div>
-                  <div className="text-xs text-ios-secondary">C.I. {user.cedula}</div>
+                  <div className="text-xs text-ios-secondary">{formatDocumentId(user.cedulaTipo, user.cedula)}</div>
                 </td>
                 <td className="px-5 py-3.5 text-ios-label">{ROLE_LABELS[user.role]}</td>
                 <td className="px-5 py-3.5">

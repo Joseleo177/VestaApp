@@ -1,7 +1,7 @@
 import PDFDocument from "pdfkit";
 import path from "path";
 import fs from "fs";
-import { User } from "../models/User";
+import { User, formatDocumentId } from "../models/User";
 import { Charge, ChargeStatus } from "../models/Charge";
 import { Property } from "../models/Property";
 import { amountDue, isOverdue } from "./charge.service";
@@ -121,11 +121,13 @@ export function generateAccountStatementPdf(
     const ownerNames = Array.from(new Set(properties.map(p => p.owner?.fullName).filter(Boolean)));
     const ownerName = ownerNames.length > 0 ? ownerNames.join(" / ") : user.fullName;
     
-    const ownerCedulas = Array.from(new Set(properties.map(p => p.owner?.cedula).filter(Boolean)));
-    const ownerCedula = ownerCedulas.length > 0 ? ownerCedulas.join(" / ") : user.cedula;
+    const ownerCedulas = Array.from(new Set(
+      properties.filter(p => p.owner?.cedula).map(p => formatDocumentId(p.owner!.cedulaTipo, p.owner!.cedula))
+    ));
+    const ownerCedula = ownerCedulas.length > 0 ? ownerCedulas.join(" / ") : formatDocumentId(user.cedulaTipo, user.cedula);
 
     doc.fontSize(11).font("Helvetica-Bold").text("Propietario: ", { continued: true }).font("Helvetica").text(ownerName);
-    doc.font("Helvetica-Bold").text("Cédula: ", { continued: true }).font("Helvetica").text(ownerCedula);
+    doc.font("Helvetica-Bold").text("C.I./RIF: ", { continued: true }).font("Helvetica").text(ownerCedula);
     doc.font("Helvetica-Bold").text("Propiedades: ", { continued: true }).font("Helvetica").text(propsStr);
     doc.moveDown(1.5);
 

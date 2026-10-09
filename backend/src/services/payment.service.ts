@@ -394,7 +394,7 @@ async function loadPaymentList(
     .leftJoin("p.charge", "ch")
     .leftJoin("ch.property", "chp")
     .select("p")
-    .addSelect(["prop.id", "prop.code", "sub.id", "sub.fullName", "sub.cedula", ...chargeListFields("ch", "chp")])
+    .addSelect(["prop.id", "prop.code", "sub.id", "sub.fullName", "sub.cedula", "sub.cedulaTipo", ...chargeListFields("ch", "chp")])
     .orderBy("p.createdAt", "DESC");
   filter(qb);
   const payments = await qb.getMany();

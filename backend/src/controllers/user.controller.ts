@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { UserService } from "../services/user.service";
+import { UserService, parseDocumentType } from "../services/user.service";
 import { UserRole } from "../models/User";
 import { HttpError } from "../middlewares/error.middleware";
 
@@ -22,12 +22,13 @@ export const UserController = {
   // POST /api/users  (admin)
   async create(req: Request, res: Response, next: NextFunction) {
     try {
-      const { cedula, password, fullName, phone, email, role } = req.body;
+      const { cedula, cedulaTipo, password, fullName, phone, email, role } = req.body;
       if (!cedula || !password || !fullName) {
         throw new HttpError(400, "cedula, password y fullName son requeridos");
       }
       const user = await UserService.create({
         cedula,
+        cedulaTipo: parseDocumentType(cedulaTipo),
         password,
         fullName,
         phone,
@@ -43,9 +44,10 @@ export const UserController = {
   // PATCH /api/users/:id  (admin)
   async update(req: Request, res: Response, next: NextFunction) {
     try {
-      const { cedula, fullName, phone, email, role, password } = req.body;
+      const { cedula, cedulaTipo, fullName, phone, email, role, password } = req.body;
       const user = await UserService.update(req.params.id, {
         cedula,
+        cedulaTipo: parseDocumentType(cedulaTipo),
         fullName,
         phone,
         email,
