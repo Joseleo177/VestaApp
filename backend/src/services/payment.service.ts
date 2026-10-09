@@ -1049,8 +1049,11 @@ export const PaymentService = {
       let bsRate: number | null = null;
       if (p.currency === PaymentCurrency.BS) {
         const cur = chargeRateCurrency(charge);
-        if (!rates.has(cur)) rates.set(cur, (await getRateForDate(p.paymentDate, cur)).rate);
-        bsRate = rates.get(cur)!;
+        // Sin tasa de esa fecha el recibo sale solo en divisas, no con la de hoy.
+        if (!rates.has(cur)) {
+          rates.set(cur, await getRateForDate(p.paymentDate, cur).then((r) => r.rate, () => 0));
+        }
+        bsRate = rates.get(cur) || null;
       }
       lines.push({ charge, bsRate });
     }

@@ -188,7 +188,12 @@ export function generateReceiptPdf(
     doc.moveDown(1);
 
     // ── Cuerpo ─────────────────────────────────────────────────────────────────
-    const owner = payment.property?.owner?.fullName ?? payment.submittedBy?.fullName ?? "—";
+    const ownerUser = payment.property?.owner ?? payment.submittedBy;
+    const owner = ownerUser?.fullName ?? "—";
+    // La cédula se guarda solo en dígitos; en el recibo va con puntos de miles.
+    const ownerCi = ownerUser?.cedula
+      ? ownerUser.cedula.replace(/\B(?=(\d{3})+(?!\d))/g, ".")
+      : null;
     // El apartamento es el de la cuota: un pago puede saldar cuotas de otro
     // departamento del mismo titular.
     const propOf = (c?: Charge | null) => (c?.property ?? payment.property) as any;
@@ -204,6 +209,9 @@ export function generateReceiptPdf(
 
     doc.fontSize(11).fillColor("#000000");
     doc.font("Helvetica-Bold").text("Recibo de: ", { continued: true }).font("Helvetica").text(owner);
+    if (ownerCi) {
+      doc.font("Helvetica-Bold").text("C.I.: ", { continued: true }).font("Helvetica").text(ownerCi);
+    }
     doc.font("Helvetica-Bold").text(multi ? "Apartamentos: " : "Del apartamento: ", { continued: true }).font("Helvetica").text(unitFull);
     if (multi) {
       doc.font("Helvetica-Bold").text("Cuotas pagadas: ", { continued: true }).font("Helvetica").text(String(lines!.length));

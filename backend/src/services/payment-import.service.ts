@@ -550,10 +550,29 @@ export const PaymentImportService = {
       out.targetPeriod = target.period;
       out.targetDescription = target.description;
 
+      // Tasas de la fecha del pago para todas las monedas que pueda tocar.
+      // Sin tasa cargada para esa fecha la fila no se puede valorar.
+      const others = (property.owner ? byOwner.get(property.owner.id) : undefined) ?? [];
+      const rates: Partial<Record<RateCurrency, number>> = {};
+      if (r.moneda === PaymentCurrency.BS) {
+        const open = others.filter(
+          (c) => c.status === ChargeStatus.PENDING || c.status === ChargeStatus.PARTIAL
+        );
+        try {
+          for (const cur of new Set([primary, target.currency, ...open.map((c) => c.currency)])) {
+            rates[cur] = await rateFor(r.fecha, cur);
+          }
+        } catch (err) {
+          out.errors.push((err as Error).message);
+          rows.push(out);
+          continue;
+        }
+      }
+
       // --- Monto en divisas ---
       let eur: number;
       if (r.moneda === PaymentCurrency.BS) {
-        const rate = await rateFor(r.fecha, target.currency);
+        const rate = rates[target.currency]!;
         if (r.monto !== null) {
           out.amountBs = Math.round(r.monto * 100) / 100;
           eur = Math.round((out.amountBs / rate) * 100) / 100;
@@ -580,16 +599,6 @@ export const PaymentImportService = {
 
       // --- Aplicación sobre la cuota y cascada del excedente ---
       // Misma aritmética que la confirmación real (`allocatePayment`).
-      const others = (property.owner ? byOwner.get(property.owner.id) : undefined) ?? [];
-      const rates: Partial<Record<RateCurrency, number>> = {};
-      if (r.moneda === PaymentCurrency.BS) {
-        const open = others.filter(
-          (c) => c.status === ChargeStatus.PENDING || c.status === ChargeStatus.PARTIAL
-        );
-        for (const cur of new Set([primary, target.currency, ...open.map((c) => c.currency)])) {
-          rates[cur] = await rateFor(r.fecha, cur);
-        }
-      }
       const { steps, credit } = allocatePayment(
         [target],
         others,

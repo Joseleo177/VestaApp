@@ -173,7 +173,11 @@ export async function listRates(
  * Devuelve la tasa de una moneda aplicable a una fecha concreta:
  * 1. Tasa exacta de ese día.
  * 2. Tasa más reciente anterior a esa fecha (fin de semana / feriado).
- * 3. Degradación: tasa activa de hoy.
+ * 3. Solo para hoy (o ayer, por el desfase UTC): tasa activa de hoy.
+ *
+ * Una fecha pasada sin tasa guardada no se degrada a la de hoy: un pago de
+ * marzo valorado a la tasa de octubre abona a la cuota una fracción de lo
+ * que se transfirió. Se exige cargar la tasa de esa fecha.
  */
 export async function getRateForDate(date: string, currency: RateCurrency): Promise<ExchangeRate> {
   const record = await repo()
@@ -184,7 +188,15 @@ export async function getRateForDate(date: string, currency: RateCurrency): Prom
     .getOne();
 
   if (record) return toRate(record);
-  return getExchangeRate(currency);
+
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  if (date >= yesterday) return getExchangeRate(currency);
+
+  throw new HttpError(
+    422,
+    `No hay tasa BCV ${currency} registrada para el ${date} ni para días anteriores. ` +
+      "Cárgala en Tasas de cambio antes de registrar el pago."
+  );
 }
 
 /**

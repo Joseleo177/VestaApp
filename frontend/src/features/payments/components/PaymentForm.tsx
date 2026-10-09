@@ -33,6 +33,7 @@ export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: P
   const today = new Date().toISOString().slice(0, 10);
   // Tasa de cada moneda presente en las cuotas elegidas, a la fecha del pago.
   const [dateRates, setDateRates] = useState<Partial<Record<RateCurrency, ExchangeRate>>>({});
+  const [rateError, setRateError] = useState<string | null>(null);
   const [result, setResult] = useState<Payment | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [bankInfo, setBankInfo] = useState<BankInfo | null>(null);
@@ -107,10 +108,14 @@ export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: P
     if (!paymentDateInput || !neededCurrencies) return;
     let cancelled = false;
     setDateRates({});
+    setRateError(null);
     for (const cur of neededCurrencies.split(",") as RateCurrency[]) {
       exchangeRateService.getForDate(paymentDateInput, cur).then((r) => {
         if (!cancelled) setDateRates((prev) => ({ ...prev, [cur]: r }));
-      }).catch(() => { });
+      }).catch((err) => {
+        // Fecha pasada sin tasa cargada: el backend ya no usa la de hoy.
+        if (!cancelled && err instanceof ApiError) setRateError(err.message);
+      });
     }
     return () => { cancelled = true; };
   }, [paymentDateInput, neededCurrencies]);
@@ -454,6 +459,10 @@ export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: P
         error={errors.paymentDate?.message}
         {...register("paymentDate")}
       />
+
+      {isBS && rateError && (
+        <p className="rounded-lg bg-ios-red/10 px-3 py-2 text-sm text-ios-red">{rateError}</p>
+      )}
 
       {submitError && (
         <p className="rounded-lg bg-ios-red/10 px-3 py-2 text-sm text-ios-red">{submitError}</p>
