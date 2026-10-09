@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs";
 import { Payment, PaymentCurrency } from "../models/Payment";
 import type { Charge } from "../models/Charge";
-import { documentLabel, formatDocumentId } from "../models/User";
+import { formatDocumentId } from "../models/User";
 
 /** Una cuota saldada por el pago y la tasa con que se pasa a Bs (null: sin Bs). */
 export interface ReceiptLine {
@@ -203,7 +203,7 @@ export function generateReceiptPdf(
     const ownerUser = payment.property?.owner ?? payment.submittedBy;
     const owner = ownerUser?.fullName ?? "—";
     // La cédula se guarda solo en dígitos; en el recibo va con su letra y puntos.
-    const ownerCi = ownerUser?.cedula ? formatDocumentId(ownerUser.cedulaTipo, ownerUser.cedula) : null;
+    const ownerCi = ownerUser?.cedula ? formatDocumentId(ownerUser.cedulaTipo, ownerUser.cedula, false) : null;
     // El apartamento es el de la cuota: un pago puede saldar cuotas de otro
     // departamento del mismo titular.
     const propOf = (c?: Charge | null) => (c?.property ?? payment.property) as any;
@@ -220,8 +220,7 @@ export function generateReceiptPdf(
     doc.fontSize(11).fillColor("#000000");
     doc.font("Helvetica-Bold").text("Recibo de: ", { continued: true }).font("Helvetica").text(owner);
     if (ownerCi) {
-      doc.font("Helvetica-Bold").text(`${documentLabel(ownerUser?.cedulaTipo)}: `, { continued: true })
-        .font("Helvetica").text(ownerCi);
+      doc.font("Helvetica-Bold").text("C.I./RIF: ", { continued: true }).font("Helvetica").text(ownerCi);
     }
     doc.font("Helvetica-Bold").text(multi ? "Apartamentos: " : "Del apartamento: ", { continued: true }).font("Helvetica").text(unitFull);
     if (multi) {

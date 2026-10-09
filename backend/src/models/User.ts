@@ -33,22 +33,22 @@ export function isDocumentType(value: unknown): value is DocumentType {
 }
 
 /**
- * Documento tal como se imprime: "V-9.613.328", o "J-50440139-0" para un RIF
- * de 9 dígitos. Una cédula no numérica (p. ej. la del admin) va tal cual.
+ * Documento tal como se imprime: "V-9.613.328" (o "V-9613328" sin `grouped`),
+ * o "J-50440139-0" para un RIF de 9 dígitos. Una cédula no numérica (p. ej. la
+ * del admin) va tal cual.
  */
-export function formatDocumentId(tipo: DocumentType | null | undefined, cedula: string): string {
+export function formatDocumentId(
+  tipo: DocumentType | null | undefined,
+  cedula: string,
+  grouped = true
+): string {
   const digits = cedula.replace(/\D/g, "");
   if (!digits || digits !== cedula) return cedula;
   const t = tipo ?? DocumentType.V;
   if ((t === DocumentType.J || t === DocumentType.G) && digits.length === 9) {
     return `${t}-${digits.slice(0, 8)}-${digits.slice(8)}`;
   }
-  return `${t}-${digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
-}
-
-/** Rótulo del documento: "RIF" para J/G, "C.I." para V/E. */
-export function documentLabel(tipo: DocumentType | null | undefined): string {
-  return tipo === DocumentType.J || tipo === DocumentType.G ? "RIF" : "C.I.";
+  return `${t}-${grouped ? digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".") : digits}`;
 }
 
 @Entity({ name: "users" })
