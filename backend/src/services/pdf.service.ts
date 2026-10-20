@@ -2,7 +2,7 @@ import PDFDocument from "pdfkit";
 import path from "path";
 import fs from "fs";
 import { Payment, PaymentCurrency } from "../models/Payment";
-import type { Charge } from "../models/Charge";
+import { ChargeType, type Charge } from "../models/Charge";
 import { formatDocumentId } from "../models/User";
 
 /** Una cuota saldada por el pago y la tasa con que se pasa a Bs (null: sin Bs). */
@@ -362,9 +362,23 @@ export function generateReceiptPdf(
         .text(`Tasa BCV aplicada: ${txt}`, 55, doc.y, { width: pageW, align: "center" });
       doc.moveDown(0.4);
     }
+    // El concepto del pie sale del tipo de las cuotas pagadas: una especial
+    // no es "de recuperación".
+    const paidCharges = multi ? lines!.map((l) => l.charge) : charge ? [charge] : [];
+    const allSpecial = paidCharges.length > 0 && paidCharges.every((c) => c.type === ChargeType.SPECIAL);
+    const anySpecial = paidCharges.some((c) => c.type === ChargeType.SPECIAL);
+    const plural = paidCharges.length > 1;
+    const conceptoPie = allSpecial
+      ? (plural ? "las cuotas especiales" : "la cuota especial")
+      : anySpecial
+        ? "las cuotas"
+        : (plural ? "las cuotas de recuperación" : "la cuota de recuperación");
+    const periodoPie = new Set(paidCharges.map((c) => c.period)).size > 1
+      ? "los períodos especificados"
+      : "el período especificado";
     doc.fontSize(7.5).fillColor("#000000").font("Helvetica-Bold")
       .text(
-        "Este recibo no es de carácter fiscal. Acredita el pago de la cuota de recuperacion para el período especificado.",
+        `Este recibo no es de carácter fiscal. Acredita el pago de ${conceptoPie} para ${periodoPie}.`,
         55, doc.y, { width: pageW, align: "center" }
       );
     doc.fontSize(7.5).fillColor("#000000").font("Helvetica-Bold")
