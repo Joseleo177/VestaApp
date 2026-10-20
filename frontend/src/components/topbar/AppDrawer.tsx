@@ -30,7 +30,7 @@ interface AppItem {
 
 const ADMIN_APPS: AppItem[] = [
   { label: "Dashboard",     to: "/admin",              icon: LayoutDashboard, color: "from-indigo-500 to-violet-600"  },
-  { label: "Usuarios",      to: "/admin/usuarios",     icon: Users,           color: "from-sky-500 to-blue-600"       },
+  { label: "Clientes",      to: "/admin/clientes",     icon: Users,           color: "from-sky-500 to-blue-600"       },
   { label: "Torres",        to: "/admin/torres",       icon: Building2,       color: "from-teal-500 to-cyan-600"      },
   { label: "Departamentos", to: "/admin/departamentos",icon: Building,        color: "from-amber-500 to-orange-600"   },
   { label: "Cobros",        to: "/admin/gasto-comun",  icon: Receipt,         color: "from-emerald-500 to-green-600"  },

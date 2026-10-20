@@ -82,6 +82,72 @@
   }
 }
 
+@layer components {
+  /* ── Tabla libro (ledger) ──
+     Listados de registros: clientes, pagos, cuotas. Rótulo de columna en versalitas
+     pequeñas, datos en caja normal y cifras con dígitos tabulares para que alineen como
+     en un libro contable. Celdas y cabeceras van dentro de :where(), que no suma
+     especificidad: así un `text-right` o `pl-4` de la celda sigue mandando. */
+  .table-ledger {
+    @apply w-full border-separate border-spacing-0 text-[13px] tracking-[-0.005em];
+  }
+  :where(.table-ledger thead th) {
+    @apply h-9 whitespace-nowrap border-b border-ios-separator bg-ios-fill/40 px-3 text-left
+           text-[10px] font-semibold uppercase tracking-[0.08em] text-ios-secondary;
+  }
+  :where(.table-ledger tbody td) {
+    @apply h-[60px] border-b border-ios-separator/70 px-3 align-middle text-ios-label;
+  }
+  :where(.table-ledger tbody tr:last-child td) {
+    @apply border-b-0;
+  }
+  /* La fila entera abre su detalle: hover y foco de teclado comparten el mismo velo. */
+  .table-ledger tbody tr.ledger-row {
+    @apply cursor-pointer transition-colors duration-150;
+  }
+  .table-ledger tbody tr.ledger-row:hover td,
+  .table-ledger tbody tr.ledger-row:focus-visible td {
+    @apply bg-ios-fill/50;
+  }
+  .table-ledger tbody tr.ledger-row:focus-visible {
+    @apply outline-none;
+  }
+  .table-ledger tbody tr.ledger-row:focus-visible td:first-child {
+    box-shadow: inset 2px 0 0 rgb(var(--brand-500));
+  }
+  /* Filete a la izquierda solo en filas que piden atención (deben, quedaron a medias). */
+  .table-ledger tbody tr[data-tone] td:first-child {
+    box-shadow: inset 2px 0 0 var(--row-tone);
+  }
+
+  /* Botón de icono de fila: siempre visible (en tablet no hay hover) y en gris en reposo,
+     para que la tabla no se llene de colores. El tono solo aparece al pasar el cursor. */
+  .row-icon {
+    @apply inline-flex h-8 w-8 items-center justify-center rounded-lg text-ios-secondary
+           transition-colors hover:bg-ios-fill hover:text-ios-label active:scale-95
+           disabled:pointer-events-none disabled:opacity-40;
+  }
+
+  .popover-in {
+    animation: popover-in 0.14s ease-out;
+  }
+  @keyframes popover-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .popover-in {
+      animation: none;
+    }
+  }
+}
+
 @layer utilities {
   /* Fila que scrollea en horizontal sin mostrar la barra (tabs, chips). */
   .no-scrollbar {

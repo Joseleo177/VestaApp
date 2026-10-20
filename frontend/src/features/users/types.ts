@@ -1,4 +1,5 @@
-import { DocumentType, UserRole } from "@/types/domain";
+import { DocumentType, User, UserRole } from "@/types/domain";
+import { PropertyWithBalance } from "@/features/admin-panel/types";
 
 export interface CreateUserInput {
   cedula: string;
@@ -19,3 +20,38 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   [UserRole.OWNER]: "Copropietario",
   [UserRole.AUTHORIZED]: "Autorizado",
 };
+
+/** Saldos por debajo de esto son redondeo, no deuda. */
+export const DEBT_EPSILON = 0.005;
+
+/** Qué es el cliente de un departamento. */
+export type UnitRelation = "OWNER" | "AUTHORIZED" | "BOTH";
+
+export const RELATION_LABELS: Record<UnitRelation, string> = {
+  OWNER: "Titular",
+  AUTHORIZED: "Autorizado",
+  BOTH: "Titular y autorizado",
+};
+
+export interface ClientUnit {
+  property: PropertyWithBalance;
+  relation: UnitRelation;
+}
+
+/**
+ * Usuario visto como cliente: con los departamentos que tiene (como titular o
+ * autorizado) y lo que esos departamentos deben.
+ */
+export interface Client extends User {
+  units: ClientUnit[];
+  /** Suma de saldos pendientes de sus departamentos, en REF. */
+  debt: number;
+  unitsWithDebt: number;
+}
+
+export type RoleFilter = "ALL" | UserRole;
+export type StatusFilter = "ALL" | "ACTIVE" | "INACTIVE";
+export type ClientSort = "NAME" | "DEBT";
+
+/** `isActive` ausente es un usuario de antes de que existiera el campo: activo. */
+export const isActiveClient = (u: User) => u.isActive !== false;

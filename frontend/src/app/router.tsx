@@ -5,8 +5,12 @@ import { AdminLayout } from "@/components/AdminLayout";
 import { RESIDENT_ROLES, UserRole } from "@/types/domain";
 import { LoginPage } from "@/features/auth/pages/LoginPage";
 import { OwnerDashboardPage } from "@/features/dashboard/pages/OwnerDashboardPage";
+import { ChargesPage } from "@/features/dashboard/pages/ChargesPage";
+import { PaymentsPage } from "@/features/dashboard/pages/PaymentsPage";
+import { PaymentInfoPage } from "@/features/dashboard/pages/PaymentInfoPage";
+import { ResidentLayout } from "@/features/dashboard/components/ResidentLayout";
 import { AdminDashboardPage } from "@/features/admin-panel/pages/AdminDashboardPage";
-import { UsersPage } from "@/features/users/pages/UsersPage";
+import { ClientsPage } from "@/features/users/pages/ClientsPage";
 import { TowersPage } from "@/features/towers/pages/TowersPage";
 import { UnitsPage } from "@/features/units/pages/UnitsPage";
 import { BillingPage } from "@/features/billing/pages/BillingPage";
@@ -26,10 +30,16 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute requiredRole={[...RESIDENT_ROLES]}>
         <AppLayout>
-          <OwnerDashboardPage />
+          <ResidentLayout />
         </AppLayout>
       </ProtectedRoute>
     ),
+    children: [
+      { index: true, element: <OwnerDashboardPage /> },
+      { path: "cuotas", element: <ChargesPage /> },
+      { path: "pagos", element: <PaymentsPage /> },
+      { path: "datos-de-pago", element: <PaymentInfoPage /> },
+    ],
   },
   {
     path: "/admin",
@@ -42,7 +52,9 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <AdminDashboardPage /> },
-      { path: "usuarios", element: <UsersPage /> },
+      { path: "clientes", element: <ClientsPage /> },
+      // Ruta anterior: los enlaces guardados siguen funcionando.
+      { path: "usuarios", element: <Navigate to="/admin/clientes" replace /> },
       { path: "torres", element: <TowersPage /> },
       { path: "departamentos", element: <UnitsPage /> },
       { path: "gasto-comun", element: <BillingPage /> },

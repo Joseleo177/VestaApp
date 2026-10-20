@@ -35,5 +35,6 @@ export function usePayments(): UsePaymentsResult {
   // Polling silencioso, pausado con la pestaña oculta
   usePolling(() => void fetch(true), POLL_MS);
 
-  return { payments, loading, error, refetch: () => fetch(false) };
+  // Recarga silenciosa: tras pagar, la pantalla no vuelve al esqueleto.
+  return { payments, loading, error, refetch: () => fetch(true) };
 }

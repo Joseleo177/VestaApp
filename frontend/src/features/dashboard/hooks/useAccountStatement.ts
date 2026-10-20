@@ -38,5 +38,6 @@ export function useAccountStatement(): Result {
   // Polling silencioso, pausado con la pestaña oculta
   usePolling(() => void fetch(true), POLL_MS);
 
-  return { statement, properties, loading, refetch: () => fetch(false) };
+  // Recarga silenciosa: tras pagar, la pantalla no vuelve al esqueleto.
+  return { statement, properties, loading, refetch: () => fetch(true) };
 }

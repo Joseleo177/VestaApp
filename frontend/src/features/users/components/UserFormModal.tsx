@@ -50,7 +50,7 @@ export function UserFormModal({ open, user, onClose, onSaved }: UserFormModalPro
           role: values.role,
           password: values.password || undefined,
         });
-        toast.success("Usuario actualizado");
+        toast.success("Cliente actualizado");
       } else {
         await userService.create({
           fullName: values.fullName,
@@ -61,7 +61,7 @@ export function UserFormModal({ open, user, onClose, onSaved }: UserFormModalPro
           role: values.role,
           password: values.password as string,
         });
-        toast.success("Usuario creado");
+        toast.success("Cliente creado");
       }
       onSaved();
     } catch (err) {
@@ -73,7 +73,7 @@ export function UserFormModal({ open, user, onClose, onSaved }: UserFormModalPro
     <Modal
       open={open}
       onClose={onClose}
-      title={isEditing ? "Editar usuario" : "Nuevo usuario"}
+      title={isEditing ? "Editar cliente" : "Nuevo cliente"}
     >
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <Input
@@ -149,7 +149,7 @@ export function UserFormModal({ open, user, onClose, onSaved }: UserFormModalPro
             Cancelar
           </Button>
           <Button type="submit" loading={isSubmitting}>
-            {isEditing ? "Guardar cambios" : "Crear usuario"}
+            {isEditing ? "Guardar cambios" : "Crear cliente"}
           </Button>
         </div>
       </form>

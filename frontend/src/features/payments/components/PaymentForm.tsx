@@ -25,12 +25,20 @@ interface BankInfo {
 interface PaymentFormProps {
   charges: Charge[];
   defaultChargeId?: string;
+  /** Varias cuotas ya elegidas (las marcadas en el estado de cuenta). Gana a `defaultChargeId`. */
+  defaultChargeIds?: string[];
   onSuccess: () => void;
   onCancel: () => void;
 }
 
-export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: PaymentFormProps) {
+export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, onSuccess, onCancel }: PaymentFormProps) {
   const today = new Date().toISOString().slice(0, 10);
+  // Solo inicial: lo que se marque después vive en el formulario.
+  const [preselected] = useState(() =>
+    defaultChargeIds?.length
+      ? defaultChargeIds
+      : [defaultChargeId ?? charges[0]?.id].filter((id): id is string => !!id)
+  );
   // Tasa de cada moneda presente en las cuotas elegidas, a la fecha del pago.
   const [dateRates, setDateRates] = useState<Partial<Record<RateCurrency, ExchangeRate>>>({});
   const [rateError, setRateError] = useState<string | null>(null);
@@ -52,7 +60,7 @@ export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: P
     resolver: zodResolver(paymentSchema),
     mode: "onChange",
     defaultValues: {
-      chargeIds: [defaultChargeId ?? charges[0]?.id].filter((id): id is string => !!id),
+      chargeIds: preselected,
       currency: PaymentCurrency.BS,
       modalidad: "Transferencia",
       paymentDate: today,
@@ -80,14 +88,14 @@ export function PaymentForm({ charges, defaultChargeId, onSuccess, onCancel }: P
   const selectable = useMemo(
     () =>
       charges
-        .filter((c) => !c.pendingPayment || c.id === defaultChargeId)
+        .filter((c) => !c.pendingPayment || preselected.includes(c.id))
         .sort(
           (a, b) =>
             a.dueDate.localeCompare(b.dueDate) ||
             a.period.localeCompare(b.period) ||
             a.description.localeCompare(b.description)
         ),
-    [charges, defaultChargeId]
+    [charges, preselected]
   );
   const selectedCharges = useMemo(
     () => selectable.filter((c) => chargeIds.includes(c.id)),
