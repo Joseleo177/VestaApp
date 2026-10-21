@@ -31,6 +31,16 @@ type Filter = "OPEN" | "PAID" | "ALL";
 
 const isOpen = (c: Charge) => c.status === ChargeStatus.PENDING || c.status === ChargeStatus.PARTIAL;
 const due = (c: Charge) => Number(c.amountDue ?? c.amount);
+/** Mora que ya va dentro de lo que se debe: cuota sin abonos, vencida y con mora. */
+const moraIn = (c: Charge) =>
+  c.status === ChargeStatus.PENDING && c.overdue ? Number(c.moraAmount ?? 0) : 0;
+
+// Por mes, el más reciente arriba; en el mismo mes, la regular antes que las especiales.
+// Por vencimiento no: una especial de septiembre que vence en octubre quedaba sobre octubre.
+const newestFirst = (a: Charge, b: Charge) =>
+  b.period.localeCompare(a.period) ||
+  Number(a.type === ChargeType.SPECIAL) - Number(b.type === ChargeType.SPECIAL) ||
+  b.dueDate.localeCompare(a.dueDate);
 
 // Pagada es lo normal (gris con visto); solo lo vencido va en rojo.
 function statusOf(c: Charge): StatusDef {
@@ -46,10 +56,12 @@ function statusOf(c: Charge): StatusDef {
   }
 }
 
-/** Qué entró a la cuota, en una línea: los pagos que abonaron (o el confirmado, en los viejos). */
+/**
+ * Qué entró a la cuota, en una línea: los pagos que abonaron (o el confirmado, en
+ * los viejos). El número de recibo va bajo el monto, junto a su descarga.
+ */
 function paymentLine(c: Charge): string | null {
   const apps = c.applications ?? [];
-  const receipt = c.confirmedPayment?.receiptNumber;
   const parts =
     apps.length > 0
       ? apps.map((a) =>
@@ -61,7 +73,7 @@ function paymentLine(c: Charge): string | null {
         ? [[formatDate(c.confirmedPayment.paymentDate), c.confirmedPayment.reference && `Ref. ${c.confirmedPayment.reference}`].filter(Boolean).join(" · ")]
         : [];
   if (parts.length === 0) return null;
-  return `Pagada el ${parts.join(" + ")}${receipt ? ` · Recibo ${receipt}` : ""}`;
+  return `Pagada el ${parts.join(" + ")}`;
 }
 
 /**
@@ -103,15 +115,17 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
   const payable = open_.filter((c) => !c.pendingPayment);
   const debt = open_.reduce((s, c) => s + due(c), 0);
   const overdue = open_.filter((c) => c.overdue).length;
+  const debtMora = open_.reduce((s, c) => s + moraIn(c), 0);
   const paidCount = charges.filter((c) => c.status === ChargeStatus.PAID).length;
 
   // Sin elección, abre en lo que importa: lo que falta por cobrar, si hay.
   const filter: Filter = chosen ?? (open_.length ? "OPEN" : "ALL");
   const list = useMemo(() => {
-    const byDue = (a: Charge, b: Charge) => b.dueDate.localeCompare(a.dueDate);
-    if (filter === "OPEN") return [...open_].sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-    if (filter === "PAID") return charges.filter((c) => c.status === ChargeStatus.PAID).sort(byDue);
-    return [...charges].sort(byDue);
+    // Por cobrar va en el orden en que se saldan: la que vence primero, arriba.
+    if (filter === "OPEN")
+      return [...open_].sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.period.localeCompare(b.period));
+    if (filter === "PAID") return charges.filter((c) => c.status === ChargeStatus.PAID).sort(newestFirst);
+    return [...charges].sort(newestFirst);
   }, [filter, charges, open_]);
 
   const run = async (charge: Charge, fn: () => Promise<void>) => {
@@ -212,6 +226,7 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
                     <p className="text-[12px] text-ios-secondary">
                       {open_.length} {open_.length === 1 ? "cuota abierta" : "cuotas abiertas"}
                       {overdue > 0 && ` · ${overdue} vencida${overdue === 1 ? "" : "s"}`}
+                      {debtMora > 0.005 && ` · ${formatCurrency(debtMora)} de mora`}
                     </p>
                   </>
                 ) : (
@@ -297,9 +312,13 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
                       value={formatCurrency(c.status === ChargeStatus.PAID ? c.amountPaid ?? c.amount : due(c))}
                       className="text-[14px] font-semibold text-ios-label"
                     />
-                    {c.overdue && c.status === ChargeStatus.PENDING && (c.moraAmount ?? 0) > 0 && (
-                      <p className="text-[11px] text-red-600 dark:text-red-400">con mora</p>
-                    )}
+                    {moraIn(c) > 0 ? (
+                      <p className="whitespace-nowrap text-[11px] text-red-600 dark:text-red-400">
+                        con {formatCurrency(moraIn(c))} de mora
+                      </p>
+                    ) : receipt ? (
+                      <p className="whitespace-nowrap text-[11px] tabular-nums text-ios-secondary">{receipt}</p>
+                    ) : null}
                   </div>
 
                   <div className="flex shrink-0 items-center gap-0.5">
