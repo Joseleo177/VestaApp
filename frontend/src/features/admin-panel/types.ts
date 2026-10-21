@@ -4,5 +4,3 @@ import { Property } from "@/types/domain";
 export interface PropertyWithBalance extends Property {
   balance: number;
 }
-
-export type DelinquencyFilter = "ALL" | "CURRENT" | "DELINQUENT";

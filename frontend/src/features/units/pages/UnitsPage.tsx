@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -29,7 +30,11 @@ export function UnitsPage() {
   const [editing, setEditing] = useState<PropertyWithBalance | null>(null);
   const [chargesOf, setChargesOf] = useState<PropertyWithBalance | null>(null);
 
-  const [filter, setFilter] = useState<Filter>("ALL");
+  // El dashboard enlaza aquí con ?saldo=deuda: la página abre ya filtrada.
+  const [params] = useSearchParams();
+  const [filter, setFilter] = useState<Filter>(() =>
+    params.get("saldo") === "deuda" ? "DEBT" : params.get("saldo") === "al-dia" ? "CURRENT" : "ALL"
+  );
   const [tower, setTower] = useState<string>("ALL");
   const [search, setSearch] = useState("");
 

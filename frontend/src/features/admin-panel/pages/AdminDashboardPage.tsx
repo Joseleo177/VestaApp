@@ -9,7 +9,6 @@ import { formatPeriod } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { useAdminDashboard } from "../hooks/useAdminDashboard";
 import { PaymentDetailModal } from "../components/PaymentDetailModal";
-import { DelinquencyTable } from "../components/DelinquencyTable";
 import { CollectionHero } from "../components/dashboard/CollectionHero";
 import { AttentionCard } from "../components/dashboard/AttentionCard";
 import { IncomeChart } from "../components/dashboard/IncomeChart";
@@ -108,12 +107,6 @@ export function AdminDashboardPage() {
           <RecentActivity loading={d.loadingActivity} payments={d.recent} nameOf={d.ownerName} />
         </div>
       </div>
-
-      <section id="morosidad" className="scroll-mt-24 pt-4">
-        <h2 className="mb-1 text-[18px] font-semibold text-ios-label">Control de morosidad</h2>
-        <p className="mb-3 text-[13px] text-ios-secondary">Todos los departamentos con su saldo pendiente.</p>
-        <DelinquencyTable properties={d.properties} loading={d.loading} />
-      </section>
 
       <PaymentDetailModal
         payment={selected}

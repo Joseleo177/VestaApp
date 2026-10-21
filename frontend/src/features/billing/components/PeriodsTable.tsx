@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { ChargeType } from "@/types/domain";
+import { ChargeType, RateCurrency } from "@/types/domain";
 import { Card } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyBlock, LedgerSkeleton, ledgerRow, ROW_TONE, RowIcon, stopRow } from "@/components/ui/Ledger";
 import { Money } from "@/components/ui/Money";
 import { StatusMark } from "@/components/ui/StatusMark";
-import { formatBs, formatCurrency, formatPeriod, rateLabel } from "@/lib/format";
+import { formatBs, formatCurrency, formatPeriod } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { useExchangeRate } from "@/features/exchange-rate/hooks/useExchangeRate";
 import { ApiError } from "@/services/api";
@@ -155,7 +155,7 @@ export function PeriodsTable({ periods, loading, onSelect, onDeleted, onCreate }
                         </td>
                         <td>
                           <span className="text-[12px] font-medium text-ios-secondary">
-                            {single ? rateLabel(single) : "Mixta"}
+                            {single ? `Tasa del ${single === RateCurrency.USD ? "dólar" : "euro"}` : "Tasas mixtas"}
                           </span>
                         </td>
                         <td className="cursor-default pr-5" onClick={stopRow}>

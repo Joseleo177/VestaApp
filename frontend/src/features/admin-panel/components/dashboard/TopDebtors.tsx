@@ -1,4 +1,5 @@
-import { Check } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Check, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Money } from "@/components/ui/Money";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -84,12 +85,13 @@ export function TopDebtors({
       )}
 
       {debtors.length > 0 && (
-        <a
-          href="#morosidad"
-          className="border-t border-ios-separator py-3 text-center text-[13px] font-semibold text-brand-600 transition-colors hover:bg-ios-fill/50"
+        <Link
+          to="/admin/departamentos?saldo=deuda"
+          className="flex items-center justify-center gap-1 border-t border-ios-separator py-3 text-[13px] font-semibold text-brand-600 transition-colors hover:bg-ios-fill/50"
         >
-          Ver control de morosidad
-        </a>
+          {debtors.length > TOP ? `Ver los ${debtors.length} que deben` : "Ver en Departamentos"}
+          <ChevronRight className="h-4 w-4" />
+        </Link>
       )}
     </Card>
   );

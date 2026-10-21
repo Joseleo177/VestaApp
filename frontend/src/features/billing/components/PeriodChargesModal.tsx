@@ -4,6 +4,7 @@ import { ArrowLeftRight, Download, Receipt } from "lucide-react";
 import { Modal, ModalIcon } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { EmptyBlock, RowIcon } from "@/components/ui/Ledger";
+import { RowMenu } from "@/components/ui/RowMenu";
 import { Money } from "@/components/ui/Money";
 import { Pagination } from "@/components/ui/Pagination";
 import { SearchField } from "@/components/ui/SearchField";
@@ -11,7 +12,7 @@ import { Segmented } from "@/components/ui/Segmented";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { StatusDef, StatusMark } from "@/components/ui/StatusMark";
 import { Charge, ChargeStatus, ChargeType, RateCurrency } from "@/types/domain";
-import { formatCurrency, formatDate, formatPeriod, rateLabel } from "@/lib/format";
+import { formatCurrency, formatDate, formatPeriod } from "@/lib/format";
 import { matchesTerm } from "@/lib/search";
 import { usePagination } from "@/lib/usePagination";
 import { ApiError } from "@/services/api";
@@ -48,6 +49,9 @@ function statusOf(c: Charge): StatusDef {
 }
 
 const otherCurrency = (c: RateCurrency) => (c === RateCurrency.USD ? RateCurrency.EUR : RateCurrency.USD);
+
+/** "dólar" / "euro": dicho con palabras, no con "Bs a tasa $". */
+const RATE_NAME: Record<RateCurrency, string> = { USD: "dólar", EUR: "euro" };
 
 export function PeriodChargesModal({ period, type, open, onClose, onChanged }: PeriodChargesModalProps) {
   const [charges, setCharges] = useState<Charge[]>([]);
@@ -107,7 +111,7 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
     setChangingAll(true);
     try {
       const { updated } = await billingService.setPeriodCurrency(period, type as ChargeType, currency);
-      toast.success(`${updated} cuotas pasan a ${rateLabel(currency)}`);
+      toast.success(`${updated} ${updated === 1 ? "cuota pasa" : "cuotas pasan"} a cobrarse con la tasa del ${RATE_NAME[currency]}`);
       load();
       onChanged?.();
     } catch (err) {
@@ -157,6 +161,7 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
   };
 
   const unpaidCurrency = unpaid.length && unpaid.every((u) => u.currency === unpaid[0].currency) ? unpaid[0].currency : null;
+  const mixedRates = new Set(charges.map((c) => c.currency)).size > 1;
 
   return (
     <>
@@ -205,8 +210,10 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
         )}
 
         {/* ── Filtros ── */}
-        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="no-scrollbar -mx-5 overflow-x-auto px-5 sm:mx-0 sm:px-0">
+        {/* El buscador baja a su propia línea cuando no cabe junto al filtro: así el
+            filtro nunca queda cortado. Solo en un teléfono muy angosto se desplaza. */}
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <div className="no-scrollbar max-w-full shrink-0 overflow-x-auto">
             <Segmented<Filter>
               aria-label="Estado de la cuota"
               value={filter}
@@ -219,15 +226,23 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
               ]}
             />
           </div>
-          <SearchField value={search} onChange={setSearch} placeholder="Departamento o torre" className="sm:ml-auto sm:w-56" />
+          <SearchField value={search} onChange={setSearch} placeholder="Departamento o torre" className="min-w-[200px] flex-1" />
         </div>
 
-        {/* ── Tasa de las no pagadas ── */}
+        {/* ── Con qué tasa se cobran en bolívares ── */}
         {!loading && unpaid.length > 0 && (
-          <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-ios-separator px-3.5 py-2.5 text-[13px]">
-            <span className="text-ios-secondary">Tasa de las no pagadas:</span>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-ios-separator px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-semibold text-ios-label">¿Con qué tasa se cobra en bolívares?</p>
+              <p className="text-[12px] text-ios-secondary">
+                Las cuotas están en REF. Quien pague en Bs paga al cambio de esta tasa BCV.
+                {unpaidCurrency
+                  ? " Las ya pagadas conservan la tasa con que se pagaron."
+                  : " Hoy hay cuotas con tasas distintas: elige una para igualarlas."}
+              </p>
+            </div>
             <Segmented
-              aria-label="Tasa de las cuotas no pagadas"
+              aria-label="Tasa para cobrar en bolívares"
               value={unpaidCurrency ?? ("MIXED" as RateCurrency)}
               onChange={(c) => !changingAll && c !== unpaidCurrency && void changeAll(c)}
               options={[
@@ -235,10 +250,6 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
                 { key: RateCurrency.EUR, label: "Euro" },
               ]}
             />
-            {!unpaidCurrency && <span className="text-[12px] font-medium text-amber-700 dark:text-amber-400">Hoy están mezcladas</span>}
-            <span className="basis-full text-[12px] text-ios-secondary">
-              Las pagadas conservan la tasa con que se pagaron.
-            </span>
           </div>
         )}
 
@@ -267,27 +278,13 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
                   </span>
 
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <StatusMark {...statusOf(c)} />
-                      {/* La tasa se cambia tocándola, mientras la cuota no esté pagada. */}
-                      {c.status === ChargeStatus.PAID ? (
-                        <span className="text-[11px] text-ios-tertiary">{rateLabel(c.currency)}</span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => void changeOne(c)}
-                          disabled={busy}
-                          title={`Cambiar a ${rateLabel(otherCurrency(c.currency))}`}
-                          className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-ios-secondary transition-colors hover:bg-ios-fill hover:text-ios-label disabled:opacity-50"
-                        >
-                          {rateLabel(c.currency)}
-                          <ArrowLeftRight className="h-3 w-3" />
-                        </button>
-                      )}
-                    </div>
+                    <StatusMark {...statusOf(c)} />
                     <p className="mt-0.5 truncate text-[12px] text-ios-secondary">
                       {[
                         c.property?.tower?.name,
+                        // La tasa solo se nombra si el período mezcla tasas: si todas son
+                        // iguales, ya lo dice el control de arriba.
+                        mixedRates && `Tasa del ${RATE_NAME[c.currency]}`,
                         cp && `Pagada el ${formatDate(cp.paymentDate)}${cp.reference ? ` · Ref. ${cp.reference}` : ""}`,
                         c.status === ChargeStatus.PARTIAL && paid > 0 && `Abonó ${formatCurrency(paid)}`,
                         c.writeOff && `Condonado ${formatCurrency(c.writeOff.amount)}: ${c.writeOff.reason}`,
@@ -307,7 +304,7 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
                     )}
                   </div>
 
-                  <div className="flex w-full shrink-0 justify-end sm:w-[112px]">
+                  <div className="flex w-full shrink-0 items-center justify-end gap-0.5 sm:w-[148px]">
                     {c.status === ChargeStatus.PAID ? (
                       cp?.receiptNumber && (
                         <RowIcon icon={Download} title={`Descargar recibo ${cp.receiptNumber}`} busy={busy} onClick={() => download(c)} />
@@ -334,6 +331,21 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
                       >
                         {c.status === ChargeStatus.EXONERATED ? "Reactivar" : "Exonerar"}
                       </Button>
+                    )}
+                    {/* Cambiar la tasa es ocasional: va al menú, dicho con palabras. Una
+                        cuota pagada conserva la tasa con que se pagó. */}
+                    {c.status !== ChargeStatus.PAID && (
+                      <RowMenu
+                        items={[
+                          {
+                            label: `Cobrar con la tasa del ${RATE_NAME[otherCurrency(c.currency)]}`,
+                            icon: ArrowLeftRight,
+                            onClick: () => void changeOne(c),
+                            disabled: busy,
+                            hint: `Hoy se cobra en Bs con la tasa del ${RATE_NAME[c.currency]}`,
+                          },
+                        ]}
+                      />
                     )}
                   </div>
                 </li>

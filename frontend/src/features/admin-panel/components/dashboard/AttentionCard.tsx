@@ -121,7 +121,7 @@ export function AttentionCard(p: AttentionCardProps) {
               )
             }
             count={p.debtorCount}
-            to="#morosidad"
+            to="/admin/departamentos?saldo=deuda"
           />
           <Item
             icon={<FileSpreadsheet className="h-5 w-5" />}
