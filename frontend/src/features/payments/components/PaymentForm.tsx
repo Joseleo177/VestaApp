@@ -79,6 +79,10 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, onSucc
 
   const isBS = currency === PaymentCurrency.BS;
   const isEfectivo = modalidad === "Efectivo";
+  // En efectivo se entrega; por transferencia se transfiere (en Bs o en divisas).
+  const verb = isEfectivo
+    ? { past: "entregó", owe: "Debes entregar", amount: "Monto entregado" }
+    : { past: "transfirió", owe: "Debes transferir", amount: "Monto transferido" };
 
   // Cuando cambia la moneda, resetear la modalidad al primer valor válido
   useEffect(() => {
@@ -219,7 +223,7 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, onSucc
   const onSubmit = async (values: PaymentFormValues) => {
     setSubmitError(null);
     if (mode === "partial" && !isBS && !(values.amountEur && values.amountEur > 0)) {
-      setSubmitError("Indica cuánto entregó en divisas");
+      setSubmitError(`Indica cuánto ${verb.past} en divisas`);
       return;
     }
     try {
@@ -339,7 +343,7 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, onSucc
                 );
               })}
               <div className="flex items-center justify-between border-t border-ios-blue/30 pt-1.5">
-                <span className="font-semibold">Debes transferir</span>
+                <span className="font-semibold">{verb.owe}</span>
                 <span className="text-base font-bold text-ios-blue">
                   {multiBs !== null
                     ? `Bs. ${multiBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -409,7 +413,7 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, onSucc
                 <span className="font-medium">{dateRate.rate.toLocaleString("es-VE", { minimumFractionDigits: 2 })} {rateUnit(dateRate.currency)}</span>
               </div>
               <div className="flex items-center justify-between border-t border-ios-blue/30 pt-1.5">
-                <span className="font-semibold">Debes transferir</span>
+                <span className="font-semibold">{verb.owe}</span>
                 <span className="text-base font-bold text-ios-blue">
                   Bs. {(amountEurForBs * dateRate.rate).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
@@ -424,7 +428,7 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, onSucc
       {selectedCharges.length > 0 && (
         <div className="space-y-3 rounded-2xl border border-ios-separator p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-[14px] font-semibold text-ios-label">¿Cuánto {isBS ? "transfirió" : "entregó"}?</p>
+            <p className="text-[14px] font-semibold text-ios-label">¿Cuánto {verb.past}?</p>
             <Segmented
               aria-label="Monto del pago"
               value={mode}
@@ -443,8 +447,8 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, onSucc
               step="0.01"
               min="0.01"
               inputMode="decimal"
-              label="Monto transferido (Bs)"
-              placeholder={mode === "partial" ? "Lo que transfirió, en bolívares" : undefined}
+              label={`${verb.amount} (Bs)`}
+              placeholder={mode === "partial" ? `Lo que ${verb.past}, en bolívares` : undefined}
               autoFocus={mode === "partial"}
               error={errors.amountBs?.message}
               {...amountBsField}
@@ -460,7 +464,7 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, onSucc
               step="0.01"
               min="0.01"
               inputMode="decimal"
-              label="Monto entregado (REF)"
+              label={`${verb.amount} (REF)`}
               placeholder="Ej. 20,00"
               autoFocus
               error={errors.amountEur?.message}
