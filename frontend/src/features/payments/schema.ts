@@ -18,6 +18,14 @@ export const paymentSchema = z
         .positive("El monto debe ser mayor a 0")
         .optional()
     ),
+    /** Solo en un abono en divisas: lo que de verdad entregó. Vacío = el total. */
+    amountEur: z.preprocess(
+      (v) => (v === "" || v === null ? undefined : v),
+      z.coerce
+        .number({ invalid_type_error: "Ingresa el monto entregado" })
+        .positive("El monto debe ser mayor a 0")
+        .optional()
+    ),
     reference: z.string().max(40, "Referencia demasiado larga").optional(),
     paymentDate: z
       .string()

@@ -5,6 +5,7 @@ import { CheckCircle2, Clock, Building2 } from "lucide-react";
 import { Input, Select } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { DatePicker, toISODate } from "@/components/ui/DatePicker";
+import { Segmented } from "@/components/ui/Segmented";
 import { Charge, ChargeStatus, Payment, PaymentCurrency, PaymentStatus, RateCurrency } from "@/types/domain";
 import { chargeLabel } from "../coveredCharges";
 import { formatCurrency, formatDate, rateUnit } from "@/lib/format";
@@ -74,6 +75,7 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, onSucc
   const modalidad = watch("modalidad");
   const amountBsInput = watch("amountBs");
   const paymentDateInput = watch("paymentDate");
+  const amountEurInput = watch("amountEur");
 
   const isBS = currency === PaymentCurrency.BS;
   const isEfectivo = modalidad === "Efectivo";
@@ -183,17 +185,46 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, onSucc
    * la suya (el backend recalcula los euros desde los bolívares reales).
    */
   const [amountTouched, setAmountTouched] = useState(false);
+  // "El total" o "Una parte" (abono): en un abono no se precarga nada, se escribe lo entregado.
+  const [mode, setMode] = useState<"full" | "partial">("full");
   useEffect(() => {
-    if (amountTouched || suggestedBs === null) return;
+    if (mode === "partial" || amountTouched || suggestedBs === null) return;
     setValue("amountBs", suggestedBs, { shouldValidate: false });
-  }, [suggestedBs, amountTouched, setValue]);
+  }, [suggestedBs, amountTouched, mode, setValue]);
 
   const amountBsField = register("amountBs");
 
+  const switchMode = (next: "full" | "partial") => {
+    setMode(next);
+    if (next === "partial") {
+      if (isBS) setValue("amountBs", undefined);
+      setAmountTouched(true);
+    } else {
+      setValue("amountEur", undefined);
+      setAmountTouched(false);
+    }
+  };
+
+  // Total de lo elegido en REF, y cuánto de eso cubre lo entregado (para decir qué queda).
+  const totalRef = multi ? multiTotal : isBS ? amountEurForBs : amountEurRef;
+  const paidRef = isBS
+    ? amountBsInput && suggestedBs
+      ? round2((amountBsInput / suggestedBs) * totalRef)
+      : null
+    : amountEurInput
+      ? round2(amountEurInput)
+      : null;
+  const pendingAfter = paidRef !== null ? round2(totalRef - paidRef) : null;
+
   const onSubmit = async (values: PaymentFormValues) => {
     setSubmitError(null);
+    if (mode === "partial" && !isBS && !(values.amountEur && values.amountEur > 0)) {
+      setSubmitError("Indica cuánto entregó en divisas");
+      return;
+    }
     try {
-      const payment = await paymentService.create(values);
+      // Pagando el total en divisas no se manda monto: lo calcula el backend con las cuotas.
+      const payment = await paymentService.create(mode === "full" ? { ...values, amountEur: undefined } : values);
       setResult(payment);
     } catch (err) {
       setSubmitError(err instanceof ApiError ? err.message : "No se pudo registrar el pago");
@@ -388,6 +419,90 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, onSucc
         </div>
       )}
 
+      {/* ¿Cuánto entregó? El total o una parte (abono). Antes en divisas no había
+          forma de registrar un abono: siempre se tomaba el total de las cuotas. */}
+      {selectedCharges.length > 0 && (
+        <div className="space-y-3 rounded-2xl border border-ios-separator p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[14px] font-semibold text-ios-label">¿Cuánto {isBS ? "transfirió" : "entregó"}?</p>
+            <Segmented
+              aria-label="Monto del pago"
+              value={mode}
+              onChange={switchMode}
+              options={[
+                { key: "full", label: "El total" },
+                { key: "partial", label: "Una parte" },
+              ]}
+            />
+          </div>
+
+          {isBS ? (
+            <Input
+              id="amountBs"
+              type="number"
+              step="0.01"
+              min="0.01"
+              inputMode="decimal"
+              label="Monto transferido (Bs)"
+              placeholder={mode === "partial" ? "Lo que transfirió, en bolívares" : undefined}
+              autoFocus={mode === "partial"}
+              error={errors.amountBs?.message}
+              {...amountBsField}
+              onChange={(e) => {
+                setAmountTouched(true);
+                void amountBsField.onChange(e);
+              }}
+            />
+          ) : mode === "partial" ? (
+            <Input
+              id="amountEur"
+              type="number"
+              step="0.01"
+              min="0.01"
+              inputMode="decimal"
+              label="Monto entregado (REF)"
+              placeholder="Ej. 20,00"
+              autoFocus
+              error={errors.amountEur?.message}
+              {...register("amountEur")}
+            />
+          ) : (
+            <p className="text-[13px] text-ios-secondary">
+              Se registra el total: <span className="font-semibold text-ios-label">{formatCurrency(totalRef)}</span>.
+            </p>
+          )}
+
+          {mode === "full" && isBS && eurFromBs !== null && (
+            <p className="text-[12px] text-ios-secondary">Equivalente estimado: {formatCurrency(eurFromBs)}</p>
+          )}
+
+          {mode === "partial" && paidRef !== null && pendingAfter !== null && (
+            <p
+              className={
+                pendingAfter > 0.005
+                  ? "rounded-lg bg-amber-500/[0.08] px-3 py-2 text-[13px] text-amber-800 dark:text-amber-300"
+                  : "rounded-lg bg-ios-fill/70 px-3 py-2 text-[13px] text-ios-label"
+              }
+            >
+              {pendingAfter > 0.005 ? (
+                <>
+                  Abona <span className="font-semibold">{formatCurrency(paidRef)}</span> y quedan{" "}
+                  <span className="font-semibold">{formatCurrency(pendingAfter)}</span> pendientes.
+                  {multi ? " Se aplica primero a la cuota más antigua." : " La cuota queda abonada en parte."}
+                </>
+              ) : pendingAfter < -0.005 ? (
+                <>
+                  Cubre el total y sobran <span className="font-semibold">{formatCurrency(-pendingAfter)}</span>, que quedan
+                  como saldo a favor.
+                </>
+              ) : (
+                "Cubre el total."
+              )}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Datos bancarios para transferencia: la cuenta en Bs o la de divisas */}
       {!isEfectivo && bank && (bank.name || bank.account) && (
         <div className="rounded-xl border border-ios-blue/30 bg-ios-blue/10 p-4">
@@ -423,30 +538,6 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, onSucc
               </div>
             )}
           </div>
-        </div>
-      )}
-
-      {/* Monto en Bs (solo Bolívares) */}
-      {isBS && (
-        <div>
-          <Input
-            id="amountBs"
-            type="number"
-            step="0.01"
-            min="0.01"
-            label="Monto transferido (Bs)"
-            error={errors.amountBs?.message}
-            {...amountBsField}
-            onChange={(e) => {
-              setAmountTouched(true);
-              void amountBsField.onChange(e);
-            }}
-          />
-          {eurFromBs !== null && (
-            <p className="mt-1 text-xs text-ios-secondary">
-              Equivalente estimado: {formatCurrency(eurFromBs)}
-            </p>
-          )}
         </div>
       )}
 

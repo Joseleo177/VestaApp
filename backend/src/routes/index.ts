@@ -10,6 +10,7 @@ import towerRoutes from "./tower.routes";
 import reconciliationRoutes from "./reconciliation.routes";
 import settingsRoutes from "./settings.routes";
 import reportRoutes from "./report.routes";
+import receiptRoutes from "./receipt.routes";
 
 const router = Router();
 
@@ -29,5 +30,6 @@ router.use("/towers", towerRoutes);
 router.use("/bank-statements", heavyLimiter, reconciliationRoutes);
 router.use("/settings", settingsRoutes);
 router.use("/reports", heavyLimiter, reportRoutes);
+router.use("/receipts", receiptRoutes);
 
 export default router;

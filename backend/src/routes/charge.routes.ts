@@ -36,6 +36,16 @@ router.patch(
   authorize(UserRole.ADMIN),
   ChargeController.setCurrency
 );
+router.patch(
+  "/period/:period/due-date",
+  authorize(UserRole.ADMIN),
+  ChargeController.setPeriodDueDate
+);
+router.patch(
+  "/:id/due-date",
+  authorize(UserRole.ADMIN),
+  ChargeController.setDueDate
+);
 router.post(
   "/:id/write-off",
   authorize(UserRole.ADMIN),

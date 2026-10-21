@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeftRight, Download, Receipt } from "lucide-react";
+import { ArrowLeftRight, CalendarClock, Download, Receipt } from "lucide-react";
 import { Modal, ModalIcon } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { EmptyBlock, RowIcon } from "@/components/ui/Ledger";
@@ -20,6 +20,7 @@ import { billingService } from "../services/billing.service";
 import { paymentService } from "@/features/payments/services/payment.service";
 import { progressOf } from "../hooks/usePeriods";
 import { WriteOffDialog } from "./WriteOffDialog";
+import { DueDateDialog, DueDateTarget, mergeDue } from "./DueDateDialog";
 
 interface PeriodChargesModalProps {
   period: string | null;
@@ -59,6 +60,7 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
   const [busyId, setBusyId] = useState<string | null>(null);
   const [changingAll, setChangingAll] = useState(false);
   const [writeOffTarget, setWriteOffTarget] = useState<Charge | null>(null);
+  const [dueTarget, setDueTarget] = useState<DueDateTarget | null>(null);
   const [filter, setFilter] = useState<Filter>("ALL");
   const [search, setSearch] = useState("");
 
@@ -163,6 +165,14 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
   const unpaidCurrency = unpaid.length && unpaid.every((u) => u.currency === unpaid[0].currency) ? unpaid[0].currency : null;
   const mixedRates = new Set(charges.map((c) => c.currency)).size > 1;
 
+  // Vencimiento del lote: el más repetido entre las no pagadas (o entre todas si no
+  // queda ninguna). Si alguna se corrigió aparte, el lote tiene vencimientos distintos.
+  const dueBase = unpaid.length ? unpaid : charges;
+  const dueCounts = new Map<string, number>();
+  dueBase.forEach((c) => dueCounts.set(c.dueDate.slice(0, 10), (dueCounts.get(c.dueDate.slice(0, 10)) ?? 0) + 1));
+  const periodDue = [...dueCounts].sort((a, b) => b[1] - a[1])[0]?.[0];
+  const mixedDue = dueCounts.size > 1;
+
   return (
     <>
       <Modal
@@ -206,6 +216,33 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
                 style={{ width: `${pct}%` }}
               />
             </div>
+            {/* Vencimiento del lote, corregible si se cargó mal al emitir. */}
+            {periodDue && (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-ios-separator pt-3 text-[13px]">
+                <span className="flex items-center gap-1.5 text-ios-secondary">
+                  <CalendarClock className="h-4 w-4" />
+                  Vence el <span className="font-semibold text-ios-label">{formatDate(periodDue)}</span>
+                  {mixedDue && <span className="text-amber-700 dark:text-amber-400">· algunas cuotas tienen otra fecha</span>}
+                </span>
+                {unpaid.length > 0 && period && type && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDueTarget({
+                        kind: "period",
+                        period,
+                        type: type as ChargeType,
+                        current: periodDue,
+                        moraAmount: Number(unpaid[0]?.moraAmount ?? 0),
+                      })
+                    }
+                    className="font-semibold text-brand-600 hover:underline"
+                  >
+                    Cambiar vencimiento
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -285,6 +322,8 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
                         // La tasa solo se nombra si el período mezcla tasas: si todas son
                         // iguales, ya lo dice el control de arriba.
                         mixedRates && `Tasa del ${RATE_NAME[c.currency]}`,
+                        // Igual con el vencimiento: solo si esta cuota tiene otro distinto al del lote.
+                        mixedDue && c.dueDate.slice(0, 10) !== periodDue && `Vence ${formatDate(c.dueDate)}`,
                         cp && `Pagada el ${formatDate(cp.paymentDate)}${cp.reference ? ` · Ref. ${cp.reference}` : ""}`,
                         c.status === ChargeStatus.PARTIAL && paid > 0 && `Abonó ${formatCurrency(paid)}`,
                         c.writeOff && `Condonado ${formatCurrency(c.writeOff.amount)}: ${c.writeOff.reason}`,
@@ -344,6 +383,13 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
                             disabled: busy,
                             hint: `Hoy se cobra en Bs con la tasa del ${RATE_NAME[c.currency]}`,
                           },
+                          {
+                            label: "Cambiar vencimiento",
+                            icon: CalendarClock,
+                            onClick: () => setDueTarget({ kind: "charge", charge: c }),
+                            disabled: busy,
+                            hint: `Hoy vence el ${formatDate(c.dueDate)}`,
+                          },
                         ]}
                       />
                     )}
@@ -372,6 +418,22 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
         onDone={(updated) => {
           replace(updated);
           setWriteOffTarget(null);
+        }}
+      />
+
+      <DueDateDialog
+        target={dueTarget}
+        onClose={() => setDueTarget(null)}
+        onDone={(updated) => {
+          const t = dueTarget;
+          setDueTarget(null);
+          // Una cuota vuelve actualizada (se combina con la de la lista, que trae
+          // departamento y pagos); un lote completo se recarga.
+          if (updated && t?.kind === "charge") replace(mergeDue(t.charge, updated));
+          else {
+            load();
+            onChanged?.();
+          }
         }}
       />
     </>

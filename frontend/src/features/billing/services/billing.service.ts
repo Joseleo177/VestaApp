@@ -62,6 +62,22 @@ export const billingService = {
     return data;
   },
 
+  /** Corrige el vencimiento de una cuota no pagada. */
+  async setChargeDueDate(chargeId: string, dueDate: string): Promise<Charge> {
+    const { data } = await api.patch<Charge>(`/charges/${chargeId}/due-date`, { dueDate });
+    return data;
+  },
+
+  /** Corrige el vencimiento de todas las cuotas no pagadas de un lote. */
+  async setPeriodDueDate(period: string, type: ChargeType, dueDate: string): Promise<{ updated: number }> {
+    const { data } = await api.patch<{ updated: number }>(
+      `/charges/period/${period}/due-date`,
+      { dueDate },
+      { params: { type } }
+    );
+    return data;
+  },
+
   /** Condona el saldo de una cuota con abono parcial. */
   async writeOff(chargeId: string, reason: string): Promise<Charge> {
     const { data } = await api.post<Charge>(`/charges/${chargeId}/write-off`, { reason });

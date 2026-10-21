@@ -6,11 +6,19 @@ import { UserRole } from "../models/User";
 import { PaymentCurrency, PaymentStatus } from "../models/Payment";
 import { HttpError } from "../middlewares/error.middleware";
 
+/** Monto en divisas de un abono: vacío = el total de las cuotas; si viene, > 0. */
+function parseAmountEur(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) throw new HttpError(400, "El monto en divisas debe ser mayor a 0");
+  return Math.round(n * 100) / 100;
+}
+
 export const PaymentController = {
   // POST /api/payments  (copropietario)
   async create(req: Request, res: Response, next: NextFunction) {
     try {
-      const { chargeId, chargeIds, currency, bank, reference, paymentDate, amountBs } = req.body;
+      const { chargeId, chargeIds, currency, bank, reference, paymentDate, amountBs, amountEur } = req.body;
       const ids: string[] = Array.isArray(chargeIds)
         ? chargeIds.filter((id: unknown): id is string => typeof id === "string")
         : chargeId
@@ -32,6 +40,9 @@ export const PaymentController = {
           reference,
           paymentDate,
           amountBs: amountBs ? Number(amountBs) : undefined,
+          // Abono en divisas: lo que de verdad entregó. Sin él se toma el total de
+          // las cuotas. El servicio ya lo usaba; el controlador no lo dejaba pasar.
+          amountEur: currency === PaymentCurrency.DIVISAS ? parseAmountEur(amountEur) : undefined,
         },
         req.user!.role as UserRole
       );

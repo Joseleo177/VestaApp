@@ -3,6 +3,7 @@ import {
   Building,
   Building2,
   CreditCard,
+  FileCheck,
   FileSpreadsheet,
   LayoutDashboard,
   LucideIcon,
@@ -40,6 +41,7 @@ export const ADMIN_GROUPS: AppGroup[] = [
     apps: [
       { label: "Dashboard", to: "/admin", icon: LayoutDashboard, hint: "Cobranza, deuda y pendientes", keywords: "inicio resumen panel", tone: "bg-indigo-500/[0.12] text-indigo-600 dark:text-indigo-400" },
       { label: "Pagos", to: "/admin/pagos", icon: CreditCard, hint: "Validar y registrar pagos", keywords: "validar confirmar rechazar importar", tone: "bg-fuchsia-500/[0.12] text-fuchsia-600 dark:text-fuchsia-400" },
+      { label: "Recibos", to: "/admin/recibos", icon: FileCheck, hint: "Buscar y descargar recibos", keywords: "recibo pdf comprobante anulado", tone: "bg-cyan-500/[0.12] text-cyan-600 dark:text-cyan-400" },
       { label: "Cobros", to: "/admin/gasto-comun", icon: Receipt, hint: "Emitir las cuotas del mes", keywords: "cuotas emitir periodo gasto", tone: "bg-emerald-500/[0.12] text-emerald-600 dark:text-emerald-400" },
       { label: "Extracto", to: "/admin/extracto", icon: FileSpreadsheet, hint: "Conciliar con el banco", keywords: "banco conciliacion estado de cuenta", tone: "bg-rose-500/[0.12] text-rose-600 dark:text-rose-400" },
     ],
@@ -48,7 +50,7 @@ export const ADMIN_GROUPS: AppGroup[] = [
     label: "Asociación",
     apps: [
       { label: "Clientes", to: "/admin/clientes", icon: Users, hint: "Vecinos, autorizados y accesos", keywords: "usuarios propietarios copropietarios vecinos", tone: "bg-sky-500/[0.12] text-sky-600 dark:text-sky-400" },
-      { label: "Departamentos", to: "/admin/departamentos", icon: Building, hint: "Unidades, titulares y alícuotas", keywords: "apartamentos unidades inmuebles", tone: "bg-amber-500/[0.12] text-amber-600 dark:text-amber-400" },
+      { label: "Departamentos", to: "/admin/departamentos", icon: Building, hint: "Unidades, titulares y saldos", keywords: "apartamentos unidades inmuebles", tone: "bg-amber-500/[0.12] text-amber-600 dark:text-amber-400" },
       { label: "Torres", to: "/admin/torres", icon: Building2, hint: "Edificios de la asociación", keywords: "edificios bloques", tone: "bg-teal-500/[0.12] text-teal-600 dark:text-teal-400" },
     ],
   },

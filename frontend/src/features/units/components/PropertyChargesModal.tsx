@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Ban, Building, Download, HandCoins, RotateCcw, Trash2, Undo2, Wallet } from "lucide-react";
+import { Ban, Building, CalendarClock, Download, HandCoins, RotateCcw, Trash2, Undo2, Wallet } from "lucide-react";
 import { Modal, ModalIcon } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -19,6 +19,7 @@ import { paymentService } from "@/features/payments/services/payment.service";
 import { PropertyWithBalance } from "@/features/admin-panel/types";
 import { PaymentForm } from "@/features/payments/components/PaymentForm";
 import { WriteOffDialog } from "@/features/billing/components/WriteOffDialog";
+import { DueDateDialog, mergeDue } from "@/features/billing/components/DueDateDialog";
 
 interface PropertyChargesModalProps {
   property: PropertyWithBalance | null;
@@ -76,6 +77,7 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
   const [payIds, setPayIds] = useState<string[] | null>(null);
   const [writeOffTarget, setWriteOffTarget] = useState<Charge | null>(null);
   const [revertTarget, setRevertTarget] = useState<Charge | null>(null);
+  const [dueTarget, setDueTarget] = useState<Charge | null>(null);
   const [chosen, setChosen] = useState<Filter | null>(null);
 
   const load = () => {
@@ -169,6 +171,9 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
         hint: c.pendingPayment ? "Tiene un pago en revisión" : "Perdonar lo que falta",
       });
     if (c.writeOff) items.push({ label: "Revertir condonación", icon: Undo2, onClick: () => setRevertTarget(c) });
+    // Un vencimiento mal cargado hace que el pago con mora no cuadre: se corrige aquí.
+    if (c.status !== ChargeStatus.PAID)
+      items.push({ label: "Cambiar vencimiento", icon: CalendarClock, onClick: () => setDueTarget(c), hint: `Hoy vence el ${formatDate(c.dueDate)}` });
     if (c.status === ChargeStatus.PENDING) items.push({ label: "Exonerar", icon: Ban, onClick: () => toggleExonerated(c) });
     if (c.status === ChargeStatus.EXONERATED) items.push({ label: "Reactivar", icon: RotateCcw, onClick: () => toggleExonerated(c) });
     if (c.status === ChargeStatus.PENDING || c.status === ChargeStatus.EXONERATED)
@@ -313,6 +318,15 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
           </ul>
         )}
       </Modal>
+
+      <DueDateDialog
+        target={dueTarget ? { kind: "charge", charge: dueTarget } : null}
+        onClose={() => setDueTarget(null)}
+        onDone={(updated) => {
+          if (updated && dueTarget) replaceCharge(mergeDue(dueTarget, updated));
+          setDueTarget(null);
+        }}
+      />
 
       <WriteOffDialog
         charge={writeOffTarget}

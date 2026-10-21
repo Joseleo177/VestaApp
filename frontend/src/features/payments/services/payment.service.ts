@@ -32,6 +32,7 @@ export const paymentService = {
       reference: values.reference ?? "",
       paymentDate: values.paymentDate,
       amountBs: values.amountBs,
+      amountEur: values.amountEur,
     });
     return data;
   },

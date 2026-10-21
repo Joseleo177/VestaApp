@@ -173,6 +173,33 @@ export const ChargeService = {
     return { updated: result.affected ?? 0 };
   },
 
+  /**
+   * Corrige el vencimiento de las cuotas no pagadas de un lote (o de una sola con
+   * `chargeId`). La mora se decide al confirmar cada pago comparando su fecha con
+   * este vencimiento, así que un vencimiento mal cargado hacía que el pago con
+   * mora no cuadrara. Las pagadas no se tocan: su mora ya quedó decidida.
+   */
+  async setDueDate(
+    dueDate: string,
+    scope: { chargeId: string } | { period: string; type?: string }
+  ): Promise<{ updated: number }> {
+    const qb = repo()
+      .createQueryBuilder()
+      .update(Charge)
+      .set({ dueDate })
+      .where("status IN (:...statuses)", {
+        statuses: [ChargeStatus.PENDING, ChargeStatus.PARTIAL, ChargeStatus.EXONERATED],
+      });
+    if ("chargeId" in scope) {
+      qb.andWhere("id = :id", { id: scope.chargeId });
+    } else {
+      qb.andWhere("period = :period", { period: scope.period });
+      if (scope.type) qb.andWhere("type = :type", { type: scope.type });
+    }
+    const result = await qb.execute();
+    return { updated: result.affected ?? 0 };
+  },
+
   listForPeriod(period: string, type?: string): Promise<Charge[]> {
     const where: any = { period };
     if (type) where.type = type;

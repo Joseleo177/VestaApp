@@ -10,6 +10,15 @@ import { HttpError } from "../middlewares/error.middleware";
 import { RateCurrency, isRateCurrency } from "../models/ExchangeRateRecord";
 import { assertEnabledCurrency, getRateConfig } from "../services/exchange-rate.service";
 
+/** "YYYY-MM-DD" válido o 400: es la fecha que decide si un pago lleva mora. */
+function parseDueDate(value: unknown): string {
+  const s = String(value ?? "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || Number.isNaN(new Date(`${s}T00:00:00`).getTime())) {
+    throw new HttpError(400, "Fecha de vencimiento inválida (AAAA-MM-DD)");
+  }
+  return s;
+}
+
 function serializeCharge(charge: import("../models/Charge").Charge) {
   const prop = charge.property;
   const isPartial = charge.status === ChargeStatus.PARTIAL;
@@ -323,6 +332,33 @@ export const ChargeController = {
       await ChargeService.setCurrency(currency, { chargeId: charge.id });
       charge.currency = currency;
       res.json(serializeCharge(charge));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // PATCH /api/charges/:id/due-date  {dueDate}  (admin) — corregir el vencimiento de una cuota
+  async setDueDate(req: Request, res: Response, next: NextFunction) {
+    try {
+      const dueDate = parseDueDate(req.body?.dueDate);
+      const charge = await ChargeService.getById(req.params.id);
+      if (charge.status === ChargeStatus.PAID) {
+        throw new HttpError(409, "La cuota ya está pagada: su mora quedó decidida con el pago");
+      }
+      await ChargeService.setDueDate(dueDate, { chargeId: charge.id });
+      charge.dueDate = dueDate;
+      res.json(serializeCharge(charge));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // PATCH /api/charges/period/:period/due-date?type=  {dueDate}  (admin) — el lote completo
+  async setPeriodDueDate(req: Request, res: Response, next: NextFunction) {
+    try {
+      const dueDate = parseDueDate(req.body?.dueDate);
+      const type = req.query.type as string | undefined;
+      res.json(await ChargeService.setDueDate(dueDate, { period: req.params.period, type }));
     } catch (err) {
       next(err);
     }
