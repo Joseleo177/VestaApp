@@ -7,12 +7,16 @@ interface ModalProps {
   open: boolean;
   onClose: () => void;
   title?: string;
+  /** Línea bajo el título: qué se hace aquí o sobre qué registro. */
+  description?: ReactNode;
+  /** Icono de la cabecera, ya dentro de su mosaico de color. */
+  icon?: ReactNode;
   children: ReactNode;
   className?: string;
 }
 
 /** Hoja modal iOS: sube desde abajo en móvil, se centra en escritorio. */
-export function Modal({ open, onClose, title, children, className }: ModalProps) {
+export function Modal({ open, onClose, title, description, icon, children, className }: ModalProps) {
   useEffect(() => {
     if (!open) return;
     const onEsc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -50,8 +54,14 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
         <div className="flex justify-center pt-2.5 sm:hidden" aria-hidden>
           <div className="h-1.5 w-9 rounded-full bg-ios-tertiary" />
         </div>
-        <div className="flex items-center justify-between gap-3 px-5 pb-2 pt-4 sm:px-6 sm:pt-5">
-          <h2 className="text-[17px] font-semibold text-ios-label">{title}</h2>
+        <div className="flex items-start justify-between gap-3 px-5 pb-2 pt-4 sm:px-6 sm:pt-5">
+          <div className="flex min-w-0 items-start gap-3">
+            {icon}
+            <div className="min-w-0 pt-0.5">
+              <h2 className="text-[17px] font-semibold leading-tight text-ios-label">{title}</h2>
+              {description && <p className="mt-0.5 text-[13px] text-ios-secondary">{description}</p>}
+            </div>
+          </div>
           <button
             onClick={onClose}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ios-fill text-ios-secondary transition-colors hover:bg-ios-separator hover:text-ios-label"
@@ -64,5 +74,14 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
       </div>
     </div>,
     document.body
+  );
+}
+
+/** Mosaico de icono para la cabecera del modal; `tone` son clases de fondo y color. */
+export function ModalIcon({ children, tone = "bg-brand-50 text-brand-600" }: { children: ReactNode; tone?: string }) {
+  return (
+    <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", tone)} aria-hidden>
+      {children}
+    </span>
   );
 }

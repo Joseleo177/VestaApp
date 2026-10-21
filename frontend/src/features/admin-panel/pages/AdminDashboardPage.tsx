@@ -1,177 +1,127 @@
-import { useMemo, useState } from "react";
-import {
-  Building,
-  CheckCircle2,
-  AlertTriangle,
-  Euro,
-  ClipboardList,
-} from "lucide-react";
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { Plus } from "lucide-react";
 import { Payment } from "@/types/domain";
-import { usePendingPayments } from "../hooks/usePendingPayments";
-import { useProperties } from "../hooks/useProperties";
-import { ValidationInbox } from "../components/ValidationInbox";
-import { PaymentReviewDrawer } from "../components/PaymentReviewDrawer";
-import { DelinquencyTable } from "../components/DelinquencyTable";
-import { formatCurrency } from "@/lib/format";
+import { Page } from "@/components/ui/Page";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { useAuth } from "@/features/auth/hooks/useAuth";
+import { formatPeriod } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { useAdminDashboard } from "../hooks/useAdminDashboard";
+import { PaymentDetailModal } from "../components/PaymentDetailModal";
+import { DelinquencyTable } from "../components/DelinquencyTable";
+import { CollectionHero } from "../components/dashboard/CollectionHero";
+import { AttentionCard } from "../components/dashboard/AttentionCard";
+import { IncomeChart } from "../components/dashboard/IncomeChart";
+import { TopDebtors } from "../components/dashboard/TopDebtors";
+import { PendingQueue } from "../components/dashboard/PendingQueue";
+import { RecentActivity } from "../components/dashboard/RecentActivity";
 
-interface KpiCardProps {
-  icon: React.ReactNode;
-  label: string;
-  value: string | number;
-  sub?: string;
-  color: "slate" | "emerald" | "rose" | "amber" | "brand";
-  loading?: boolean;
-}
-
-// Tarjetas blancas sobre el fondo agrupado: el color vive solo en el ícono y la cifra.
-const COLOR_MAP: Record<KpiCardProps["color"], { icon: string; value: string }> = {
-  slate:   { icon: "bg-ios-fill text-ios-secondary",      value: "text-ios-label"  },
-  emerald: { icon: "bg-ios-green/10 text-ios-green",      value: "text-ios-green"  },
-  rose:    { icon: "bg-ios-red/10 text-ios-red",          value: "text-ios-red"    },
-  amber:   { icon: "bg-ios-orange/10 text-ios-orange",    value: "text-ios-orange" },
-  brand:   { icon: "bg-brand-50 text-brand-600",          value: "text-brand-600"  },
+const greeting = () => {
+  const h = new Date().getHours();
+  return h < 12 ? "Buenos días" : h < 19 ? "Buenas tardes" : "Buenas noches";
 };
 
-function KpiCard({ icon, label, value, sub, color, loading }: KpiCardProps) {
-  const c = COLOR_MAP[color];
-  return (
-    // `min-w-0`: sin esto el ítem del grid no baja de su ancho de contenido y
-    // desborda la página en pantallas angostas.
-    <div className="flex min-w-0 items-center gap-4 rounded-2xl bg-ios-card p-5 shadow-ios">
-      <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-xl", c.icon)}>
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <p className="truncate text-xs font-medium uppercase tracking-wide text-ios-secondary">
-          {label}
-        </p>
-        {loading ? (
-          <div className="mt-1 h-6 w-16 animate-pulse rounded bg-ios-separator" />
-        ) : (
-          // Los conteos son cortos, pero un monto como "REF 16.170,00" no cabe a
-          // text-2xl en la columna del grid: se baja un escalón y se permite
-          // que parta de línea antes que recortar una cifra de dinero.
-          <p
-            className={cn(
-              "font-bold leading-tight tabular-nums break-words",
-              String(value).length > 9 ? "text-xl" : "text-2xl",
-              c.value
-            )}
-          >
-            {value}
-          </p>
-        )}
-        {sub && !loading && (
-          <p className="mt-0.5 text-xs text-ios-secondary truncate">{sub}</p>
-        )}
-      </div>
-    </div>
-  );
-}
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
+/**
+ * Panel del administrador. Abre con una frase que resume el estado de la
+ * asociación y la cifra que más importa (cuánto se ha cobrado del período);
+ * debajo, lo que pide acción y luego el contexto: ingresos, deuda y actividad.
+ */
 export function AdminDashboardPage() {
-  const { pending, loading: loadingPending, refetch } = usePendingPayments();
-  const { properties, loading: loadingProps, refetch: refetchProperties } = useProperties();
+  const { user } = useAuth();
+  const d = useAdminDashboard();
   const [selected, setSelected] = useState<Payment | null>(null);
+  const firstName = user?.fullName?.trim().split(/\s+/)[0];
 
-  const stats = useMemo(() => {
-    const total      = properties.length;
-    const alDia      = properties.filter((p) => p.balance === 0).length;
-    const morosos    = properties.filter((p) => p.balance > 0).length;
-    const deudaTotal = properties.reduce((s, p) => s + Number(p.balance), 0);
-    return { total, alDia, morosos, deudaTotal };
-  }, [properties]);
+  // La historia del día en una frase, armada solo con lo que hay.
+  const summary = (() => {
+    const parts: string[] = [];
+    if (d.period) parts.push(`llevas cobrado el ${Math.round(d.collection.ratio * 100)}% de ${formatPeriod(d.period).toLowerCase()}`);
+    parts.push(
+      d.pending.length
+        ? `tienes ${plural(d.pending.length, "pago", "pagos")} por validar`
+        : "no hay pagos esperando validación"
+    );
+    if (d.debtors.length) parts.push(`${plural(d.debtors.length, "departamento tiene", "departamentos tienen")} saldo pendiente`);
+    else parts.push("todos los departamentos están al día");
+    const text = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} y ${parts[parts.length - 1]}` : parts[0];
+    return text.charAt(0).toUpperCase() + text.slice(1) + ".";
+  })();
 
-  const loading = loadingProps || loadingPending;
-
-  // Confirmar o rechazar mueve la cola de validación y también los saldos,
-  // así que hay que recargar ambas fuentes: KPIs y morosidad salen de properties.
   const handleResolved = () => {
     setSelected(null);
-    void refetch();
-    void refetchProperties();
+    d.refreshAll();
   };
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-[28px] font-bold leading-tight text-ios-label">Dashboard</h1>
-        <p className="text-sm text-ios-secondary">Resumen general de la asociación</p>
-      </div>
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        <KpiCard
-          icon={<Building className="h-5 w-5" />}
-          label="Departamentos"
-          value={stats.total}
-          color="slate"
-          loading={loading}
-        />
-        <KpiCard
-          icon={<CheckCircle2 className="h-5 w-5" />}
-          label="Al día"
-          value={stats.alDia}
-          sub={stats.total > 0 ? `${Math.round((stats.alDia / stats.total) * 100)}% del total` : undefined}
-          color="emerald"
-          loading={loading}
-        />
-        <KpiCard
-          icon={<AlertTriangle className="h-5 w-5" />}
-          label="Morosos"
-          value={stats.morosos}
-          sub={stats.total > 0 ? `${Math.round((stats.morosos / stats.total) * 100)}% del total` : undefined}
-          color="rose"
-          loading={loading}
-        />
-        <KpiCard
-          icon={<Euro className="h-5 w-5" />}
-          label="Deuda total"
-          value={formatCurrency(stats.deudaTotal)}
-          sub="saldo pendiente"
-          color="amber"
-          loading={loading}
-        />
-        <KpiCard
-          icon={<ClipboardList className="h-5 w-5" />}
-          label="Por validar"
-          value={pending.length}
-          sub={pending.length === 0 ? "Todo al día" : `${pending.length} pago${pending.length !== 1 ? "s" : ""} esperando`}
-          color={pending.length > 0 ? "brand" : "slate"}
-          loading={loading}
-        />
-      </div>
-
-      {/* Pagos por validar */}
-      <section>
-        <div className="mb-3 flex items-center gap-2">
-          <h2 className="text-lg font-semibold text-ios-label">Pagos por validar</h2>
-          {pending.length > 0 && (
-            <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-700">
-              {pending.length}
-            </span>
-          )}
+    <Page
+      module="Panel de administración"
+      title={firstName ? `${greeting()}, ${firstName}` : greeting()}
+      actions={
+        <Link
+          to="/admin/gasto-comun"
+          className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-brand-600 px-3.5 text-[13px] font-semibold text-white transition hover:brightness-95 active:scale-[0.97]"
+        >
+          <Plus className="h-4 w-4" />
+          <span className="hidden sm:inline">Emitir cuotas</span>
+          <span className="sm:hidden">Cuotas</span>
+        </Link>
+      }
+      subheader={
+        d.loading || d.loadingActivity ? (
+          <Skeleton className="h-4 w-2/3 max-w-xl" />
+        ) : (
+          <p className="max-w-3xl text-[15px] leading-relaxed text-ios-secondary">{summary}</p>
+        )
+      }
+    >
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <CollectionHero loading={d.loadingActivity} period={d.period} collection={d.collection} />
         </div>
-        <ValidationInbox
-          payments={pending}
-          loading={loadingPending}
-          onSelect={setSelected}
+        <AttentionCard
+          loading={d.loading}
+          pendingCount={d.pending.length}
+          pendingTotal={d.pendingTotal}
+          debtorCount={d.debtors.length}
+          totalDebt={d.totalDebt}
         />
+
+        <div className="lg:col-span-2">
+          <IncomeChart
+            loading={d.loadingActivity}
+            months={d.income}
+            thisMonth={d.thisMonth}
+            lastMonth={d.lastMonth}
+          />
+        </div>
+        <TopDebtors loading={d.loading} debtors={d.debtors} totalDebt={d.totalDebt} />
+
+        {d.pending.length > 0 && (
+          <div className="lg:col-span-2">
+            <PendingQueue payments={d.pending} onReview={setSelected} nameOf={d.ownerName} />
+          </div>
+        )}
+        <div className={cn(d.pending.length === 0 && "lg:col-span-3")}>
+          <RecentActivity loading={d.loadingActivity} payments={d.recent} nameOf={d.ownerName} />
+        </div>
+      </div>
+
+      <section id="morosidad" className="scroll-mt-24 pt-4">
+        <h2 className="mb-1 text-[18px] font-semibold text-ios-label">Control de morosidad</h2>
+        <p className="mb-3 text-[13px] text-ios-secondary">Todos los departamentos con su saldo pendiente.</p>
+        <DelinquencyTable properties={d.properties} loading={d.loading} />
       </section>
 
-      {/* Control de morosidad */}
-      <section>
-        <h2 className="mb-3 text-lg font-semibold text-ios-label">Control de morosidad</h2>
-        <DelinquencyTable properties={properties} loading={loadingProps} />
-      </section>
-
-      <PaymentReviewDrawer
+      <PaymentDetailModal
         payment={selected}
         open={!!selected}
         onClose={() => setSelected(null)}
         onResolved={handleResolved}
+        ownerName={selected ? d.ownerName(selected) : undefined}
       />
-    </div>
+    </Page>
   );
 }

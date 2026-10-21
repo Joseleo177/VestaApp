@@ -111,11 +111,22 @@ export const AuthController = {
   async updateProfile(req: Request, res: Response, next: NextFunction) {
     try {
       const userId = req.user!.sub;
-      const { phone, email, password } = req.body;
-      
+      const { phone, email, password, fullName } = req.body;
+
       const user = await userRepo().findOneBy({ id: userId });
       if (!user) throw new HttpError(404, "Usuario no encontrado");
 
+      // Solo el administrador corrige su propio nombre. El del vecino identifica
+      // al titular en recibos y estados de cuenta: lo cambia la administración.
+      // El rol se toma de la base de datos, no del token.
+      if (fullName !== undefined) {
+        if (user.role !== UserRole.ADMIN) {
+          throw new HttpError(403, "Pide a la administración que corrija tu nombre");
+        }
+        const name = String(fullName).trim();
+        if (name.length < 3) throw new HttpError(400, "Indica el nombre completo");
+        user.fullName = name;
+      }
       if (phone !== undefined) user.phone = phone;
       if (email !== undefined) user.email = email;
       
@@ -128,6 +139,7 @@ export const AuthController = {
       res.json({
         id: user.id,
         cedula: user.cedula,
+        cedulaTipo: user.cedulaTipo,
         fullName: user.fullName,
         phone: user.phone,
         email: user.email,

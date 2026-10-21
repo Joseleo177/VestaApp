@@ -13,7 +13,7 @@ import { UserFormModal } from "../components/UserFormModal";
 import { isActiveClient } from "../types";
 
 /**
- * Clientes del condominio: copropietarios, autorizados y administradores.
+ * Clientes de la asociación: copropietarios, autorizados y administradores.
  * Listado con su deuda y, al tocar una fila, su ficha con los departamentos.
  */
 export function ClientsPage() {

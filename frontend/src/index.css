@@ -63,6 +63,12 @@
   html.dark {
     color-scheme: dark;
   }
+  /* Los enlaces de la portada (#vecinos, #preguntas…) se desplazan, no saltan. */
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
   body {
     @apply bg-ios-bg text-ios-label;
     -webkit-font-smoothing: antialiased;

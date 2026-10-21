@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/services/api";
 
-/** Datos públicos del condominio que el vecino necesita para pagar. */
+/** Datos públicos de la asociación que el vecino necesita para pagar. */
 export interface CondoSettings {
   condo_name?: string;
   condo_rif?: string;

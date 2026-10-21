@@ -18,7 +18,8 @@ export const authService = {
     return data;
   },
 
-  async updateProfile(input: { phone?: string; email?: string; password?: string }): Promise<User> {
+  /** `fullName` solo lo acepta el backend para el administrador. */
+  async updateProfile(input: { fullName?: string; phone?: string; email?: string; password?: string }): Promise<User> {
     const { data } = await api.patch<User>("/auth/profile", input);
     return data;
   },

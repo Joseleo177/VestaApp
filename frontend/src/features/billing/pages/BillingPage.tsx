@@ -1,73 +1,93 @@
 import { useState } from "react";
-import { Plus, X } from "lucide-react";
+import { Plus, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Modal, ModalIcon } from "@/components/ui/Modal";
+import { Money } from "@/components/ui/Money";
+import { Page } from "@/components/ui/Page";
+import { formatCurrency } from "@/lib/format";
+import { ChargeType } from "@/types/domain";
 import { usePeriods } from "../hooks/usePeriods";
 import { GenerateChargesForm } from "../components/GenerateChargesForm";
 import { PeriodsTable } from "../components/PeriodsTable";
 import { PeriodChargesModal } from "../components/PeriodChargesModal";
 
-/** Módulo de gasto común: emitir la cuota del mes, ver y exonerar cuotas. */
+/** Cobros: emitir las cuotas del mes y seguir la cobranza de cada período. */
 export function BillingPage() {
   const { periods, loading, refetch } = usePeriods();
-  const [selectedPeriod, setSelectedPeriod] = useState<{ period: string; type: string } | null>(null);
-  const [showForm, setShowForm] = useState(false);
+  const [selected, setSelected] = useState<{ period: string; type: string } | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
 
-  // Al emitir se cierra el formulario: el período ya aparece en la tabla.
+  const pending = periods.reduce(
+    (s, p) => s + (p.progress ? Math.max(0, p.progress.billable - p.progress.collected) : 0),
+    0
+  );
+
   const handleGenerated = () => {
-    setShowForm(false);
-    refetch();
+    setFormOpen(false);
+    void refetch();
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-[28px] font-bold leading-tight text-ios-label">Cuotas de la asociación</h1>
-          <p className="text-sm text-ios-secondary">
-            Emite la cuota fija del mes para todos los departamentos y gestiona
-            exoneraciones.
-          </p>
-        </div>
-        <Button
-          variant={showForm ? "outline" : "primary"}
-          onClick={() => setShowForm((open) => !open)}
-        >
-          {showForm ? (
-            <>
-              <X className="h-4 w-4" /> Cancelar
-            </>
-          ) : (
-            <>
-              <Plus className="h-4 w-4" /> Generar cuotas
-            </>
-          )}
+    <Page
+      module="Día a día"
+      title="Cobros"
+      actions={
+        <Button size="sm" onClick={() => setFormOpen(true)}>
+          <Plus className="h-4 w-4" />
+          Emitir cuotas
         </Button>
-      </div>
+      }
+      subheader={
+        !loading && periods.length > 0 ? (
+          <p className="text-[14px] text-ios-secondary">
+            {periods.length} {periods.length === 1 ? "período emitido" : "períodos emitidos"}
+            {pending > 0.005 ? (
+              <>
+                {" · "}
+                <Money value={formatCurrency(pending)} className="font-semibold text-ios-label" /> por cobrar en total.
+                Toca un período para ver sus cuotas, exonerar o condonar.
+              </>
+            ) : (
+              " · todo cobrado."
+            )}
+          </p>
+        ) : undefined
+      }
+    >
+      <PeriodsTable
+        periods={periods}
+        loading={loading}
+        onSelect={(period, type) => setSelected({ period, type })}
+        onDeleted={refetch}
+        onCreate={() => setFormOpen(true)}
+      />
 
-      {showForm && <GenerateChargesForm onGenerated={handleGenerated} />}
-
-      <div>
-        <h2 className="mb-3 text-lg font-semibold text-ios-label">
-          Períodos emitidos
-        </h2>
-        <p className="mb-3 text-xs text-ios-secondary">
-          Haz clic en un período para ver sus cuotas y exonerar departamentos.
-        </p>
-        <PeriodsTable 
-          periods={periods} 
-          loading={loading} 
-          onSelect={(period, type) => setSelectedPeriod({ period, type })} 
-          onDeleted={refetch} 
+      <Modal
+        open={formOpen}
+        onClose={() => setFormOpen(false)}
+        className="sm:max-w-2xl"
+        title="Emitir cuotas"
+        description="Crea la cuota del período para los departamentos que elijas."
+        icon={
+          <ModalIcon tone="bg-emerald-500/[0.12] text-emerald-600 dark:text-emerald-400">
+            <Receipt className="h-5 w-5" />
+          </ModalIcon>
+        }
+      >
+        <GenerateChargesForm
+          onGenerated={handleGenerated}
+          onCancel={() => setFormOpen(false)}
+          emittedPeriods={periods.filter((p) => p.type === ChargeType.REGULAR).map((p) => p.period)}
         />
-      </div>
+      </Modal>
 
       <PeriodChargesModal
-        period={selectedPeriod?.period ?? null}
-        type={selectedPeriod?.type ?? null}
-        open={!!selectedPeriod}
-        onClose={() => setSelectedPeriod(null)}
+        period={selected?.period ?? null}
+        type={selected?.type ?? null}
+        open={!!selected}
+        onClose={() => setSelected(null)}
         onChanged={refetch}
       />
-    </div>
+    </Page>
   );
 }

@@ -1,17 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Download, Loader2 } from "lucide-react";
-import { Modal } from "@/components/ui/Modal";
+import { ArrowLeftRight, Download, Receipt } from "lucide-react";
+import { Modal, ModalIcon } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
-import { TableSkeleton } from "@/components/ui/Skeleton";
+import { EmptyBlock, RowIcon } from "@/components/ui/Ledger";
+import { Money } from "@/components/ui/Money";
 import { Pagination } from "@/components/ui/Pagination";
+import { SearchField } from "@/components/ui/SearchField";
+import { Segmented } from "@/components/ui/Segmented";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { StatusDef, StatusMark } from "@/components/ui/StatusMark";
 import { Charge, ChargeStatus, ChargeType, RateCurrency } from "@/types/domain";
 import { formatCurrency, formatDate, formatPeriod, rateLabel } from "@/lib/format";
-import { cn } from "@/lib/cn";
+import { matchesTerm } from "@/lib/search";
 import { usePagination } from "@/lib/usePagination";
 import { ApiError } from "@/services/api";
 import { billingService } from "../services/billing.service";
 import { paymentService } from "@/features/payments/services/payment.service";
+import { progressOf } from "../hooks/usePeriods";
 import { WriteOffDialog } from "./WriteOffDialog";
 
 interface PeriodChargesModalProps {
@@ -19,24 +25,38 @@ interface PeriodChargesModalProps {
   type: string | null;
   open: boolean;
   onClose: () => void;
-  /** Se llamó tras cambiar la tasa de cuotas: el listado de períodos la muestra. */
+  /** Tras exonerar, condonar o cambiar la tasa: la lista de períodos se actualiza. */
   onChanged?: () => void;
 }
 
-const STATUS_META: Record<ChargeStatus, { label: string; cls: string }> = {
-  [ChargeStatus.PENDING]: { label: "Pendiente", cls: "bg-ios-orange/10 text-ios-orange" },
-  [ChargeStatus.PAID]: { label: "Pagada", cls: "bg-ios-green/10 text-ios-green" },
-  [ChargeStatus.EXONERATED]: { label: "Exonerada", cls: "bg-ios-fill text-ios-secondary" },
-  [ChargeStatus.PARTIAL]: { label: "Parcial", cls: "bg-ios-orange/10 text-ios-orange" },
-};
+type Filter = "ALL" | "OPEN" | "PAID" | "EXONERATED";
+
+const isOpen = (c: Charge) => c.status === ChargeStatus.PENDING || c.status === ChargeStatus.PARTIAL;
+
+// Pagada es lo normal (gris con visto); lo vencido es lo único en rojo.
+function statusOf(c: Charge): StatusDef {
+  switch (c.status) {
+    case ChargeStatus.PAID:
+      return { label: "Pagada", tone: "success", quiet: "check" };
+    case ChargeStatus.EXONERATED:
+      return { label: "Exonerada", tone: "violet" };
+    case ChargeStatus.PARTIAL:
+      return { label: "Abonada en parte", tone: "warning" };
+    default:
+      return c.overdue ? { label: "Vencida", tone: "danger" } : { label: "Pendiente", tone: "warning" };
+  }
+}
+
+const otherCurrency = (c: RateCurrency) => (c === RateCurrency.USD ? RateCurrency.EUR : RateCurrency.USD);
 
 export function PeriodChargesModal({ period, type, open, onClose, onChanged }: PeriodChargesModalProps) {
   const [charges, setCharges] = useState<Charge[]>([]);
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [changingAll, setChangingAll] = useState(false);
   const [writeOffTarget, setWriteOffTarget] = useState<Charge | null>(null);
+  const [filter, setFilter] = useState<Filter>("ALL");
+  const [search, setSearch] = useState("");
 
   const load = () => {
     if (!period) return;
@@ -50,12 +70,36 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
 
   useEffect(() => {
     if (!open || !period) return;
+    setFilter("ALL");
+    setSearch("");
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, period, type]);
 
-  const otherCurrency = (c: RateCurrency) =>
-    c === RateCurrency.USD ? RateCurrency.EUR : RateCurrency.USD;
+  const replace = (updated: Charge) => {
+    setCharges((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+    onChanged?.();
+  };
+
+  const progress = useMemo(() => progressOf(charges), [charges]);
+  const pct = progress.billable > 0 ? Math.round((progress.collected / progress.billable) * 100) : 100;
+  const unpaid = charges.filter((c) => c.status !== ChargeStatus.PAID);
+  const counts: Record<Filter, number> = {
+    ALL: charges.length,
+    OPEN: charges.filter(isOpen).length,
+    PAID: charges.filter((c) => c.status === ChargeStatus.PAID).length,
+    EXONERATED: progress.exonerated,
+  };
+
+  const filtered = useMemo(() => {
+    const byStatus = charges.filter((c) =>
+      filter === "ALL" ? true : filter === "OPEN" ? isOpen(c) : c.status === filter
+    );
+    return byStatus
+      .filter((c) => matchesTerm(search, [c.property?.code, c.property?.tower?.name, c.description]))
+      .sort((a, b) => (a.property?.code ?? "").localeCompare(b.property?.code ?? "", "es", { numeric: true }));
+  }, [charges, filter, search]);
+  const paged = usePagination(filtered, 15);
 
   /** Cambia la tasa de todas las cuotas no pagadas del lote. */
   const changeAll = async (currency: RateCurrency) => {
@@ -77,8 +121,7 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
     setBusyId(charge.id);
     try {
       const updated = await billingService.setChargeCurrency(charge.id, otherCurrency(charge.currency));
-      setCharges((prev) => prev.map((c) => (c.id === charge.id ? { ...c, currency: updated.currency } : c)));
-      onChanged?.();
+      replace({ ...charge, currency: updated.currency });
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo cambiar la tasa");
     } finally {
@@ -86,17 +129,12 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
     }
   };
 
-  const unpaid = charges.filter((c) => c.status !== ChargeStatus.PAID);
-
-  const paged = usePagination(charges, 20);
-
-  const toggle = async (charge: Charge) => {
+  const toggleExonerated = async (charge: Charge) => {
     const exonerate = charge.status !== ChargeStatus.EXONERATED;
     setBusyId(charge.id);
     try {
-      const updated = await billingService.setExonerated(charge.id, exonerate);
-      setCharges((prev) => prev.map((c) => (c.id === charge.id ? updated : c)));
-      toast.success(exonerate ? "Cuota exonerada" : "Cuota reactivada");
+      replace(await billingService.setExonerated(charge.id, exonerate));
+      toast.success(exonerate ? `${charge.property?.code ?? "Cuota"} exonerada` : "Cuota reactivada");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo actualizar");
     } finally {
@@ -105,185 +143,222 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
   };
 
   /** El recibo se pide por su número: es el que cubre esta cuota concreta. */
-  const handleDownload = async (charge: Charge) => {
+  const download = async (charge: Charge) => {
     const cp = charge.confirmedPayment;
     if (!cp?.id || !cp.receiptNumber) return;
-    setDownloadingId(charge.id);
+    setBusyId(charge.id);
     try {
       await paymentService.downloadReceipt(cp.id, cp.receiptNumber);
     } catch {
       toast.error("No se pudo descargar el recibo");
     } finally {
-      setDownloadingId(null);
+      setBusyId(null);
     }
   };
 
+  const unpaidCurrency = unpaid.length && unpaid.every((u) => u.currency === unpaid[0].currency) ? unpaid[0].currency : null;
+
   return (
     <>
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={period ? `Cuotas — ${formatPeriod(period)}` : "Cuotas"}
-      className="max-w-2xl"
-    >
-      {!loading && unpaid.length > 0 && (
-        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl bg-ios-fill px-3 py-2 text-xs text-ios-secondary">
-          <span>Tasa de las cuotas no pagadas:</span>
-          {[RateCurrency.USD, RateCurrency.EUR].map((c) => (
-            <Button
-              key={c}
-              size="sm"
-              variant="outline"
-              disabled={changingAll || unpaid.every((u) => u.currency === c)}
-              onClick={() => void changeAll(c)}
-            >
-              Todas a tasa {c === RateCurrency.USD ? "$" : "€"}
-            </Button>
-          ))}
-          <span className="basis-full">
-            Las pagadas conservan la tasa con que se pagaron. También puedes cambiar una sola
-            tocando su etiqueta de tasa.
-          </span>
+      <Modal
+        open={open}
+        onClose={onClose}
+        className="sm:max-w-3xl"
+        title={period ? formatPeriod(period) : "Cuotas"}
+        description={`${type === ChargeType.SPECIAL ? "Cuota especial" : "Cuota regular"} · ${charges.length} departamentos`}
+        icon={
+          <ModalIcon tone="bg-emerald-500/[0.12] text-emerald-600 dark:text-emerald-400">
+            <Receipt className="h-5 w-5" />
+          </ModalIcon>
+        }
+      >
+        {/* ── Resumen de la cobranza ── */}
+        {loading ? (
+          <Skeleton className="mb-4 h-20 w-full !rounded-2xl" />
+        ) : (
+          <div className="mb-4 rounded-2xl bg-ios-fill/60 p-4">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="text-[12px] text-ios-secondary">Cobrado</p>
+                <p className="text-[26px] font-bold leading-tight text-ios-label">
+                  {pct}%{" "}
+                  <span className="text-[13px] font-medium text-ios-secondary">
+                    · <Money value={formatCurrency(progress.collected)} /> de <Money value={formatCurrency(progress.billable)} />
+                  </span>
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-[12px] text-ios-secondary">Por cobrar</p>
+                <Money
+                  value={formatCurrency(Math.max(0, progress.billable - progress.collected))}
+                  className="text-[17px] font-semibold text-ios-label"
+                />
+              </div>
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-brand-100" aria-hidden>
+              <div
+                className={progress.open === 0 ? "h-full rounded-full bg-emerald-500" : "h-full rounded-full bg-brand-600"}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* ── Filtros ── */}
+        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="no-scrollbar -mx-5 overflow-x-auto px-5 sm:mx-0 sm:px-0">
+            <Segmented<Filter>
+              aria-label="Estado de la cuota"
+              value={filter}
+              onChange={setFilter}
+              options={[
+                { key: "ALL", label: "Todas", count: counts.ALL },
+                { key: "OPEN", label: "Por cobrar", count: counts.OPEN },
+                { key: "PAID", label: "Pagadas", count: counts.PAID },
+                ...(counts.EXONERATED ? [{ key: "EXONERATED" as Filter, label: "Exoneradas", count: counts.EXONERATED }] : []),
+              ]}
+            />
+          </div>
+          <SearchField value={search} onChange={setSearch} placeholder="Departamento o torre" className="sm:ml-auto sm:w-56" />
         </div>
-      )}
-      {loading ? (
-        <TableSkeleton rows={4} cols={4} />
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="text-xs uppercase tracking-wide text-ios-secondary">
-              <tr>
-                <th className="py-2 font-medium">Departamento</th>
-                <th className="py-2 font-medium">Concepto</th>
-                <th className="py-2 font-medium">Deuda</th>
-                <th className="py-2 font-medium">Estado</th>
-                <th className="py-2 text-right font-medium">Acción</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-ios-separator">
-              {paged.items.map((c) => (
-                <tr key={c.id}>
-                  <td className="py-2.5">
-                    <div className="font-medium text-ios-label">
-                      {c.property?.code ?? "—"}
-                    </div>
-                    {c.property?.tower && (
-                      <div className="text-xs text-ios-secondary">{c.property.tower.name}</div>
-                    )}
-                  </td>
-                  <td className="py-2.5">
-                    <div className="text-ios-label text-xs">{c.description}</div>
-                    {c.type === ChargeType.SPECIAL && (
-                      <span className="mt-0.5 mr-1 inline-flex rounded-full bg-ios-purple/10 px-2 py-0.5 text-xs font-medium text-ios-purple">
-                        Especial
-                      </span>
-                    )}
-                    {c.status === ChargeStatus.PAID ? (
-                      <span className="mt-0.5 inline-flex rounded-full bg-ios-fill px-2 py-0.5 text-xs font-medium text-ios-secondary">
-                        {rateLabel(c.currency)}
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => void changeOne(c)}
-                        disabled={busyId === c.id}
-                        title={`Cambiar a ${rateLabel(otherCurrency(c.currency))}`}
-                        className="mt-0.5 inline-flex rounded-full bg-ios-fill px-2 py-0.5 text-xs font-medium text-ios-label hover:bg-brand-50 disabled:opacity-50"
-                      >
-                        {rateLabel(c.currency)} ⇄
-                      </button>
-                    )}
-                  </td>
-                  <td className="py-2.5 text-ios-label">
-                    {formatCurrency(c.amountDue ?? c.amount)}
-                    {c.overdue && c.status === ChargeStatus.PENDING && (
-                      <span className="ml-1 text-xs text-ios-red">(mora)</span>
-                    )}
-                    {c.writeOff && (
-                      <div className="mt-0.5 text-xs text-ios-purple">
-                        Condonado {formatCurrency(c.writeOff.amount)}: {c.writeOff.reason}
-                      </div>
-                    )}
-                    {c.confirmedPayment && (
-                      <div className="mt-0.5 font-mono text-xs text-ios-green">
-                        {c.confirmedPayment.reference} · {c.confirmedPayment.bank} · {formatDate(c.confirmedPayment.paymentDate)}
-                      </div>
-                    )}
-                  </td>
-                  <td className="py-2.5">
-                    <span
-                      className={cn(
-                        "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium",
-                        STATUS_META[c.status].cls
-                      )}
-                    >
-                      {STATUS_META[c.status].label}
-                    </span>
-                  </td>
-                  <td className="py-2.5 text-right">
-                    {c.status === ChargeStatus.PAID ? (
-                      c.confirmedPayment?.receiptNumber ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleDownload(c)}
-                          disabled={downloadingId === c.id}
-                          title={`Descargar ${c.confirmedPayment.receiptNumber}`}
-                        >
-                          {downloadingId === c.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Download className="h-3.5 w-3.5" />
-                          )}
-                          PDF
-                        </Button>
+
+        {/* ── Tasa de las no pagadas ── */}
+        {!loading && unpaid.length > 0 && (
+          <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-ios-separator px-3.5 py-2.5 text-[13px]">
+            <span className="text-ios-secondary">Tasa de las no pagadas:</span>
+            <Segmented
+              aria-label="Tasa de las cuotas no pagadas"
+              value={unpaidCurrency ?? ("MIXED" as RateCurrency)}
+              onChange={(c) => !changingAll && c !== unpaidCurrency && void changeAll(c)}
+              options={[
+                { key: RateCurrency.USD, label: "Dólar" },
+                { key: RateCurrency.EUR, label: "Euro" },
+              ]}
+            />
+            {!unpaidCurrency && <span className="text-[12px] font-medium text-amber-700 dark:text-amber-400">Hoy están mezcladas</span>}
+            <span className="basis-full text-[12px] text-ios-secondary">
+              Las pagadas conservan la tasa con que se pagaron.
+            </span>
+          </div>
+        )}
+
+        {/* ── Cuotas ── */}
+        {loading ? (
+          <div className="space-y-2">
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} className="h-14 w-full !rounded-xl" />
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
+          <EmptyBlock
+            title="Ninguna cuota aquí"
+            hint={search ? "Prueba con otro departamento o torre." : "No hay cuotas en este estado."}
+          />
+        ) : (
+          <ul className="divide-y divide-ios-separator overflow-hidden rounded-xl border border-ios-separator">
+            {paged.items.map((c) => {
+              const busy = busyId === c.id;
+              const cp = c.confirmedPayment;
+              const paid = Number(c.amountPaid ?? 0);
+              return (
+                <li key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:flex-nowrap">
+                  <span className="flex h-10 min-w-[3.25rem] shrink-0 items-center justify-center rounded-xl bg-ios-fill px-2 text-[13px] font-bold tabular-nums text-ios-label">
+                    {c.property?.code ?? "—"}
+                  </span>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <StatusMark {...statusOf(c)} />
+                      {/* La tasa se cambia tocándola, mientras la cuota no esté pagada. */}
+                      {c.status === ChargeStatus.PAID ? (
+                        <span className="text-[11px] text-ios-tertiary">{rateLabel(c.currency)}</span>
                       ) : (
-                        <span className="text-xs text-ios-tertiary">—</span>
+                        <button
+                          type="button"
+                          onClick={() => void changeOne(c)}
+                          disabled={busy}
+                          title={`Cambiar a ${rateLabel(otherCurrency(c.currency))}`}
+                          className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-ios-secondary transition-colors hover:bg-ios-fill hover:text-ios-label disabled:opacity-50"
+                        >
+                          {rateLabel(c.currency)}
+                          <ArrowLeftRight className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                    <p className="mt-0.5 truncate text-[12px] text-ios-secondary">
+                      {[
+                        c.property?.tower?.name,
+                        cp && `Pagada el ${formatDate(cp.paymentDate)}${cp.reference ? ` · Ref. ${cp.reference}` : ""}`,
+                        c.status === ChargeStatus.PARTIAL && paid > 0 && `Abonó ${formatCurrency(paid)}`,
+                        c.writeOff && `Condonado ${formatCurrency(c.writeOff.amount)}: ${c.writeOff.reason}`,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  </div>
+
+                  <div className="shrink-0 text-right">
+                    <Money
+                      value={formatCurrency(c.status === ChargeStatus.PAID ? c.amountPaid ?? c.amount : c.amountDue ?? c.amount)}
+                      className="text-[14px] font-semibold text-ios-label"
+                    />
+                    {c.overdue && c.status === ChargeStatus.PENDING && (
+                      <p className="text-[11px] text-red-600 dark:text-red-400">con mora</p>
+                    )}
+                  </div>
+
+                  <div className="flex w-full shrink-0 justify-end sm:w-[112px]">
+                    {c.status === ChargeStatus.PAID ? (
+                      cp?.receiptNumber && (
+                        <RowIcon icon={Download} title={`Descargar recibo ${cp.receiptNumber}`} busy={busy} onClick={() => download(c)} />
                       )
                     ) : c.status === ChargeStatus.PARTIAL ? (
                       // Con abono no se exonera (se perdería lo pagado): se condona el resto.
                       <Button
                         size="sm"
-                        variant="ghost"
+                        variant="outline"
+                        className="!h-8"
                         onClick={() => setWriteOffTarget(c)}
-                        disabled={busyId === c.id || !!c.pendingPayment}
-                        title={c.pendingPayment ? "Tiene un pago pendiente de revisión" : "Perdonar el saldo restante"}
+                        disabled={busy || !!c.pendingPayment}
+                        title={c.pendingPayment ? "Tiene un pago en revisión" : "Perdonar el saldo restante"}
                       >
                         Condonar
                       </Button>
                     ) : (
                       <Button
                         size="sm"
-                        variant={c.status === ChargeStatus.EXONERATED ? "outline" : "ghost"}
-                        onClick={() => toggle(c)}
-                        disabled={busyId === c.id}
+                        variant="outline"
+                        className="!h-8"
+                        loading={busy}
+                        onClick={() => toggleExonerated(c)}
                       >
                         {c.status === ChargeStatus.EXONERATED ? "Reactivar" : "Exonerar"}
                       </Button>
                     )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <Pagination
-            page={paged.page}
-            totalPages={paged.totalPages}
-            total={paged.total}
-            from={paged.from}
-            to={paged.to}
-            onPageChange={paged.setPage}
-            label="cuotas"
-            className="px-0"
-          />
-        </div>
-      )}
-    </Modal>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        <Pagination
+          page={paged.page}
+          totalPages={paged.totalPages}
+          total={paged.total}
+          from={paged.from}
+          to={paged.to}
+          onPageChange={paged.setPage}
+          label="cuotas"
+          className="mt-2 border-t-0 px-0"
+        />
+      </Modal>
+
       <WriteOffDialog
         charge={writeOffTarget}
         onClose={() => setWriteOffTarget(null)}
         onDone={(updated) => {
-          setCharges((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+          replace(updated);
           setWriteOffTarget(null);
         }}
       />

@@ -8,6 +8,8 @@ interface FilterPopoverProps {
   open: boolean;
   onClose: () => void;
   anchorRef: RefObject<HTMLElement>;
+  /** Borde del botón al que se alinea el panel. Por defecto, el derecho. */
+  align?: "start" | "end";
   children: ReactNode;
   width?: number;
 }
@@ -18,7 +20,7 @@ interface FilterPopoverProps {
  * tarjeta, no por la ventana. Se alinea al borde derecho del botón cuando cabe,
  * se corre lo justo cuando no, y se abre hacia arriba si abajo no hay sitio.
  */
-export function FilterPopover({ open, onClose, anchorRef, children, width = WIDTH }: FilterPopoverProps) {
+export function FilterPopover({ open, onClose, anchorRef, children, width = WIDTH, align = "end" }: FilterPopoverProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
 
@@ -28,7 +30,8 @@ export function FilterPopover({ open, onClose, anchorRef, children, width = WIDT
       const r = anchorRef.current?.getBoundingClientRect();
       if (!r) return;
       const w = Math.min(width, window.innerWidth - MARGIN * 2);
-      const left = Math.max(MARGIN, Math.min(r.right - w, window.innerWidth - w - MARGIN));
+      const wanted = align === "start" ? r.left : r.right - w;
+      const left = Math.max(MARGIN, Math.min(wanted, window.innerWidth - w - MARGIN));
 
       const height = panelRef.current?.offsetHeight ?? 0;
       const below = window.innerHeight - r.bottom - MARGIN;
@@ -53,9 +56,14 @@ export function FilterPopover({ open, onClose, anchorRef, children, width = WIDT
 
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // En fase de captura y sin propagar: Esc cierra este panel, no también el modal de fondo.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [open, onClose]);
 
   useEffect(() => {

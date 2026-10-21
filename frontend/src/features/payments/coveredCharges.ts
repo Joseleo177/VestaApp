@@ -33,3 +33,11 @@ export function chargeLabel(c: Charge): string {
 export function chargeLabelFull(c: Charge): string {
   return c.description ? `${chargeLabel(c)} · ${c.description}` : chargeLabel(c);
 }
+
+/** Título corto de un pago: "Julio de 2026" si fue una cuota, "3 cuotas" si fueron varias. */
+export function paymentTitle(payment: Payment): string {
+  const charges = coveredCharges(payment);
+  if (charges.length === 0) return "Abono a saldo a favor";
+  if (charges.length === 1) return formatPeriod(charges[0].period);
+  return `${charges.length} cuotas`;
+}

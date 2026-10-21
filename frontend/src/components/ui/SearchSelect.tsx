@@ -1,6 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown, Search, X } from "lucide-react";
 import { cn } from "@/lib/cn";
+
+const MARGIN = 12; // aire mínimo contra el borde de la ventana
+const PANEL_MAX = 320; // alto tope del panel (buscador + lista)
 
 export interface SearchOption {
   value: string;
@@ -21,6 +25,8 @@ interface SearchSelectProps {
   emptyLabel?: string;
   error?: string;
   disabled?: boolean;
+  /** Texto del buscador del panel. */
+  searchPlaceholder?: string;
 }
 
 /** Quita acentos y mayúsculas para que "PEREZ" encuentre "Pérez". */
@@ -34,6 +40,11 @@ function normalize(text: string): string {
 /**
  * Selector con buscador: filtra por etiqueta y por `hint` (cédula).
  * Pensado para listas largas, donde un <select> nativo deja de servir.
+ *
+ * El panel se dibuja en un portal con posición fija, anclado al botón. Dentro de
+ * un modal (que tiene su propio scroll) un panel `absolute` alargaba el contenido
+ * y aparecía una segunda barra de desplazamiento; así flota por encima, se abre
+ * hacia arriba si abajo no cabe y sigue al botón si el contenedor se desplaza.
  */
 export function SearchSelect({
   id,
@@ -45,12 +56,47 @@ export function SearchSelect({
   emptyLabel,
   error,
   disabled,
+  searchPlaceholder = "Buscar por nombre o cédula…",
 }: SearchSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [highlight, setHighlight] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPos(null);
+      return;
+    }
+    const update = () => {
+      const r = triggerRef.current?.getBoundingClientRect();
+      if (!r) return;
+      const below = window.innerHeight - r.bottom - MARGIN;
+      const above = r.top - MARGIN;
+      // Abajo por defecto; arriba solo si abajo no cabe y arriba hay más sitio.
+      const up = below < Math.min(PANEL_MAX, 220) && above > below;
+      const maxHeight = Math.min(PANEL_MAX, (up ? above : below) - 6);
+      const height = Math.min(panelRef.current?.offsetHeight ?? PANEL_MAX, maxHeight);
+      setPos({
+        left: r.left,
+        width: r.width,
+        top: up ? r.top - height - 6 : r.bottom + 6,
+        maxHeight,
+      });
+    };
+    update();
+    // `true`: el scroll del modal no burbujea hasta la ventana.
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [open, query]);
 
   const selected = options.find((o) => o.value === value);
 
@@ -67,8 +113,10 @@ export function SearchSelect({
 
   useEffect(() => {
     if (!open) return;
+    // El panel vive en un portal: "fuera" es fuera del campo y fuera del panel.
     const onClickOutside = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (!rootRef.current?.contains(target) && !panelRef.current?.contains(target)) {
         setOpen(false);
       }
     };
@@ -102,7 +150,10 @@ export function SearchSelect({
       if (rows.length > 0) choose(rows[Math.min(highlight, rows.length - 1)]);
     } else if (e.key === "Escape") {
       e.preventDefault();
+      // Solo cierra el panel: sin esto, el Esc también cerraba el modal que lo contiene.
+      e.stopPropagation();
       setOpen(false);
+      triggerRef.current?.focus();
     }
   };
 
@@ -116,6 +167,7 @@ export function SearchSelect({
 
       <div className="relative">
         <button
+          ref={triggerRef}
           id={id}
           type="button"
           role="combobox"
@@ -140,9 +192,14 @@ export function SearchSelect({
           />
         </button>
 
-        {open && (
-          <div className="absolute z-20 mt-1.5 w-full overflow-hidden rounded-2xl bg-ios-card shadow-ios-lg ring-1 ring-ios-separator">
-            <div className="flex items-center gap-2 border-b border-ios-separator px-3">
+        {open && createPortal(
+          <div
+            ref={panelRef}
+            // Primer render: se mide ya montado; hasta tener medidas queda fuera de la vista.
+            style={pos ? { position: "fixed", top: pos.top, left: pos.left, width: pos.width, maxHeight: pos.maxHeight } : { position: "fixed", top: -9999, left: -9999 }}
+            className="popover-in z-[70] flex flex-col overflow-hidden rounded-2xl bg-ios-card shadow-ios-lg ring-1 ring-ios-separator"
+          >
+            <div className="flex shrink-0 items-center gap-2 border-b border-ios-separator px-3">
               <Search className="h-4 w-4 shrink-0 text-ios-secondary" />
               <input
                 ref={searchRef}
@@ -152,7 +209,7 @@ export function SearchSelect({
                   setHighlight(0);
                 }}
                 onKeyDown={onKeyDown}
-                placeholder="Buscar por nombre o cédula…"
+                placeholder={searchPlaceholder}
                 className="h-11 w-full bg-transparent text-[15px] text-ios-label placeholder:text-ios-secondary focus:outline-none"
               />
               {query && (
@@ -170,7 +227,7 @@ export function SearchSelect({
               )}
             </div>
 
-            <ul role="listbox" className="max-h-60 overflow-y-auto py-1">
+            <ul role="listbox" className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-1">
               {rows.length === 0 && (
                 <li className="px-4 py-6 text-center text-[13px] text-ios-secondary">
                   Sin coincidencias
@@ -212,7 +269,8 @@ export function SearchSelect({
                 );
               })}
             </ul>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
 

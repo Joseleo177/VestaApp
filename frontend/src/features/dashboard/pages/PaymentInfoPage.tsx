@@ -87,7 +87,7 @@ function Step({ n, children }: { n: number; children: ReactNode }) {
   );
 }
 
-/** Cuentas del condominio y cómo reportar un pago, sin tener que abrir el formulario. */
+/** Cuentas de la asociación y cómo reportar un pago, sin tener que abrir el formulario. */
 export function PaymentInfoPage() {
   const s = useResident();
   const cfg = s.settings ?? {};
@@ -125,7 +125,7 @@ export function PaymentInfoPage() {
         <h2 className="text-[15px] font-semibold text-ios-label">¿Cómo pago mi cuota?</h2>
         <ol className="mt-3 space-y-2.5">
           <Step n={1}>Transfiere a una de las cuentas de abajo el monto de tus cuotas.</Step>
-          <Step n={2}>Registra el pago aquí, con la referencia y el comprobante.</Step>
+          <Step n={2}>Registra el pago aquí con su número de referencia.</Step>
           <Step n={3}>La administración lo valida y tu recibo queda en Mis cuotas.</Step>
         </ol>
         {s.payable.length > 0 && (
@@ -156,7 +156,7 @@ export function PaymentInfoPage() {
         <Card>
           <EmptyBlock
             title="La administración aún no cargó sus cuentas"
-            hint="Consulta los datos para transferir directamente con la administración del condominio."
+            hint="Consulta los datos para transferir directamente con la administración de la asociación."
           />
         </Card>
       )}

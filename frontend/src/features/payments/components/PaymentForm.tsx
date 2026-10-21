@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { CheckCircle2, Clock, Building2 } from "lucide-react";
 import { Input, Select } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { DatePicker, toISODate } from "@/components/ui/DatePicker";
 import { Charge, ChargeStatus, Payment, PaymentCurrency, PaymentStatus, RateCurrency } from "@/types/domain";
 import { chargeLabel } from "../coveredCharges";
 import { formatCurrency, formatDate, rateUnit } from "@/lib/format";
@@ -32,7 +33,8 @@ interface PaymentFormProps {
 }
 
 export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, onSuccess, onCancel }: PaymentFormProps) {
-  const today = new Date().toISOString().slice(0, 10);
+  // En hora local: con toISOString, de noche en Venezuela ya era el día siguiente.
+  const today = toISODate(new Date());
   // Solo inicial: lo que se marque después vive en el formulario.
   const [preselected] = useState(() =>
     defaultChargeIds?.length
@@ -459,13 +461,18 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, onSucc
         />
       )}
 
-      <Input
+      {/* La fecha decide la tasa BCV y si aplica mora; no puede ser futura. */}
+      <DatePicker
         id="paymentDate"
-        type="date"
         label="Fecha del pago"
+        value={paymentDateInput}
+        onChange={(v) => setValue("paymentDate", v, { shouldValidate: true, shouldDirty: true })}
         max={today}
+        shortcuts={[
+          { label: "Hoy", value: today },
+          { label: "Ayer", value: toISODate(new Date(Date.now() - 86_400_000)) },
+        ]}
         error={errors.paymentDate?.message}
-        {...register("paymentDate")}
       />
 
       {isBS && rateError && (

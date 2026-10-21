@@ -21,8 +21,8 @@ export function useUnits(): Result {
   const [authorizedCandidates, setAuthorizedCandidates] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetch = useCallback(async () => {
-    setLoading(true);
+  const fetch = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [unitList, users] = await Promise.all([
         unitService.list(),
@@ -38,7 +38,7 @@ export function useUnits(): Result {
         )
       );
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -46,5 +46,6 @@ export function useUnits(): Result {
     void fetch();
   }, [fetch]);
 
-  return { units, owners, authorizedCandidates, loading, refetch: fetch };
+  // Recarga silenciosa: tras guardar o pagar, la tabla no vuelve al esqueleto.
+  return { units, owners, authorizedCandidates, loading, refetch: () => fetch(true) };
 }

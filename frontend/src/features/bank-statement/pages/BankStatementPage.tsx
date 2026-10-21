@@ -1,518 +1,296 @@
-import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
-import {
-  CheckCircle2, AlertTriangle, Upload,
-  Loader2, Database, Search, X, Trash2, RefreshCw,
-} from "lucide-react";
+import { DragEvent, ReactNode, useRef, useState } from "react";
+import { FileSpreadsheet, Loader2, RefreshCw, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { TableSkeleton } from "@/components/ui/Skeleton";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { DatePicker } from "@/components/ui/DatePicker";
+import { Money } from "@/components/ui/Money";
+import { Page } from "@/components/ui/Page";
 import { Pagination } from "@/components/ui/Pagination";
-import { cn } from "@/lib/cn";
-import { usePagination } from "@/lib/usePagination";
-import { ApiError } from "@/services/api";
-import {
-  reconciliationService,
-  ReconciliationResult,
-  ConfirmedMatch,
-  ReviewMatch,
-  BankEntry,
-} from "../services/reconciliation.service";
-import { paymentService } from "@/features/payments/services/payment.service";
-import { useSettledGuard } from "@/features/payments/hooks/useSettledGuard";
+import { SearchField } from "@/components/ui/SearchField";
+import { Segmented } from "@/components/ui/Segmented";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { formatDate } from "@/lib/format";
+import { cn } from "@/lib/cn";
+import { EntryFilter, useBankStatement } from "../hooks/useBankStatement";
+import { EntriesTable } from "../components/EntriesTable";
+import { bs, ReconciliationResultModal } from "../components/ReconciliationResultModal";
 
-function formatAmt(n: number) {
-  return Number(n).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function ResultSection<T>({
-  title, icon, color, items, renderRow, cols,
-}: {
-  title: string; icon: ReactNode; color: string;
-  items: T[]; renderRow: (item: T, i: number) => React.ReactNode; cols: string[];
-}) {
-  if (items.length === 0) return null;
+function Stat({ label, children, sub }: { label: string; children: ReactNode; sub?: ReactNode }) {
   return (
-    <div className="space-y-2">
-      <div className={cn("flex items-center gap-2 font-semibold", color)}>
-        {icon}{title} ({items.length})
-      </div>
-      <Card className="overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-ios-separator text-[11px] font-semibold uppercase tracking-wider text-ios-secondary">
-              <tr>{cols.map((c) => <th key={c} className="px-4 py-2.5 font-medium">{c}</th>)}</tr>
-            </thead>
-            <tbody className="divide-y divide-ios-separator">
-              {items.map((item, i) => renderRow(item, i))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-    </div>
+    <Card className="min-w-0 px-5 py-4">
+      <p className="text-[12px] text-ios-secondary">{label}</p>
+      <div className="mt-0.5 truncate text-[22px] font-bold leading-tight text-ios-label">{children}</div>
+      {sub && <div className="mt-1 text-[12px] text-ios-secondary">{sub}</div>}
+    </Card>
   );
 }
 
+/** Extracto bancario: subir movimientos y conciliarlos contra los pagos reportados. */
 export function BankStatementPage() {
+  const s = useBankStatement();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<ReconciliationResult | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const { guard, dialog: settledDialog } = useSettledGuard();
+  const [dragging, setDragging] = useState(false);
+  const pickFile = () => inputRef.current?.click();
+  const matchedPct = s.summary.total ? Math.round((s.summary.matched / s.summary.total) * 100) : 0;
+  const selectedTotal = s.selectedEntries.reduce((sum, e) => sum + Number(e.monto), 0);
+  const selectedMatched = s.selectedEntries.filter((e) => e.matched).length;
 
-  // Entradas guardadas en DB
-  const [entries, setEntries] = useState<BankEntry[]>([]);
-  const [loadingEntries, setLoadingEntries] = useState(true);
-
-  // Filtros
-  const [search, setSearch] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [filterMatched, setFilterMatched] = useState<"all" | "matched" | "free">("all");
-
-  // Selección
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [deleting, setDeleting] = useState(false);
-  const [reconciling, setReconciling] = useState(false);
-
-  const loadEntries = useCallback(async () => {
-    setLoadingEntries(true);
-    try {
-      setEntries(await reconciliationService.listEntries());
-      setSelected(new Set());
-    } catch {
-      // silencioso — la tabla sigue vacía
-    } finally {
-      setLoadingEntries(false);
-    }
-  }, []);
-
-  useEffect(() => { void loadEntries(); }, [loadEntries]);
-
-  const hasFilters = search !== "" || dateFrom !== "" || dateTo !== "" || filterMatched !== "all";
-
-  const filteredEntries = useMemo(() =>
-    entries.filter((e) => {
-      const matchRef = search === "" || e.referencia.toLowerCase().includes(search.toLowerCase());
-      // Las fechas son "YYYY-MM-DD", así que comparar como texto ya ordena bien.
-      // Una entrada sin fecha queda fuera en cuanto se acota el rango.
-      const matchFrom = dateFrom === "" || (!!e.fecha && e.fecha >= dateFrom);
-      const matchTo = dateTo === "" || (!!e.fecha && e.fecha <= dateTo);
-      const matchStatus = filterMatched === "all" || (filterMatched === "matched" ? e.matched : !e.matched);
-      return matchRef && matchFrom && matchTo && matchStatus;
-    }),
-  [entries, search, dateFrom, dateTo, filterMatched]);
-
-  // Solo se pagina lo que se dibuja: "seleccionar todo" sigue operando sobre
-  // todas las entradas filtradas, no sobre la página visible.
-  const paged = usePagination(filteredEntries, 50);
-
-  const toggleOne = (id: string) =>
-    setSelected((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
-
-  const toggleAll = () =>
-    setSelected((prev) =>
-      prev.size === filteredEntries.length ? new Set() : new Set(filteredEntries.map((e) => e.id))
-    );
-
-  const handleReconcilePending = async () => {
-    setReconciling(true);
-    try {
-      const { confirmed, review } = await reconciliationService.reconcilePending();
-      if (confirmed > 0) toast.success(`${confirmed} pago(s) confirmado(s) automáticamente`);
-      if (review > 0) toast.info(`${review} pago(s) con monto diferente — revísalos manualmente`);
-      if (confirmed === 0 && review === 0) toast.info("No se encontraron coincidencias nuevas");
-      void loadEntries();
-    } catch {
-      toast.error("Error al reconciliar");
-    } finally {
-      setReconciling(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (selected.size === 0) return;
-    setDeleting(true);
-    try {
-      await reconciliationService.deleteEntries([...selected]);
-      toast.success(`${selected.size} entrada(s) eliminada(s)`);
-      void loadEntries();
-    } catch {
-      toast.error("No se pudieron eliminar las entradas");
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  const handleFileSelect = (f: File) => {
-    if (!f.name.endsWith(".xlsx")) { toast.error("Solo se aceptan archivos .xlsx"); return; }
-    void handleProcess(f);
-  };
-
-  const handleProcess = async (f: File) => {
-    setLoading(true);
-    setResult(null);
-    try {
-      const res = await reconciliationService.reconcile(f);
-      setResult(res);
-      void loadEntries();
-      if (res.confirmed.length > 0)
-        toast.success(`${res.confirmed.length} pago(s) confirmado(s) automáticamente`);
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Error al procesar el extracto");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const moveToConfirmed = (m: ReviewMatch) =>
-    setResult((r) => r && {
-      ...r,
-      review: r.review.filter((x) => x.paymentId !== m.paymentId),
-      confirmed: [...r.confirmed, m],
-    });
-
-  const handleConfirmFull = async (m: ReviewMatch) => {
-    setBusyId(m.paymentId);
-    try {
-      await guard(
-        (allowSettled) => paymentService.confirm(m.paymentId, allowSettled),
-        () => {
-          toast.success("Pago confirmado");
-          moveToConfirmed(m);
-        }
-      );
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo confirmar");
-    } finally { setBusyId(null); }
-  };
-
-  const handleConfirmPartial = async (m: ReviewMatch) => {
-    setBusyId(m.paymentId);
-    try {
-      await guard(
-        (allowSettled) => paymentService.confirmPartial(m.paymentId, m.bankAmount, allowSettled),
-        () => {
-          toast.success(`Confirmado parcial: ${formatAmt(m.bankAmount)}`);
-          moveToConfirmed(m);
-        }
-      );
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo confirmar parcialmente");
-    } finally { setBusyId(null); }
+  // Soltar el .xlsx en cualquier parte de la página, además del botón.
+  const onDrop = (e: DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) void s.upload(file);
   };
 
   return (
-    <div className="space-y-6">
-      {/* Encabezado + botón subir */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-[28px] font-bold leading-tight text-ios-label">Extracto bancario</h1>
-          <p className="text-sm text-ios-secondary">
-            Sube el extracto del banco (.xlsx) para conciliar automáticamente los pagos pendientes
-          </p>
-        </div>
-        <div>
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".xlsx"
-            className="hidden"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) { handleFileSelect(f); e.target.value = ""; } }}
-          />
-          {/*
-            En móvil van compactos y con etiqueta corta para caber en una línea;
-            desde `sm` recuperan altura, aire y el texto completo.
-          */}
-          <div className="flex gap-2">
+    <div
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes("Files")) {
+          e.preventDefault();
+          setDragging(true);
+        }
+      }}
+      onDragLeave={(e) => e.currentTarget === e.target && setDragging(false)}
+      onDrop={onDrop}
+      className="relative"
+    >
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".xlsx"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void s.upload(f);
+          e.target.value = "";
+        }}
+      />
+
+      <Page
+        module="Día a día"
+        title="Extracto bancario"
+        actions={
+          <>
             <Button
               size="sm"
               variant="outline"
-              className="sm:h-11 sm:px-5 sm:text-[15px]"
-              onClick={handleReconcilePending}
-              loading={reconciling}
-              title="Reconciliar pagos pendientes contra entradas bancarias existentes"
+              onClick={s.reconcilePending}
+              loading={s.reconciling}
+              title="Cruza los pagos por validar contra los movimientos ya guardados"
             >
-              <RefreshCw className="h-4 w-4" />
-              Reconciliar
-              <span className="hidden sm:inline">&nbsp;pendientes</span>
+              {!s.reconciling && <RefreshCw className="h-4 w-4" />}
+              <span className="hidden sm:inline">Conciliar pendientes</span>
+              <span className="sm:hidden">Conciliar</span>
             </Button>
-            <Button
-              size="sm"
-              className="sm:h-11 sm:px-5 sm:text-[15px]"
-              onClick={() => inputRef.current?.click()}
-              disabled={loading}
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              {loading ? "Procesando…" : "Subir"}
-              {!loading && <span className="hidden sm:inline">&nbsp;movimientos</span>}
+            <Button size="sm" onClick={pickFile} loading={s.uploading}>
+              {!s.uploading && <Upload className="h-4 w-4" />}
+              {s.uploading ? "Procesando…" : <><span className="hidden sm:inline">Subir extracto</span><span className="sm:hidden">Subir</span></>}
             </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Resultado del último proceso */}
-      {result && (
-        <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-            {[
-              { label: "Filas totales",    value: result.totalRows,          cls: "text-ios-label" },
-              { label: "Entradas nuevas",  value: result.newEntries,         cls: "text-brand-600" },
-              { label: "Duplicadas",       value: result.duplicates,         cls: "text-ios-secondary" },
-              { label: "Confirmados",      value: result.confirmed.length,   cls: "text-ios-green" },
-              { label: "Por revisar",      value: result.review.length,      cls: "text-ios-orange" },
-            ].map((s) => (
-              <Card key={s.label} className="p-4 text-center">
-                <div className={cn("text-2xl font-bold", s.cls)}>{s.value}</div>
-                <div className="text-xs text-ios-secondary mt-0.5">{s.label}</div>
-              </Card>
+          </>
+        }
+        subheader={
+          <p className="text-[14px] text-ios-secondary">
+            Sube el extracto del banco en .xlsx (o suéltalo aquí): los pagos cuya referencia y monto coinciden se confirman solos.
+          </p>
+        }
+      >
+        {/* ── Resumen ── */}
+        {s.loading ? (
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[0, 1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-[92px] w-full !rounded-2xl" />
             ))}
           </div>
-
-          <ResultSection<ConfirmedMatch>
-            title="Confirmados automáticamente" icon={<CheckCircle2 className="h-5 w-5" />}
-            color="text-ios-green" items={result.confirmed}
-            cols={["Referencia", "Monto banco", "Fecha", "Copropietario", "Depa"]}
-            renderRow={(m, i) => (
-              <tr key={i} className="hover:bg-ios-fill">
-                <td className="px-4 py-2.5 font-mono text-xs">{m.bankRef}</td>
-                <td className="px-4 py-2.5 text-ios-label">{formatAmt(m.bankAmount)}</td>
-                <td className="px-4 py-2.5 text-xs text-ios-secondary">{m.bankDate ? formatDate(m.bankDate) : "—"}</td>
-                <td className="px-4 py-2.5">{m.ownerName}</td>
-                <td className="px-4 py-2.5">{m.propertyCode}</td>
-              </tr>
-            )}
-          />
-
-          {result.review.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 font-semibold text-ios-orange">
-                <AlertTriangle className="h-5 w-5" />Por revisar ({result.review.length})
-              </div>
-              <Card className="overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead className="border-b border-ios-separator text-[11px] font-semibold uppercase tracking-wider text-ios-secondary">
-                      <tr>
-                        {["Referencia", "Monto banco", "Copropietario", "Depa", "Motivo", "Acciones"].map((c) => (
-                          <th key={c} className={cn("px-4 py-2.5 font-medium", c === "Acciones" && "text-right")}>{c}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-ios-separator">
-                      {result.review.map((m, i) => (
-                        <tr key={i} className="hover:bg-ios-orange/10">
-                          <td className="px-4 py-2.5 font-mono text-xs">{m.bankRef}</td>
-                          <td className="px-4 py-2.5 font-semibold text-ios-label">{formatAmt(m.bankAmount)}</td>
-                          <td className="px-4 py-2.5">{m.ownerName}</td>
-                          <td className="px-4 py-2.5">{m.propertyCode}</td>
-                          <td className="px-4 py-2.5 text-xs text-ios-orange max-w-[180px]">{m.reason}</td>
-                          <td className="px-4 py-2.5">
-                            <div className="flex justify-end gap-1.5">
-                              <Button size="sm" variant="success" disabled={busyId === m.paymentId}
-                                onClick={() => handleConfirmFull(m)} title="Confirmar como pago completo">
-                                {busyId === m.paymentId ? <Loader2 className="h-3 w-3 animate-spin" /> : "Confirmar"}
-                              </Button>
-                              <Button size="sm" variant="outline" disabled={busyId === m.paymentId}
-                                onClick={() => handleConfirmPartial(m)}
-                                title={`Usar monto banco (${formatAmt(m.bankAmount)}) — cuota queda PARCIAL`}>
-                                Parcial
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
+        ) : (
+          s.summary.total > 0 && (
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <Stat label="Movimientos guardados">{s.summary.total}</Stat>
+              <Stat
+                label="Conciliados"
+                sub={
+                  <div className="h-1.5 overflow-hidden rounded-full bg-ios-fill" aria-hidden>
+                    <div className="h-full rounded-full bg-emerald-500" style={{ width: `${matchedPct}%` }} />
+                  </div>
+                }
+              >
+                {s.summary.matched} <span className="text-[14px] font-medium text-ios-secondary">· {matchedPct}%</span>
+              </Stat>
+              <Stat label="Sin conciliar" sub={<Money value={bs(s.summary.freeAmount)} />}>
+                {s.summary.free}
+              </Stat>
+              <Stat label="Último extracto">
+                {s.summary.lastUpload ? formatDate(s.summary.lastUpload) : "—"}
+              </Stat>
             </div>
-          )}
+          )
+        )}
 
+        {/* El resultado del último proceso sigue a mano después de cerrar el modal. */}
+        {s.result && !s.resultOpen && (
+          <button
+            type="button"
+            onClick={() => s.setResultOpen(true)}
+            className={cn(
+              "flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left text-[13px] transition-colors",
+              s.result.review.length
+                ? "border-amber-500/30 bg-amber-500/[0.07] text-amber-800 hover:bg-amber-500/[0.11] dark:text-amber-300"
+                : "border-emerald-500/25 bg-emerald-500/[0.06] text-emerald-800 hover:bg-emerald-500/[0.1] dark:text-emerald-300"
+            )}
+          >
+            <FileSpreadsheet className="h-4 w-4 shrink-0" />
+            <span className="flex-1">
+              Último extracto: {s.result.confirmed.length} confirmados
+              {s.result.review.length > 0 && ` · ${s.result.review.length} por revisar`}
+            </span>
+            <span className="font-semibold">Ver resultado</span>
+          </button>
+        )}
+
+        {/* ── Movimientos ── */}
+        {!s.loading && s.summary.total === 0 ? (
+          <button
+            type="button"
+            onClick={pickFile}
+            className="flex w-full flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-ios-separator px-6 py-16 text-center transition-colors hover:border-brand-500/50 hover:bg-brand-50/40"
+          >
+            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-500/[0.12] text-rose-600 dark:text-rose-400">
+              <FileSpreadsheet className="h-7 w-7" />
+            </span>
+            <span className="text-[16px] font-semibold text-ios-label">Sube tu primer extracto</span>
+            <span className="max-w-sm text-[13px] text-ios-secondary">
+              Arrastra aquí el archivo .xlsx que descargas de la banca en línea, o toca para elegirlo.
+            </span>
+          </button>
+        ) : (
+          <Card className="overflow-hidden">
+            {/* Barra de selección: reemplaza a los filtros mientras haya algo marcado. */}
+            {s.selected.size > 0 ? (
+              <div className="flex flex-wrap items-center gap-3 border-b border-ios-separator bg-brand-50/60 px-4 py-3">
+                <p className="text-[13px] text-ios-label">
+                  <span className="font-semibold">{s.selected.size}</span>{" "}
+                  {s.selected.size === 1 ? "movimiento seleccionado" : "movimientos seleccionados"} ·{" "}
+                  <Money value={bs(selectedTotal)} className="font-semibold" />
+                </p>
+                <div className="ml-auto flex gap-2">
+                  <Button size="sm" variant="outline" className="!h-8" onClick={s.clearSelection}>
+                    <X className="h-4 w-4" />
+                    Quitar selección
+                  </Button>
+                  <Button size="sm" variant="danger" className="!h-8" onClick={() => s.setConfirmDelete(true)}>
+                    <Trash2 className="h-4 w-4" />
+                    Eliminar
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3 border-b border-ios-separator p-4 xl:flex-row xl:items-end">
+                <Segmented<EntryFilter>
+                  aria-label="Estado del movimiento"
+                  value={s.status}
+                  onChange={s.setStatus}
+                  options={[
+                    { key: "all", label: "Todos", count: s.summary.total },
+                    { key: "free", label: "Sin conciliar", count: s.summary.free },
+                    { key: "matched", label: "Conciliados", count: s.summary.matched },
+                  ]}
+                  className="self-start"
+                />
+                <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)] xl:ml-auto xl:max-w-[640px]">
+                  <SearchField
+                    value={s.search}
+                    onChange={s.setSearch}
+                    placeholder="Referencia, monto o descripción"
+                    className="col-span-2 self-end sm:col-span-1 [&_input]:h-11"
+                    hotkey
+                  />
+                  <DatePicker
+                    value={s.dateFrom}
+                    onChange={s.setDateFrom}
+                    placeholder="Desde"
+                    shortcuts={[{ label: "Quitar", value: "" }]}
+                  />
+                  <DatePicker
+                    value={s.dateTo}
+                    onChange={s.setDateTo}
+                    placeholder="Hasta"
+                    shortcuts={[{ label: "Quitar", value: "" }]}
+                  />
+                </div>
+              </div>
+            )}
+
+            {s.hasFilters && !s.loading && (
+              <div className="flex items-center justify-between border-b border-ios-separator px-5 py-2 text-[12px] text-ios-secondary">
+                <span>
+                  {s.filtered.length} de {s.summary.total} movimientos
+                </span>
+                <button type="button" onClick={s.clearFilters} className="font-semibold text-brand-600 hover:underline">
+                  Quitar filtros
+                </button>
+              </div>
+            )}
+
+            <EntriesTable
+              entries={s.paged.items}
+              loading={s.loading}
+              hasFilters={s.hasFilters}
+              onClear={s.clearFilters}
+              selected={s.selected}
+              allSelected={s.allSelected}
+              onToggle={s.toggle}
+              onToggleAll={s.toggleAll}
+            />
+
+            <Pagination
+              page={s.paged.page}
+              totalPages={s.paged.totalPages}
+              total={s.paged.total}
+              from={s.paged.from}
+              to={s.paged.to}
+              onPageChange={s.paged.setPage}
+              label="movimientos"
+            />
+          </Card>
+        )}
+      </Page>
+
+      {/* Velo al arrastrar un archivo sobre la página. */}
+      {dragging && (
+        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-brand-600/10 p-6 backdrop-blur-[2px]">
+          <div className="flex flex-col items-center gap-3 rounded-3xl border-2 border-dashed border-brand-500 bg-ios-card px-10 py-8 shadow-ios-lg">
+            {s.uploading ? <Loader2 className="h-8 w-8 animate-spin text-brand-600" /> : <Upload className="h-8 w-8 text-brand-600" />}
+            <p className="text-[16px] font-semibold text-ios-label">Suelta el extracto para procesarlo</p>
+            <p className="text-[13px] text-ios-secondary">Archivo .xlsx de la banca en línea</p>
+          </div>
         </div>
       )}
 
-      {/* Todas las entradas guardadas en DB */}
-      <div className="space-y-3">
-        {/* Cabecera con conteo y filtros */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            {/* Con filtros activos manda el conteo filtrado, que es lo que se
-                está viendo; el total queda al lado para no perder referencia. */}
-            <div className="flex items-center gap-2 font-semibold text-ios-label">
-              <Database className="h-5 w-5" />
-              Entradas bancarias guardadas ({filteredEntries.length}
-              {hasFilters && (
-                <span className="font-normal text-ios-secondary">
-                  {" "}de {entries.length}
-                </span>
-              )}
-              )
-            </div>
-            {selected.size > 0 && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleDelete}
-                loading={deleting}
-                className="border-ios-red/30 text-ios-red hover:bg-ios-red/10"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Eliminar ({selected.size})
-              </Button>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
-            {/* Buscador por referencia */}
-            <div className="relative col-span-2 sm:col-auto">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ios-secondary" />
-              <input
-                type="text"
-                placeholder="Buscar referencia…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-9 w-full rounded-xl border-0 bg-ios-fill pl-8 sm:w-48 pr-3 text-sm text-ios-label placeholder:text-ios-secondary focus:outline-none focus:ring-2 focus:ring-brand-500/70"
-              />
-              {search && (
-                <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-ios-secondary hover:text-ios-label">
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-            {/* Rango de fechas — a todo el ancho en móvil: si queda pegado al
-                borde derecho, el calendario nativo se abre fuera de pantalla.
-                `max`/`min` cruzados impiden elegir un rango invertido. */}
-            <div className="col-span-2 flex min-w-0 items-center gap-1 sm:col-auto">
-              <input
-                type="date"
-                value={dateFrom}
-                max={dateTo || undefined}
-                onChange={(e) => setDateFrom(e.target.value)}
-                aria-label="Desde"
-                title="Desde"
-                className={cn(
-                  "h-9 w-full min-w-0 rounded-xl border-0 bg-ios-fill px-3 text-sm text-ios-label focus:outline-none focus:ring-2 focus:ring-brand-500/70 sm:w-auto",
-                  dateFrom ? "text-brand-700" : ""
-                )}
-              />
-              <span className="shrink-0 text-xs text-ios-secondary">–</span>
-              <input
-                type="date"
-                value={dateTo}
-                min={dateFrom || undefined}
-                onChange={(e) => setDateTo(e.target.value)}
-                aria-label="Hasta"
-                title="Hasta"
-                className={cn(
-                  "h-9 w-full min-w-0 rounded-xl border-0 bg-ios-fill px-3 text-sm text-ios-label focus:outline-none focus:ring-2 focus:ring-brand-500/70 sm:w-auto",
-                  dateTo ? "text-brand-700" : ""
-                )}
-              />
-              {(dateFrom || dateTo) && (
-                <button
-                  onClick={() => { setDateFrom(""); setDateTo(""); }}
-                  className="shrink-0 text-xs text-ios-secondary hover:text-ios-label"
-                  aria-label="Quitar filtro de fechas"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-            {/* Filtro estado */}
-            <select
-              value={filterMatched}
-              onChange={(e) => setFilterMatched(e.target.value as "all" | "matched" | "free")}
-              className="col-span-2 h-9 w-full min-w-0 rounded-xl border-0 bg-ios-fill px-3 text-sm text-ios-label focus:outline-none focus:ring-2 focus:ring-brand-500/70 sm:col-auto sm:w-auto"
-            >
-              <option value="all">Todos</option>
-              <option value="matched">Conciliado</option>
-              <option value="free">Libre</option>
-            </select>
-          </div>
-        </div>
+      <ReconciliationResultModal
+        open={s.resultOpen}
+        onClose={() => s.setResultOpen(false)}
+        result={s.result}
+        busyId={s.busyId}
+        onConfirmFull={s.confirmFull}
+        onConfirmPartial={s.confirmPartial}
+      />
 
-        {loadingEntries ? (
-          <Card className="overflow-hidden"><TableSkeleton rows={4} cols={5} /></Card>
-        ) : entries.length === 0 ? (
-          <Card className="p-6 text-center text-sm text-ios-secondary">
-            Aún no se han subido extractos. Las entradas aparecerán aquí después de procesar un archivo.
-          </Card>
-        ) : filteredEntries.length === 0 ? (
-          <Card className="p-6 text-center text-sm text-ios-secondary">
-            No hay entradas que coincidan con los filtros aplicados.
-          </Card>
-        ) : (
-          <Card className="overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-ios-separator text-[11px] font-semibold uppercase tracking-wider text-ios-secondary">
-                  <tr>
-                    <th className="px-3 py-2.5 w-8">
-                      <input
-                        type="checkbox"
-                        className="rounded border-ios-separator"
-                        checked={selected.size === filteredEntries.length && filteredEntries.length > 0}
-                        onChange={toggleAll}
-                      />
-                    </th>
-                    <th className="px-4 py-2.5 font-medium">Referencia</th>
-                    <th className="px-4 py-2.5 font-medium">Monto</th>
-                    <th className="px-4 py-2.5 font-medium">Fecha</th>
-                    <th className="px-4 py-2.5 font-medium">Descripción</th>
-                    <th className="px-4 py-2.5 font-medium">Subida</th>
-                    <th className="px-4 py-2.5 font-medium">Estado</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-ios-separator">
-                  {paged.items.map((e) => (
-                    <tr key={e.id} className={cn("hover:bg-ios-fill cursor-pointer", e.matched && "bg-ios-green/10", selected.has(e.id) && "bg-brand-50/60")}
-                      onClick={() => toggleOne(e.id)}>
-                      <td className="px-3 py-2.5" onClick={(ev) => ev.stopPropagation()}>
-                        <input type="checkbox" className="rounded border-ios-separator"
-                          checked={selected.has(e.id)} onChange={() => toggleOne(e.id)} />
-                      </td>
-                      <td className="px-4 py-2.5 font-mono text-xs text-ios-label">{e.referencia}</td>
-                      <td className="px-4 py-2.5 font-semibold text-ios-label">{formatAmt(e.monto)}</td>
-                      <td className="px-4 py-2.5 text-xs text-ios-secondary">{e.fecha ? formatDate(e.fecha) : "—"}</td>
-                      <td className="px-4 py-2.5 text-xs text-ios-secondary max-w-xs truncate">{e.descripcion ?? "—"}</td>
-                      <td className="px-4 py-2.5 text-xs text-ios-secondary">{formatDate(e.uploadedAt)}</td>
-                      <td className="px-4 py-2.5">
-                        {e.matched ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-ios-green px-2 py-0.5 text-xs font-semibold text-white">
-                            <span className="h-1.5 w-1.5 rounded-full bg-white" />
-                            Conciliado
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-ios-fill px-2 py-0.5 text-xs font-medium text-ios-secondary">
-                            Libre
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <Pagination
-              page={paged.page}
-              totalPages={paged.totalPages}
-              total={paged.total}
-              from={paged.from}
-              to={paged.to}
-              onPageChange={paged.setPage}
-              label="entradas"
-            />
-            {hasFilters && (
-              <div className="border-t border-ios-separator px-4 py-2 text-xs text-ios-secondary">
-                Mostrando {filteredEntries.length} de {entries.length} entradas
-              </div>
-            )}
-          </Card>
-        )}
-      </div>
+      <ConfirmDialog
+        open={s.confirmDelete}
+        onClose={() => s.setConfirmDelete(false)}
+        onConfirm={s.remove}
+        loading={s.deleting}
+        title={`¿Eliminar ${s.selected.size} ${s.selected.size === 1 ? "movimiento" : "movimientos"}?`}
+        description={
+          selectedMatched > 0
+            ? `${selectedMatched} ya ${selectedMatched === 1 ? "está conciliado" : "están conciliados"}: sus pagos siguen confirmados, solo se borra el movimiento del banco.`
+            : "Se borran del registro del banco. Si vuelves a subir el mismo extracto, se cargarán de nuevo."
+        }
+        confirmLabel="Eliminar"
+      />
 
-      {settledDialog}
+      {s.settledDialog}
     </div>
   );
 }

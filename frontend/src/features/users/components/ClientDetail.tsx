@@ -160,7 +160,7 @@ export function ClientDetail({ client, onOpenUnit }: ClientDetailProps) {
           <Fact
             label="Acceso"
             value={active ? "Activo" : "Inactivo"}
-            sub={active ? "Entra con su cédula" : "No puede iniciar sesión"}
+            sub={active ? "Puede iniciar sesión" : "No puede iniciar sesión"}
           />
           <Fact
             label="Cliente desde"

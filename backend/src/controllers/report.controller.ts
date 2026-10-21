@@ -20,6 +20,7 @@ export const ReportController = {
       const payments = await paymentRepo.createQueryBuilder("payment")
         .leftJoinAndSelect("payment.property", "property")
         .leftJoinAndSelect("property.tower", "tower")
+        .leftJoinAndSelect("property.owner", "owner")
         .leftJoinAndSelect("payment.submittedBy", "user")
         .leftJoinAndSelect("payment.charge", "charge")
         .where("payment.status = :status", { status: PaymentStatus.CONFIRMED })
@@ -31,7 +32,8 @@ export const ReportController = {
       const data = payments.map(p => ({
         "Fecha de Pago": p.paymentDate,
         "Propiedad": p.property ? `${p.property.tower?.name || ''} - ${p.property.code}` : "N/A",
-        "Propietario": p.submittedBy ? p.submittedBy.fullName : "N/A",
+        // El titular del departamento, no quien registró: muchos pagos los carga la administración.
+        "Propietario": p.property?.owner?.fullName ?? p.submittedBy?.fullName ?? "N/A",
         "Monto (REF)": p.amount,
         "Moneda": p.currency,
         "Monto (Bs)": p.amountBs || "",
@@ -40,6 +42,7 @@ export const ReportController = {
         "Banco": p.bank,
         "Referencia": p.reference,
         "Cuota": p.charge ? `${p.charge.description} (${p.charge.period})` : "N/A",
+        "Registrado por": p.submittedBy ? p.submittedBy.fullName : "N/A",
       }));
 
       const ws = xlsx.utils.json_to_sheet(data);

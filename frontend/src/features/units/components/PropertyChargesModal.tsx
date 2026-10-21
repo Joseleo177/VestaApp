@@ -1,20 +1,22 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Download, Loader2, Trash2 } from "lucide-react";
-import { Modal } from "@/components/ui/Modal";
+import { Ban, Building, Download, HandCoins, RotateCcw, Trash2, Undo2, Wallet } from "lucide-react";
+import { Modal, ModalIcon } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { TableSkeleton } from "@/components/ui/Skeleton";
-import { EmptyState } from "@/components/ui/EmptyState";
+import { EmptyBlock, RowIcon } from "@/components/ui/Ledger";
+import { Money } from "@/components/ui/Money";
+import { RowMenu, RowMenuItem } from "@/components/ui/RowMenu";
+import { Segmented } from "@/components/ui/Segmented";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { StatusDef, StatusMark } from "@/components/ui/StatusMark";
 import { Charge, ChargeStatus, ChargeType } from "@/types/domain";
 import { formatCurrency, formatDate, formatPeriod } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { Receipt } from "lucide-react";
 import { ApiError } from "@/services/api";
 import { billingService } from "@/features/billing/services/billing.service";
 import { paymentService } from "@/features/payments/services/payment.service";
 import { PropertyWithBalance } from "@/features/admin-panel/types";
-
 import { PaymentForm } from "@/features/payments/components/PaymentForm";
 import { WriteOffDialog } from "@/features/billing/components/WriteOffDialog";
 
@@ -24,287 +26,286 @@ interface PropertyChargesModalProps {
   onClose: () => void;
 }
 
-const STATUS_META: Record<ChargeStatus, { label: string; cls: string }> = {
-  [ChargeStatus.PENDING]:    { label: "Pendiente",  cls: "bg-ios-orange/10 text-ios-orange" },
-  [ChargeStatus.PAID]:       { label: "Pagada",     cls: "bg-ios-green/10 text-ios-green" },
-  [ChargeStatus.EXONERATED]: { label: "Exonerada",  cls: "bg-ios-fill text-ios-secondary" },
-  [ChargeStatus.PARTIAL]:    { label: "Parcial",    cls: "bg-ios-orange/10 text-ios-orange" },
-};
+type Filter = "OPEN" | "PAID" | "ALL";
 
+const isOpen = (c: Charge) => c.status === ChargeStatus.PENDING || c.status === ChargeStatus.PARTIAL;
+const due = (c: Charge) => Number(c.amountDue ?? c.amount);
+
+// Pagada es lo normal (gris con visto); solo lo vencido va en rojo.
+function statusOf(c: Charge): StatusDef {
+  switch (c.status) {
+    case ChargeStatus.PAID:
+      return { label: "Pagada", tone: "success", quiet: "check" };
+    case ChargeStatus.EXONERATED:
+      return { label: "Exonerada", tone: "violet" };
+    case ChargeStatus.PARTIAL:
+      return { label: "Abonada en parte", tone: "warning" };
+    default:
+      return c.overdue ? { label: "Vencida", tone: "danger" } : { label: "Pendiente", tone: "warning" };
+  }
+}
+
+/** Qué entró a la cuota, en una línea: los pagos que abonaron (o el confirmado, en los viejos). */
+function paymentLine(c: Charge): string | null {
+  const apps = c.applications ?? [];
+  const receipt = c.confirmedPayment?.receiptNumber;
+  const parts =
+    apps.length > 0
+      ? apps.map((a) =>
+          [a.paymentDate && formatDate(a.paymentDate), a.reference && `Ref. ${a.reference}`, apps.length > 1 && formatCurrency(a.amount)]
+            .filter(Boolean)
+            .join(" · ")
+        )
+      : c.confirmedPayment
+        ? [[formatDate(c.confirmedPayment.paymentDate), c.confirmedPayment.reference && `Ref. ${c.confirmedPayment.reference}`].filter(Boolean).join(" · ")]
+        : [];
+  if (parts.length === 0) return null;
+  return `Pagada el ${parts.join(" + ")}${receipt ? ` · Recibo ${receipt}` : ""}`;
+}
+
+/**
+ * Las cuotas de un departamento: cuánto debe, qué pagó y qué hacer con cada una.
+ * Cada fila deja a la vista solo su acción principal (registrar el pago o bajar
+ * el recibo); exonerar, condonar o eliminar van en el menú "⋯".
+ */
 export function PropertyChargesModal({ property, open, onClose }: PropertyChargesModalProps) {
-  const [charges, setCharges]         = useState<Charge[]>([]);
-  const [loading, setLoading]         = useState(false);
-  const [busyId, setBusyId]           = useState<string | null>(null);
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [charges, setCharges] = useState<Charge[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Charge | null>(null);
-  const [paymentTarget, setPaymentTarget] = useState<Charge | null>(null);
+  const [payIds, setPayIds] = useState<string[] | null>(null);
   const [writeOffTarget, setWriteOffTarget] = useState<Charge | null>(null);
   const [revertTarget, setRevertTarget] = useState<Charge | null>(null);
+  const [chosen, setChosen] = useState<Filter | null>(null);
 
-  const replaceCharge = (updated: Charge) =>
-    setCharges((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-
-  const handleRevertWriteOff = async () => {
-    if (!revertTarget) return;
-    setBusyId(revertTarget.id);
-    try {
-      replaceCharge(await billingService.revertWriteOff(revertTarget.id));
-      toast.success("Condonación revertida: la cuota vuelve a parcial");
-      setRevertTarget(null);
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo revertir");
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  useEffect(() => {
-    if (!open || !property) return;
+  const load = () => {
+    if (!property) return;
     setLoading(true);
     billingService
       .listForProperty(property.id)
       .then(setCharges)
       .catch(() => toast.error("No se pudieron cargar las cuotas"))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    if (!open || !property) return;
+    setChosen(null);
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, property]);
 
-  const toggle = async (charge: Charge) => {
-    const exonerate = charge.status !== ChargeStatus.EXONERATED;
+  const replaceCharge = (updated: Charge) => setCharges((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+
+  const open_ = useMemo(() => charges.filter(isOpen), [charges]);
+  const payable = open_.filter((c) => !c.pendingPayment);
+  const debt = open_.reduce((s, c) => s + due(c), 0);
+  const overdue = open_.filter((c) => c.overdue).length;
+  const paidCount = charges.filter((c) => c.status === ChargeStatus.PAID).length;
+
+  // Sin elección, abre en lo que importa: lo que falta por cobrar, si hay.
+  const filter: Filter = chosen ?? (open_.length ? "OPEN" : "ALL");
+  const list = useMemo(() => {
+    const byDue = (a: Charge, b: Charge) => b.dueDate.localeCompare(a.dueDate);
+    if (filter === "OPEN") return [...open_].sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+    if (filter === "PAID") return charges.filter((c) => c.status === ChargeStatus.PAID).sort(byDue);
+    return [...charges].sort(byDue);
+  }, [filter, charges, open_]);
+
+  const run = async (charge: Charge, fn: () => Promise<void>) => {
     setBusyId(charge.id);
     try {
-      const updated = await billingService.setExonerated(charge.id, exonerate);
-      setCharges((prev) => prev.map((c) => (c.id === charge.id ? updated : c)));
-      toast.success(exonerate ? "Cuota exonerada" : "Cuota reactivada");
+      await fn();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo actualizar");
+      toast.error(err instanceof ApiError ? err.message : "No se pudo completar la acción");
     } finally {
       setBusyId(null);
     }
   };
+
+  const toggleExonerated = (c: Charge) =>
+    run(c, async () => {
+      const exonerate = c.status !== ChargeStatus.EXONERATED;
+      replaceCharge(await billingService.setExonerated(c.id, exonerate));
+      toast.success(exonerate ? `${formatPeriod(c.period)} exonerada` : "Cuota reactivada");
+    });
 
   /** El recibo se pide por su número: es el que cubre esta cuota concreta. */
-  const handleDownload = async (charge: Charge) => {
-    const cp = charge.confirmedPayment;
-    if (!cp?.id || !cp.receiptNumber) return;
-    setDownloadingId(charge.id);
-    try {
-      await paymentService.downloadReceipt(cp.id, cp.receiptNumber);
-    } catch {
-      toast.error("No se pudo descargar el recibo");
-    } finally {
-      setDownloadingId(null);
-    }
-  };
+  const download = (c: Charge) =>
+    run(c, async () => {
+      const cp = c.confirmedPayment;
+      if (cp?.id && cp.receiptNumber) await paymentService.downloadReceipt(cp.id, cp.receiptNumber);
+    });
 
-  const handleDeleteConfirm = async () => {
-    if (!deleteTarget) return;
-    setBusyId(deleteTarget.id);
+  const handleDelete = async () => {
+    const target = deleteTarget;
+    if (!target) return;
     setDeleteTarget(null);
-    try {
-      await billingService.deleteCharge(deleteTarget.id);
-      setCharges((prev) => prev.filter((c) => c.id !== deleteTarget.id));
+    await run(target, async () => {
+      await billingService.deleteCharge(target.id);
+      setCharges((prev) => prev.filter((c) => c.id !== target.id));
       toast.success("Cuota eliminada");
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar");
-    } finally {
-      setBusyId(null);
-    }
+    });
   };
 
-  const title = property
-    ? `Cuotas — ${property.code}${property.tower ? ` · ${property.tower.name}` : ""}`
-    : "Cuotas";
+  const handleRevert = async () => {
+    const target = revertTarget;
+    if (!target) return;
+    await run(target, async () => {
+      replaceCharge(await billingService.revertWriteOff(target.id));
+      toast.success("Condonación revertida: la cuota vuelve a quedar abonada en parte");
+      setRevertTarget(null);
+    });
+  };
+
+  const menuFor = (c: Charge): RowMenuItem[] => {
+    const items: RowMenuItem[] = [];
+    if (c.status === ChargeStatus.PARTIAL)
+      items.push({
+        label: "Condonar el saldo",
+        icon: HandCoins,
+        onClick: () => setWriteOffTarget(c),
+        disabled: !!c.pendingPayment,
+        hint: c.pendingPayment ? "Tiene un pago en revisión" : "Perdonar lo que falta",
+      });
+    if (c.writeOff) items.push({ label: "Revertir condonación", icon: Undo2, onClick: () => setRevertTarget(c) });
+    if (c.status === ChargeStatus.PENDING) items.push({ label: "Exonerar", icon: Ban, onClick: () => toggleExonerated(c) });
+    if (c.status === ChargeStatus.EXONERATED) items.push({ label: "Reactivar", icon: RotateCcw, onClick: () => toggleExonerated(c) });
+    if (c.status === ChargeStatus.PENDING || c.status === ChargeStatus.EXONERATED)
+      items.push({ label: "Eliminar cuota", icon: Trash2, tone: "danger", onClick: () => setDeleteTarget(c) });
+    return items;
+  };
 
   return (
     <>
-      <Modal open={open} onClose={onClose} title={title} className="w-full sm:max-w-2xl">
+      <Modal
+        open={open}
+        onClose={onClose}
+        className="sm:max-w-2xl"
+        title={property ? `Cuotas de ${property.code}` : "Cuotas"}
+        description={[property?.tower?.name, property?.owner?.fullName].filter(Boolean).join(" · ") || undefined}
+        icon={
+          <ModalIcon tone="bg-amber-500/[0.12] text-amber-600 dark:text-amber-400">
+            <Building className="h-5 w-5" />
+          </ModalIcon>
+        }
+      >
+        {/* ── Cuánto debe ── */}
         {loading ? (
-          <TableSkeleton rows={4} cols={5} />
-        ) : charges.length === 0 ? (
-          <EmptyState
-            icon={<Receipt className="h-7 w-7" />}
-            title="Sin cuotas"
-            description="Este departamento no tiene cuotas emitidas aún."
-          />
+          <Skeleton className="mb-4 h-[76px] w-full !rounded-2xl" />
         ) : (
-          /* Lista en vez de tabla: las cuotas caben a cualquier ancho sin
-             obligar a desplazar el modal en horizontal. */
-          <ul className="divide-y divide-ios-separator text-sm">
-            {charges.map((c) => {
-              const cp = c.confirmedPayment;
-              const receiptNumber = cp?.receiptNumber ?? null;
-              const apps = c.applications ?? [];
-              const canPay =
-                c.status === ChargeStatus.PENDING || c.status === ChargeStatus.PARTIAL;
-              const canExonerate =
-                c.status === ChargeStatus.PENDING || c.status === ChargeStatus.EXONERATED;
-              const canDelete = canExonerate;
-              const busy = busyId === c.id;
-
-              return (
-                <li key={c.id} className="py-3 first:pt-0">
-                  {/* Cabecera: período + estado a la izquierda, monto a la derecha */}
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="font-medium text-ios-label">
-                          {formatPeriod(c.period)}
-                        </span>
-                        <span
-                          className={cn(
-                            "inline-flex rounded-full px-2 py-0.5 text-xs font-medium",
-                            STATUS_META[c.status].cls
-                          )}
-                        >
-                          {STATUS_META[c.status].label}
-                        </span>
-                        {c.type === ChargeType.SPECIAL && (
-                          <span className="inline-flex rounded-full bg-ios-purple/10 px-2 py-0.5 text-xs font-medium text-ios-purple">
-                            Especial
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-0.5 truncate text-xs text-ios-secondary">
-                        {c.description}
-                      </p>
-                      <p className="mt-0.5 text-xs text-ios-tertiary">
-                        Vence {formatDate(c.dueDate)}
-                      </p>
-                    </div>
-
-                    <div className="shrink-0 text-right">
-                      <div className="font-semibold text-ios-label">
-                        {c.status === ChargeStatus.PAID
-                          ? formatCurrency(c.amountPaid ?? c.amount)
-                          : formatCurrency(c.amountDue ?? c.amount)}
-                      </div>
-                      {c.overdue && c.status === ChargeStatus.PENDING && (
-                        <div className="text-xs text-ios-red">mora incluida</div>
-                      )}
-                      {c.status === ChargeStatus.PARTIAL && (c.amountPaid ?? 0) > 0 && (
-                        <div className="text-xs text-ios-orange">
-                          pagado {formatCurrency(c.amountPaid ?? 0)}
-                        </div>
-                      )}
-                      {c.writeOff && (
-                        <div className="text-xs text-ios-purple">
-                          condonado {formatCurrency(c.writeOff.amount)}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {c.writeOff && (
-                    <p className="mt-1.5 break-words text-xs text-ios-purple">
-                      Motivo de la condonación: {c.writeOff.reason}
+          charges.length > 0 && (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-ios-fill/60 p-4">
+              <div>
+                <p className="text-[12px] text-ios-secondary">{debt > 0.005 ? "Debe" : "Estado"}</p>
+                {debt > 0.005 ? (
+                  <>
+                    <Money
+                      value={formatCurrency(debt)}
+                      className={cn("block text-[26px] font-bold leading-tight", overdue ? "text-red-600 dark:text-red-400" : "text-ios-label")}
+                    />
+                    <p className="text-[12px] text-ios-secondary">
+                      {open_.length} {open_.length === 1 ? "cuota abierta" : "cuotas abiertas"}
+                      {overdue > 0 && ` · ${overdue} vencida${overdue === 1 ? "" : "s"}`}
                     </p>
-                  )}
+                  </>
+                ) : (
+                  <p className="text-[20px] font-bold leading-tight text-ios-label">Al día</p>
+                )}
+              </div>
+              {payable.length > 0 && (
+                <Button size="sm" onClick={() => setPayIds(payable.map((c) => c.id))}>
+                  <Wallet className="h-4 w-4" />
+                  Registrar pago
+                </Button>
+              )}
+            </div>
+          )
+        )}
 
-                  {/* Pagos que abonaron a la cuota, con cuánto aportó cada uno.
-                      Los pagos anteriores al registro de aplicaciones no lo
-                      tienen: para esos queda la línea del pago confirmado. */}
-                  {apps.length > 0 ? (
-                    <ul className="mt-1.5 space-y-0.5 font-mono text-xs">
-                      {apps.map((a, i) => (
-                        <li
-                          key={`${a.paymentId ?? "?"}-${i}`}
-                          className="flex justify-between gap-3 text-ios-green"
-                        >
-                          <span className="min-w-0 break-words">
-                            {[a.reference, a.bank, a.paymentDate ? formatDate(a.paymentDate) : null]
-                              .filter(Boolean)
-                              .join(" · ")}
-                          </span>
-                          <span className="shrink-0">{formatCurrency(a.amount)}</span>
-                        </li>
-                      ))}
-                      {receiptNumber && (
-                        <li className="text-ios-secondary">Recibo {receiptNumber}</li>
+        {charges.length > 0 && !loading && (
+          <Segmented<Filter>
+            aria-label="Filtrar cuotas"
+            value={filter}
+            onChange={setChosen}
+            className="mb-3"
+            options={[
+              { key: "OPEN", label: "Por cobrar", count: open_.length },
+              { key: "PAID", label: "Pagadas", count: paidCount },
+              { key: "ALL", label: "Todas", count: charges.length },
+            ]}
+          />
+        )}
+
+        {loading ? (
+          <div className="space-y-2">
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} className="h-16 w-full !rounded-xl" />
+            ))}
+          </div>
+        ) : charges.length === 0 ? (
+          <EmptyBlock title="Sin cuotas" hint="A este departamento todavía no se le ha emitido ninguna cuota." />
+        ) : list.length === 0 ? (
+          <EmptyBlock title="Nada por aquí" hint={filter === "OPEN" ? "No tiene cuotas por cobrar." : "Aún no tiene cuotas pagadas."} />
+        ) : (
+          <ul className="divide-y divide-ios-separator overflow-hidden rounded-xl border border-ios-separator">
+            {list.map((c) => {
+              const busy = busyId === c.id;
+              const paid = Number(c.amountPaid ?? 0);
+              const line = paymentLine(c);
+              const receipt = c.confirmedPayment?.receiptNumber;
+              return (
+                <li key={c.id} className="flex items-center gap-3 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="text-[14px] font-semibold text-ios-label">{formatPeriod(c.period)}</span>
+                      {c.type === ChargeType.SPECIAL && (
+                        <span className="rounded-md bg-violet-500/10 px-1.5 py-0.5 text-[11px] font-semibold text-violet-700 dark:text-violet-300">
+                          Especial
+                        </span>
                       )}
-                    </ul>
-                  ) : cp ? (
-                    <p className="mt-1.5 break-words font-mono text-xs text-ios-green">
-                      {[cp.reference, cp.bank, cp.paymentDate ? formatDate(cp.paymentDate) : null]
+                      <StatusMark {...statusOf(c)} />
+                    </div>
+                    <p className="mt-0.5 truncate text-[12px] text-ios-secondary">
+                      {[
+                        c.description,
+                        isOpen(c) && `Vence ${formatDate(c.dueDate)}`,
+                        c.status === ChargeStatus.PARTIAL && paid > 0 && `Abonó ${formatCurrency(paid)}`,
+                        c.pendingPayment && "Pago en revisión",
+                      ]
                         .filter(Boolean)
                         .join(" · ")}
-                      {receiptNumber && (
-                        <span className="text-ios-secondary"> · Recibo {receiptNumber}</span>
-                      )}
                     </p>
-                  ) : (
-                    c.status === ChargeStatus.PAID &&
-                    !c.writeOff && (
-                      <p className="mt-1.5 text-xs text-ios-orange">
-                        Pagada sin ningún pago asociado
-                      </p>
-                    )
-                  )}
-
-                  {/* Acciones: se reacomodan en varias líneas si el ancho aprieta */}
-                  <div className="mt-2 flex flex-wrap items-center justify-end gap-1.5">
-                    {receiptNumber ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleDownload(c)}
-                        disabled={downloadingId === c.id}
-                        title={`Descargar ${receiptNumber}`}
-                      >
-                        {downloadingId === c.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Download className="h-3.5 w-3.5" />
-                        )}
-                        Recibo
-                      </Button>
-                    ) : (
-                      c.status === ChargeStatus.PAID && (
-                        <span className="text-xs text-ios-tertiary">Sin recibo emitido</span>
-                      )
-                    )}
-                    {canPay && (
-                      <Button size="sm" variant="ghost" onClick={() => setPaymentTarget(c)}>
-                        Registrar pago
-                      </Button>
-                    )}
-                    {c.status === ChargeStatus.PARTIAL && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setWriteOffTarget(c)}
-                        disabled={busy || !!c.pendingPayment}
-                        title={c.pendingPayment ? "Tiene un pago pendiente de revisión" : "Perdonar el saldo restante"}
-                      >
-                        Condonar saldo
-                      </Button>
-                    )}
+                    {line && <p className="truncate text-[12px] text-ios-secondary">{line}</p>}
                     {c.writeOff && (
-                      <Button size="sm" variant="ghost" onClick={() => setRevertTarget(c)} disabled={busy}>
-                        Revertir condonación
-                      </Button>
+                      <p className="truncate text-[12px] text-violet-700 dark:text-violet-300">
+                        Condonado {formatCurrency(c.writeOff.amount)}: {c.writeOff.reason}
+                      </p>
                     )}
-                    {canExonerate && (
-                      <Button
-                        size="sm"
-                        variant={c.status === ChargeStatus.EXONERATED ? "outline" : "ghost"}
-                        onClick={() => toggle(c)}
-                        disabled={busy}
-                      >
-                        {c.status === ChargeStatus.EXONERATED ? "Reactivar" : "Exonerar"}
-                      </Button>
+                    {c.status === ChargeStatus.PAID && !line && !c.writeOff && (
+                      <p className="text-[12px] text-amber-700 dark:text-amber-400">Pagada sin ningún pago asociado</p>
                     )}
-                    {canDelete && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setDeleteTarget(c)}
-                        disabled={busy}
-                        title="Eliminar cuota"
-                        className="text-ios-red hover:bg-ios-red/10 hover:text-ios-red"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                  </div>
+
+                  <div className="shrink-0 text-right">
+                    <Money
+                      value={formatCurrency(c.status === ChargeStatus.PAID ? c.amountPaid ?? c.amount : due(c))}
+                      className="text-[14px] font-semibold text-ios-label"
+                    />
+                    {c.overdue && c.status === ChargeStatus.PENDING && (
+                      <p className="text-[11px] text-red-600 dark:text-red-400">con mora</p>
                     )}
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    {isOpen(c) && !c.pendingPayment ? (
+                      <Button size="sm" variant="outline" className="!h-8 !px-3" onClick={() => setPayIds([c.id])}>
+                        Pagar
+                      </Button>
+                    ) : receipt ? (
+                      <RowIcon icon={Download} title={`Descargar recibo ${receipt}`} busy={busy} onClick={() => download(c)} />
+                    ) : null}
+                    <RowMenu items={menuFor(c)} />
                   </div>
                 </li>
               );
@@ -325,9 +326,9 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
       <ConfirmDialog
         open={revertTarget !== null}
         onClose={() => setRevertTarget(null)}
-        onConfirm={() => void handleRevertWriteOff()}
+        onConfirm={() => void handleRevert()}
         title="Revertir condonación"
-        description={`La cuota de ${revertTarget ? formatPeriod(revertTarget.period) : ""} vuelve a quedar parcial con ${revertTarget?.writeOff ? formatCurrency(revertTarget.writeOff.amount) : ""} pendiente, y se anula el recibo emitido al condonar.`}
+        description={`La cuota de ${revertTarget ? formatPeriod(revertTarget.period) : ""} vuelve a quedar con ${revertTarget?.writeOff ? formatCurrency(revertTarget.writeOff.amount) : ""} pendiente, y se anula el recibo emitido al condonar.`}
         confirmLabel="Revertir"
         loading={busyId === revertTarget?.id}
       />
@@ -335,33 +336,34 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
       <ConfirmDialog
         open={deleteTarget !== null}
         onClose={() => setDeleteTarget(null)}
-        onConfirm={handleDeleteConfirm}
-        title="Eliminar cuota"
-        description={`¿Eliminar la cuota de ${deleteTarget ? formatPeriod(deleteTarget.period) : ""}? Esta acción no se puede deshacer.`}
+        onConfirm={() => void handleDelete()}
+        title={`¿Eliminar la cuota de ${deleteTarget ? formatPeriod(deleteTarget.period) : ""}?`}
+        description="Desaparece del estado de cuenta del departamento. Esta acción no se puede deshacer."
         confirmLabel="Eliminar"
         loading={busyId === deleteTarget?.id}
       />
 
       <Modal
-        open={paymentTarget !== null}
-        onClose={() => setPaymentTarget(null)}
-        title={`Registrar pago — ${paymentTarget ? formatPeriod(paymentTarget.period) : ""}`}
+        open={payIds !== null}
+        onClose={() => setPayIds(null)}
+        title="Registrar un pago"
+        description={property ? `${property.code}${property.owner ? ` · ${property.owner.fullName}` : ""}` : undefined}
+        icon={
+          <ModalIcon tone="bg-fuchsia-500/[0.12] text-fuchsia-600 dark:text-fuchsia-400">
+            <Wallet className="h-5 w-5" />
+          </ModalIcon>
+        }
       >
-        {paymentTarget && (
+        {payIds && (
           <PaymentForm
-            charges={[paymentTarget]}
-            defaultChargeId={paymentTarget.id}
+            key={payIds.join(",")}
+            charges={open_}
+            defaultChargeIds={payIds}
             onSuccess={() => {
-              setPaymentTarget(null);
-              if (property) {
-                setLoading(true);
-                billingService
-                  .listForProperty(property.id)
-                  .then(setCharges)
-                  .finally(() => setLoading(false));
-              }
+              setPayIds(null);
+              load();
             }}
-            onCancel={() => setPaymentTarget(null)}
+            onCancel={() => setPayIds(null)}
           />
         )}
       </Modal>
