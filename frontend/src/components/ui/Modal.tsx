@@ -45,7 +45,10 @@ export function Modal({ open, onClose, title, description, icon, children, class
         aria-modal="true"
         className={cn(
           "relative z-10 w-full bg-ios-card shadow-ios-lg",
-          "rounded-t-3xl sm:rounded-3xl sm:max-w-lg",
+          "rounded-t-3xl sm:rounded-3xl",
+          // El ancho por defecto solo si el modal no pide el suyo: con las dos
+          // clases a la vez ganaba la de aquí y los modales anchos salían angostos.
+          !/(^|\s)sm:max-w-/.test(className ?? "") && "sm:max-w-lg",
           "max-h-[90vh] overflow-y-auto",
           className
         )}

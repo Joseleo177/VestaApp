@@ -12,7 +12,7 @@ export interface PeriodProgress {
   overdue: number;
 }
 
-export interface PeriodRow extends PeriodSummary {
+export interface PeriodRow extends Omit<PeriodSummary, "progress"> {
   progress: PeriodProgress | null;
 }
 
@@ -40,9 +40,9 @@ export function progressOf(charges: Charge[]): PeriodProgress {
 }
 
 /**
- * Períodos emitidos, cada uno con su avance de cobranza. El resumen de la API no
- * trae lo cobrado, así que se piden las cuotas de cada período en paralelo: son
- * pocos (uno por mes) y la cobranza es lo que el administrador viene a mirar.
+ * Períodos emitidos, cada uno con su avance de cobranza. La API ya trae los
+ * totales sumados en la base de datos: una sola petición. (Antes se pedían todas
+ * las cuotas de cada período para sumarlas aquí, y la pantalla tardaba en cargar.)
  */
 export function usePeriods(): Result {
   const [periods, setPeriods] = useState<PeriodRow[]>([]);
@@ -52,10 +52,7 @@ export function usePeriods(): Result {
     if (!silent) setLoading(true);
     try {
       const list = await billingService.listPeriods();
-      const charges = await Promise.all(
-        list.map((p) => billingService.listForPeriod(p.period, p.type).catch(() => null))
-      );
-      setPeriods(list.map((p, i) => ({ ...p, progress: charges[i] ? progressOf(charges[i]!) : null })));
+      setPeriods(list.map((p) => ({ ...p, progress: p.progress ?? null })));
     } finally {
       if (!silent) setLoading(false);
     }

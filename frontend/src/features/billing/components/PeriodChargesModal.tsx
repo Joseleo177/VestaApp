@@ -178,7 +178,7 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
       <Modal
         open={open}
         onClose={onClose}
-        className="sm:max-w-3xl"
+        className="sm:max-w-4xl"
         title={period ? formatPeriod(period) : "Cuotas"}
         description={`${type === ChargeType.SPECIAL ? "Cuota especial" : "Cuota regular"} · ${charges.length} departamentos`}
         icon={
@@ -333,7 +333,7 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
                     </p>
                   </div>
 
-                  <div className="shrink-0 text-right">
+                  <div className="w-28 shrink-0 text-right">
                     <Money
                       value={formatCurrency(c.status === ChargeStatus.PAID ? c.amountPaid ?? c.amount : c.amountDue ?? c.amount)}
                       className="text-[14px] font-semibold text-ios-label"

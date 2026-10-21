@@ -123,8 +123,14 @@ export const ChargeService = {
       hasSpecial: boolean;
       /** Monedas de tasa presentes en el lote (dos si se mezclaron). */
       currencies: RateCurrency[];
+      /** Avance de la cobranza del lote (lo exonerado no cuenta: no se cobra). */
+      progress: { billable: number; collected: number; paid: number; open: number; overdue: number; exonerated: number };
     }[]
   > {
+    // La cobranza de cada lote se agrega aquí mismo. Antes la pantalla de Cobros
+    // pedía todas las cuotas de cada período (con sus pagos) solo para sumarlas, y
+    // con muchos departamentos y meses tardaba varios segundos en cargar.
+    const open = `charge.status IN ('${ChargeStatus.PENDING}', '${ChargeStatus.PARTIAL}')`;
     const rows = await repo()
       .createQueryBuilder("charge")
       .select("charge.period", "period")
@@ -132,10 +138,24 @@ export const ChargeService = {
       .addSelect("COUNT(*)", "count")
       .addSelect("COALESCE(SUM(charge.amount), 0)", "total")
       .addSelect("STRING_AGG(DISTINCT charge.currency, ',')", "currencies")
+      .addSelect(`COALESCE(SUM(CASE WHEN charge.status <> '${ChargeStatus.EXONERATED}' THEN charge.amount ELSE 0 END), 0)`, "billable")
+      .addSelect(
+        `COALESCE(SUM(CASE WHEN charge.status = '${ChargeStatus.PAID}' THEN charge.amount
+          WHEN charge.status = '${ChargeStatus.PARTIAL}' THEN LEAST(charge.amount, COALESCE(charge.amount_paid, 0))
+          ELSE 0 END), 0)`,
+        "collected"
+      )
+      .addSelect(`COUNT(*) FILTER (WHERE charge.status = '${ChargeStatus.PAID}')`, "paid")
+      .addSelect(`COUNT(*) FILTER (WHERE ${open})`, "open")
+      .addSelect(`COUNT(*) FILTER (WHERE ${open} AND charge.due_date < CURRENT_DATE)`, "overdue")
+      .addSelect(`COUNT(*) FILTER (WHERE charge.status = '${ChargeStatus.EXONERATED}')`, "exonerated")
       .groupBy("charge.period, charge.type")
       .orderBy("charge.period", "DESC")
       .addOrderBy("charge.type", "ASC")
-      .getRawMany<{ period: string; type: string; count: string; total: string; currencies: string | null }>();
+      .getRawMany<{
+        period: string; type: string; count: string; total: string; currencies: string | null;
+        billable: string; collected: string; paid: string; open: string; overdue: string; exonerated: string;
+      }>();
 
     return rows.map((r) => ({
       period: r.period,
@@ -144,6 +164,14 @@ export const ChargeService = {
       total: Number(r.total),
       hasSpecial: r.type === ChargeType.SPECIAL,
       currencies: (r.currencies ?? RateCurrency.EUR).split(",").filter(isRateCurrency),
+      progress: {
+        billable: Number(r.billable),
+        collected: Number(r.collected),
+        paid: Number(r.paid),
+        open: Number(r.open),
+        overdue: Number(r.overdue),
+        exonerated: Number(r.exonerated),
+      },
     }));
   },
 

@@ -9,6 +9,8 @@ export interface PeriodSummary {
   type: ChargeType;
   /** Tasas de cobro presentes en el lote (dos si se mezclaron). */
   currencies: RateCurrency[];
+  /** Avance de la cobranza, sumado en la base de datos (lo exonerado no cuenta). */
+  progress?: { billable: number; collected: number; paid: number; open: number; overdue: number; exonerated: number };
 }
 
 export interface GenerateChargesInput {
