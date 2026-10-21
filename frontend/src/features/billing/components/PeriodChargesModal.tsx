@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeftRight, CalendarClock, Download, Receipt } from "lucide-react";
+import { ArrowLeftRight, CalendarClock, Download, Percent, Receipt } from "lucide-react";
 import { Modal, ModalIcon } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { EmptyBlock, RowIcon } from "@/components/ui/Ledger";
@@ -21,6 +21,7 @@ import { paymentService } from "@/features/payments/services/payment.service";
 import { progressOf } from "../hooks/usePeriods";
 import { WriteOffDialog } from "./WriteOffDialog";
 import { DueDateDialog, DueDateTarget, mergeDue } from "./DueDateDialog";
+import { MoraDialog, MoraTarget } from "./MoraDialog";
 
 interface PeriodChargesModalProps {
   period: string | null;
@@ -61,6 +62,7 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
   const [changingAll, setChangingAll] = useState(false);
   const [writeOffTarget, setWriteOffTarget] = useState<Charge | null>(null);
   const [dueTarget, setDueTarget] = useState<DueDateTarget | null>(null);
+  const [moraTarget, setMoraTarget] = useState<MoraTarget | null>(null);
   const [filter, setFilter] = useState<Filter>("ALL");
   const [search, setSearch] = useState("");
 
@@ -173,6 +175,16 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
   const periodDue = [...dueCounts].sort((a, b) => b[1] - a[1])[0]?.[0];
   const mixedDue = dueCounts.size > 1;
 
+  // Mora del lote, igual: la más repetida. Las especiales no llevan mora.
+  const isRegular = type === ChargeType.REGULAR;
+  const moraCounts = new Map<number, number>();
+  dueBase.forEach((c) => {
+    const m = Number(c.moraAmount ?? 0);
+    moraCounts.set(m, (moraCounts.get(m) ?? 0) + 1);
+  });
+  const periodMora = [...moraCounts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 0;
+  const mixedMora = moraCounts.size > 1;
+
   return (
     <>
       <Modal
@@ -239,6 +251,31 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
                     className="font-semibold text-brand-600 hover:underline"
                   >
                     Cambiar vencimiento
+                  </button>
+                )}
+              </div>
+            )}
+            {/* Mora por vencimiento: si el lote se emitió sin mora, aquí se agrega. */}
+            {isRegular && charges.length > 0 && (
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[13px]">
+                <span className="flex items-center gap-1.5 text-ios-secondary">
+                  <Percent className="h-4 w-4" />
+                  {periodMora > 0 ? (
+                    <>
+                      Mora por vencimiento <Money value={formatCurrency(periodMora)} className="font-semibold text-ios-label" />
+                    </>
+                  ) : (
+                    <span>Sin mora por vencimiento</span>
+                  )}
+                  {mixedMora && <span className="text-amber-700 dark:text-amber-400">· algunas cuotas tienen otra mora</span>}
+                </span>
+                {unpaid.length > 0 && period && (
+                  <button
+                    type="button"
+                    onClick={() => setMoraTarget({ period, current: periodMora, dueDate: periodDue })}
+                    className="font-semibold text-brand-600 hover:underline"
+                  >
+                    {periodMora > 0 ? "Cambiar mora" : "Agregar mora"}
                   </button>
                 )}
               </div>
@@ -338,7 +375,7 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
                       value={formatCurrency(c.status === ChargeStatus.PAID ? c.amountPaid ?? c.amount : c.amountDue ?? c.amount)}
                       className="text-[14px] font-semibold text-ios-label"
                     />
-                    {c.overdue && c.status === ChargeStatus.PENDING && (
+                    {c.overdue && c.status === ChargeStatus.PENDING && (c.moraAmount ?? 0) > 0 && (
                       <p className="text-[11px] text-red-600 dark:text-red-400">con mora</p>
                     )}
                   </div>
@@ -434,6 +471,16 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
             load();
             onChanged?.();
           }
+        }}
+      />
+
+      <MoraDialog
+        target={moraTarget}
+        onClose={() => setMoraTarget(null)}
+        onDone={() => {
+          setMoraTarget(null);
+          load();
+          onChanged?.();
         }}
       />
     </>

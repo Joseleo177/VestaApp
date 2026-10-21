@@ -80,6 +80,16 @@ export const billingService = {
     return data;
   },
 
+  /** Fija la mora por vencimiento de las cuotas regulares no pagadas de un lote. */
+  async setPeriodMora(period: string, moraAmount: number): Promise<{ updated: number }> {
+    const { data } = await api.patch<{ updated: number }>(
+      `/charges/period/${period}/mora`,
+      { moraAmount },
+      { params: { type: ChargeType.REGULAR } }
+    );
+    return data;
+  },
+
   /** Condona el saldo de una cuota con abono parcial. */
   async writeOff(chargeId: string, reason: string): Promise<Charge> {
     const { data } = await api.post<Charge>(`/charges/${chargeId}/write-off`, { reason });

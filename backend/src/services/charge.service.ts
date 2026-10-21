@@ -228,6 +228,25 @@ export const ChargeService = {
     return { updated: result.affected ?? 0 };
   },
 
+  /**
+   * Fija la mora por vencimiento de las cuotas regulares no pagadas de un lote
+   * (p. ej. se emitió con mora 0). Igual que el vencimiento, se aplica a los pagos
+   * que se confirmen después; las pagadas no se tocan.
+   */
+  async setMora(moraAmount: number, scope: { period: string }): Promise<{ updated: number }> {
+    const result = await repo()
+      .createQueryBuilder()
+      .update(Charge)
+      .set({ moraAmount })
+      .where("status IN (:...statuses)", {
+        statuses: [ChargeStatus.PENDING, ChargeStatus.PARTIAL, ChargeStatus.EXONERATED],
+      })
+      .andWhere("period = :period", { period: scope.period })
+      .andWhere("type = :type", { type: ChargeType.REGULAR })
+      .execute();
+    return { updated: result.affected ?? 0 };
+  },
+
   listForPeriod(period: string, type?: string): Promise<Charge[]> {
     const where: any = { period };
     if (type) where.type = type;

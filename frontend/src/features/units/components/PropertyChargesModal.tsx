@@ -297,7 +297,7 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
                       value={formatCurrency(c.status === ChargeStatus.PAID ? c.amountPaid ?? c.amount : due(c))}
                       className="text-[14px] font-semibold text-ios-label"
                     />
-                    {c.overdue && c.status === ChargeStatus.PENDING && (
+                    {c.overdue && c.status === ChargeStatus.PENDING && (c.moraAmount ?? 0) > 0 && (
                       <p className="text-[11px] text-red-600 dark:text-red-400">con mora</p>
                     )}
                   </div>

@@ -364,6 +364,22 @@ export const ChargeController = {
     }
   },
 
+  // PATCH /api/charges/period/:period/mora  {moraAmount}  (admin) — mora del lote regular
+  async setPeriodMora(req: Request, res: Response, next: NextFunction) {
+    try {
+      const moraAmount = Number(req.body?.moraAmount);
+      if (!Number.isFinite(moraAmount) || moraAmount < 0) {
+        throw new HttpError(400, "Mora inválida");
+      }
+      if (req.query.type === ChargeType.SPECIAL) {
+        throw new HttpError(409, "Las cuotas especiales no llevan mora");
+      }
+      res.json(await ChargeService.setMora(Math.round(moraAmount * 100) / 100, { period: req.params.period }));
+    } catch (err) {
+      next(err);
+    }
+  },
+
   // POST /api/charges/:id/write-off  {reason}  (admin) — condonar el saldo de una parcial
   async writeOff(req: Request, res: Response, next: NextFunction) {
     try {
