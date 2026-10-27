@@ -136,7 +136,7 @@ export function ReportsPage() {
       title="Reportes"
       subheader={<p className="text-[14px] text-ios-secondary">Descarga la información de la asociación para la junta, la asamblea o un vecino.</p>}
     >
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* ── Cobros ── */}
         <ReportCard
           icon={<FileSpreadsheet className="h-5 w-5" />}

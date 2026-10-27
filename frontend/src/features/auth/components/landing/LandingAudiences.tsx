@@ -105,7 +105,7 @@ function AccountPreview() {
 export function LandingAudiences() {
   return (
     <>
-      <section id="vecinos" className="scroll-mt-20 border-t border-ios-separator bg-ios-card">
+      <section id="vecinos" className="scroll-mt-20 overflow-x-clip border-t border-ios-separator bg-ios-card">
         <div className="mx-auto grid max-w-6xl items-center gap-14 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:py-24">
           <div>
             <p className="text-[14px] font-semibold text-brand-600">Para cada vecino</p>

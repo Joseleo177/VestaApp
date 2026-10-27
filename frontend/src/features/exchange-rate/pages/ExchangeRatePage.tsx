@@ -149,7 +149,7 @@ export function ExchangeRatePage() {
       }
     >
       {/* ── Tasas vigentes ── */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {CURRENCIES.map((c) => (
           <RateCard
             key={c}

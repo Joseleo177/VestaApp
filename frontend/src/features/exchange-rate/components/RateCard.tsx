@@ -43,7 +43,9 @@ function Sparkline({ values }: { values: number[] }) {
   const pts = values.map((v, i) => [(i / (values.length - 1)) * (w - 8) + 4, h - 6 - ((v - min) / span) * (h - 12)]);
   const last = pts[pts.length - 1];
   return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="overflow-visible" aria-hidden>
+    // Ancho fluido hasta 160px: en un teléfono la cifra grande se lleva casi toda la
+    // fila y la línea se achica en proporción en vez de empujar la tarjeta.
+    <svg viewBox={`0 0 ${w} ${h}`} className="h-auto w-full max-w-[160px] overflow-visible" aria-hidden>
       <polyline
         points={pts.map((p) => p.join(",")).join(" ")}
         fill="none"
@@ -93,7 +95,7 @@ export function RateCard({ currency, current, history, primary, enabled }: RateC
       </div>
 
       <div className="mt-4 flex items-end justify-between gap-4">
-        <div>
+        <div className="shrink-0">
           <p className="text-[34px] font-bold leading-none tracking-tight text-ios-label">
             {current ? formatRate(current.rate) : history[0] ? formatRate(Number(history[0].rate)) : "—"}
             <span className="ml-1.5 text-[14px] font-medium text-ios-secondary">Bs/{currency}</span>
@@ -103,7 +105,9 @@ export function RateCard({ currency, current, history, primary, enabled }: RateC
             {previous && <span className="text-[12px] text-ios-secondary">vs. {formatDate(previous.date)}</span>}
           </div>
         </div>
-        <Sparkline values={trend} />
+        <div className="flex min-w-0 flex-1 justify-end">
+          <Sparkline values={trend} />
+        </div>
       </div>
 
       <p className="mt-4 border-t border-ios-separator pt-3 text-[12px] text-ios-secondary">

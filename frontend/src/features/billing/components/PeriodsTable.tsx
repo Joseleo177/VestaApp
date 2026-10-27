@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyBlock, LedgerSkeleton, ledgerRow, ROW_TONE, RowIcon, stopRow } from "@/components/ui/Ledger";
 import { Money } from "@/components/ui/Money";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { StatusMark } from "@/components/ui/StatusMark";
 import { formatBs, formatCurrency, formatPeriod } from "@/lib/format";
 import { cn } from "@/lib/cn";
@@ -44,10 +45,49 @@ function Progress({ p }: { p: NonNullable<PeriodRow["progress"]> }) {
   );
 }
 
+/** Nombre del período, la marca de especial y cuántas cuotas lleva. */
+function PeriodName({ p }: { p: PeriodRow }) {
+  const pr = p.progress;
+  return (
+    <>
+      <div className="flex items-center gap-2">
+        <span className="font-semibold text-ios-label">{formatPeriod(p.period)}</span>
+        {p.type === ChargeType.SPECIAL && (
+          <span className="rounded-md bg-violet-500/10 px-1.5 py-0.5 text-[11px] font-semibold text-violet-700 dark:text-violet-300">
+            Especial
+          </span>
+        )}
+      </div>
+      <p className="text-[12px] text-ios-secondary">
+        {p.count} {p.count === 1 ? "cuota" : "cuotas"}
+        {pr && pr.exonerated > 0 && ` · ${pr.exonerated} exonerada${pr.exonerated === 1 ? "" : "s"}`}
+      </p>
+    </>
+  );
+}
+
+/** Lo que falta por cobrar del período y cuántas cuotas ya vencieron. */
+function Remaining({ p }: { p: PeriodRow }) {
+  const pr = p.progress;
+  if (!pr) return <span className="text-ios-tertiary">—</span>;
+  const remaining = Math.max(0, pr.billable - pr.collected);
+  if (remaining <= 0.005) return <StatusMark label="Nada" tone="success" quiet="check" />;
+  return (
+    <>
+      <Money value={formatCurrency(remaining)} className="font-semibold text-ios-label" />
+      {pr.overdue > 0 && (
+        <p className="text-[12px] font-medium text-red-600 dark:text-red-400">
+          {pr.overdue} vencida{pr.overdue === 1 ? "" : "s"}
+        </p>
+      )}
+    </>
+  );
+}
+
 /**
- * Períodos emitidos, del más reciente al más viejo, cada uno con su cobranza. La
- * fila abre las cuotas del período; un filete rojo marca los que tienen cuotas
- * vencidas sin pagar.
+ * Períodos emitidos, del más reciente al más viejo, cada uno con su cobranza. En
+ * tabla libro desde `md`; tarjetas por debajo. La fila abre las cuotas del
+ * período; un filete rojo marca los que tienen cuotas vencidas sin pagar.
  */
 export function PeriodsTable({ periods, loading, onSelect, onDeleted, onCreate }: PeriodsTableProps) {
   const { rateOf } = useExchangeRate();
@@ -87,92 +127,115 @@ export function PeriodsTable({ periods, loading, onSelect, onDeleted, onCreate }
             }
           />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="table-ledger min-w-[860px]">
-              <thead>
-                <tr>
-                  <th className="pl-5">Período</th>
-                  <th>Cobranza</th>
-                  <th className="text-right">Emitido</th>
-                  <th className="text-right">Por cobrar</th>
-                  <th>Tasa</th>
-                  <th className="w-px pr-5">
-                    <span className="sr-only">Acciones</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <LedgerSkeleton cols={6} rows={4} />
-                ) : (
-                  periods.map((p) => {
-                    // Un lote con cuotas a dos tasas no tiene un único equivalente en Bs.
-                    const single = p.currencies?.length === 1 ? p.currencies[0] : null;
-                    const rate = single ? rateOf(single) : null;
+          <>
+            {/* `relative`: el sr-only de "Acciones" es absoluto y, sin un ancestro
+                posicionado, escapaba del scroll y ensanchaba la página. */}
+            <div className="relative hidden overflow-x-auto md:block">
+              <table className="table-ledger min-w-[860px]">
+                <thead>
+                  <tr>
+                    <th className="pl-5">Período</th>
+                    <th>Cobranza</th>
+                    <th className="text-right">Emitido</th>
+                    <th className="text-right">Por cobrar</th>
+                    <th>Tasa</th>
+                    <th className="w-px pr-5">
+                      <span className="sr-only">Acciones</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <LedgerSkeleton cols={6} rows={4} />
+                  ) : (
+                    periods.map((p) => {
+                      // Un lote con cuotas a dos tasas no tiene un único equivalente en Bs.
+                      const single = p.currencies?.length === 1 ? p.currencies[0] : null;
+                      const rate = single ? rateOf(single) : null;
+                      const pr = p.progress;
+                      return (
+                        <tr
+                          key={`${p.period}-${p.type}`}
+                          {...ledgerRow(() => onSelect(p.period, p.type), pr && pr.overdue > 0 ? ROW_TONE.danger : undefined)}
+                        >
+                          <td className="pl-5">
+                            <PeriodName p={p} />
+                          </td>
+                          <td>{pr ? <Progress p={pr} /> : <span className="text-ios-tertiary">—</span>}</td>
+                          <td className="whitespace-nowrap text-right">
+                            <Money value={formatCurrency(p.total)} className="font-semibold text-ios-label" />
+                            <p className="text-[12px] tabular-nums text-ios-secondary">
+                              {rate ? `≈ ${formatBs(p.total, rate.rate)}` : "Tasa mixta"}
+                            </p>
+                          </td>
+                          <td className="whitespace-nowrap text-right">
+                            <Remaining p={p} />
+                          </td>
+                          <td>
+                            <span className="text-[12px] font-medium text-ios-secondary">
+                              {single ? `Tasa del ${single === RateCurrency.USD ? "dólar" : "euro"}` : "Tasas mixtas"}
+                            </span>
+                          </td>
+                          <td className="cursor-default pr-5" onClick={stopRow}>
+                            <RowIcon
+                              icon={Trash2}
+                              tone="danger"
+                              title="Eliminar las cuotas del período"
+                              onClick={() => setTarget(p)}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+  
+            <div className="space-y-2 p-3 md:hidden">
+              {loading
+                ? Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-[104px] w-full !rounded-xl" />)
+                : periods.map((p) => {
                     const pr = p.progress;
-                    const remaining = pr ? Math.max(0, pr.billable - pr.collected) : null;
+                    const open = () => onSelect(p.period, p.type);
                     return (
-                      <tr
+                      <div
                         key={`${p.period}-${p.type}`}
-                        {...ledgerRow(() => onSelect(p.period, p.type), pr && pr.overdue > 0 ? ROW_TONE.danger : undefined)}
+                        role="button"
+                        tabIndex={0}
+                        onClick={open}
+                        onKeyDown={(e) => e.target === e.currentTarget && e.key === "Enter" && open()}
+                        className={cn(
+                          "rounded-xl border border-ios-separator p-3 transition-colors active:bg-ios-fill",
+                          pr && pr.overdue > 0 && "shadow-[inset_3px_0_0_#ef4444]"
+                        )}
                       >
-                        <td className="pl-5">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-ios-label">{formatPeriod(p.period)}</span>
-                            {p.type === ChargeType.SPECIAL && (
-                              <span className="rounded-md bg-violet-500/10 px-1.5 py-0.5 text-[11px] font-semibold text-violet-700 dark:text-violet-300">
-                                Especial
-                              </span>
-                            )}
+                        <div className="flex items-start gap-3">
+                          <div className="min-w-0 flex-1 text-[14px]">
+                            <PeriodName p={p} />
                           </div>
-                          <p className="text-[12px] text-ios-secondary">
-                            {p.count} {p.count === 1 ? "cuota" : "cuotas"}
-                            {pr && pr.exonerated > 0 && ` · ${pr.exonerated} exonerada${pr.exonerated === 1 ? "" : "s"}`}
-                          </p>
-                        </td>
-                        <td>{pr ? <Progress p={pr} /> : <span className="text-ios-tertiary">—</span>}</td>
-                        <td className="whitespace-nowrap text-right">
-                          <Money value={formatCurrency(p.total)} className="font-semibold text-ios-label" />
-                          <p className="text-[12px] tabular-nums text-ios-secondary">
-                            {rate ? `≈ ${formatBs(p.total, rate.rate)}` : "Tasa mixta"}
-                          </p>
-                        </td>
-                        <td className="whitespace-nowrap text-right">
-                          {remaining === null ? (
-                            <span className="text-ios-tertiary">—</span>
-                          ) : remaining > 0.005 ? (
-                            <>
-                              <Money value={formatCurrency(remaining)} className="font-semibold text-ios-label" />
-                              {pr!.overdue > 0 && (
-                                <p className="text-[12px] font-medium text-red-600 dark:text-red-400">
-                                  {pr!.overdue} vencida{pr!.overdue === 1 ? "" : "s"}
-                                </p>
-                              )}
-                            </>
-                          ) : (
-                            <StatusMark label="Nada" tone="success" quiet="check" />
-                          )}
-                        </td>
-                        <td>
-                          <span className="text-[12px] font-medium text-ios-secondary">
-                            {single ? `Tasa del ${single === RateCurrency.USD ? "dólar" : "euro"}` : "Tasas mixtas"}
-                          </span>
-                        </td>
-                        <td className="cursor-default pr-5" onClick={stopRow}>
-                          <RowIcon
-                            icon={Trash2}
-                            tone="danger"
-                            title="Eliminar las cuotas del período"
-                            onClick={() => setTarget(p)}
-                          />
-                        </td>
-                      </tr>
+                          <div className="shrink-0 text-right text-[13px]">
+                            <Remaining p={p} />
+                          </div>
+                          <div onClick={stopRow} onKeyDown={stopRow}>
+                            <RowIcon
+                              icon={Trash2}
+                              tone="danger"
+                              title="Eliminar las cuotas del período"
+                              onClick={() => setTarget(p)}
+                            />
+                          </div>
+                        </div>
+                        {pr && (
+                          <div className="mt-3">
+                            <Progress p={pr} />
+                          </div>
+                        )}
+                      </div>
                     );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+                  })}
+            </div>
+          </>
         )}
       </Card>
 
