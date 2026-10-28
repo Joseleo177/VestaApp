@@ -13,8 +13,9 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { EntryFilter, useBankStatement } from "../hooks/useBankStatement";
+import { StatementAccount } from "../services/reconciliation.service";
 import { EntriesTable } from "../components/EntriesTable";
-import { bs, ReconciliationResultModal } from "../components/ReconciliationResultModal";
+import { money, ReconciliationResultModal } from "../components/ReconciliationResultModal";
 
 function Stat({ label, children, sub }: { label: string; children: ReactNode; sub?: ReactNode }) {
   return (
@@ -91,9 +92,23 @@ export function BankStatementPage() {
           </>
         }
         subheader={
-          <p className="text-[14px] text-ios-secondary">
-            Sube el extracto del banco en .xlsx (o suéltalo aquí): los pagos cuya referencia y monto coinciden se confirman solos.
-          </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-[14px] text-ios-secondary">
+              {s.account === "USD"
+                ? "Extracto de la cuenta en divisas: casa con los pagos reportados en $ por referencia y monto."
+                : "Sube el extracto del banco en .xlsx (o suéltalo aquí): los pagos cuya referencia y monto coinciden se confirman solos."}
+            </p>
+            <Segmented<StatementAccount>
+              aria-label="Cuenta del extracto"
+              value={s.account}
+              onChange={s.setAccount}
+              options={[
+                { key: "BS", label: "Cuenta en Bs", count: s.accountCounts.BS },
+                { key: "USD", label: "Cuenta en $", count: s.accountCounts.USD },
+              ]}
+              className="shrink-0 self-start sm:self-auto"
+            />
+          </div>
         }
       >
         {/* ── Resumen ── */}
@@ -117,7 +132,7 @@ export function BankStatementPage() {
               >
                 {s.summary.matched} <span className="text-[14px] font-medium text-ios-secondary">· {matchedPct}%</span>
               </Stat>
-              <Stat label="Sin conciliar" sub={<Money value={bs(s.summary.freeAmount)} />}>
+              <Stat label="Sin conciliar" sub={<Money value={money(s.summary.freeAmount, s.account)} />}>
                 {s.summary.free}
               </Stat>
               <Stat label="Último extracto">
@@ -158,7 +173,9 @@ export function BankStatementPage() {
             <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-500/[0.12] text-rose-600 dark:text-rose-400">
               <FileSpreadsheet className="h-7 w-7" />
             </span>
-            <span className="text-[16px] font-semibold text-ios-label">Sube tu primer extracto</span>
+            <span className="text-[16px] font-semibold text-ios-label">
+              {s.account === "USD" ? "Sube el primer extracto de la cuenta en $" : "Sube tu primer extracto"}
+            </span>
             <span className="max-w-sm text-[13px] text-ios-secondary">
               Arrastra aquí el archivo .xlsx que descargas de la banca en línea, o toca para elegirlo.
             </span>
@@ -171,7 +188,7 @@ export function BankStatementPage() {
                 <p className="text-[13px] text-ios-label">
                   <span className="font-semibold">{s.selected.size}</span>{" "}
                   {s.selected.size === 1 ? "movimiento seleccionado" : "movimientos seleccionados"} ·{" "}
-                  <Money value={bs(selectedTotal)} className="font-semibold" />
+                  <Money value={money(selectedTotal, s.account)} className="font-semibold" />
                 </p>
                 <div className="ml-auto flex gap-2">
                   <Button size="sm" variant="outline" className="!h-8" onClick={s.clearSelection}>
@@ -261,7 +278,9 @@ export function BankStatementPage() {
         <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-brand-600/10 p-6 backdrop-blur-[2px]">
           <div className="flex flex-col items-center gap-3 rounded-3xl border-2 border-dashed border-brand-500 bg-ios-card px-10 py-8 shadow-ios-lg">
             {s.uploading ? <Loader2 className="h-8 w-8 animate-spin text-brand-600" /> : <Upload className="h-8 w-8 text-brand-600" />}
-            <p className="text-[16px] font-semibold text-ios-label">Suelta el extracto para procesarlo</p>
+            <p className="text-[16px] font-semibold text-ios-label">
+              {s.account === "USD" ? "Suelta el extracto de la cuenta en $" : "Suelta el extracto de la cuenta en Bs"}
+            </p>
             <p className="text-[13px] text-ios-secondary">Archivo .xlsx de la banca en línea</p>
           </div>
         </div>

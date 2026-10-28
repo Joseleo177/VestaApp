@@ -1,7 +1,8 @@
 import * as XLSX from "xlsx";
+import { Repository } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { Payment, PaymentCurrency, PaymentStatus } from "../models/Payment";
-import { BankEntry } from "../models/BankEntry";
+import { BankEntry, BankEntryCurrency } from "../models/BankEntry";
 import { User } from "../models/User";
 import { PaymentService } from "./payment.service";
 import { HttpError } from "../middlewares/error.middleware";
@@ -34,6 +35,8 @@ export interface UnmatchedRow {
 }
 
 export interface ReconciliationResult {
+  /** Cuenta a la que se subió el extracto. */
+  currency: BankEntryCurrency;
   newEntries: number;
   duplicates: number;
   confirmed: ConfirmedMatch[];
@@ -108,19 +111,59 @@ function detectColumns(headers: string[]): {
   return { refCol, amountCol, dateCol, descCol };
 }
 
-export function amountMatchesBankEntry(
-  payment: Payment,
-  bankMonto: number
-): boolean {
-  const tol = 0.02;
-  // El extracto es de la cuenta en Bs: una transferencia en divisas llega a
-  // otra cuenta y nunca puede casar con él, aunque la referencia coincida.
-  if (payment.currency !== PaymentCurrency.BS || payment.amountBs == null) return false;
-  return Math.abs(Number(payment.amountBs) - bankMonto) <= tol;
+/** Cuenta a la que llega un pago: los de divisas, a la de $; los de Bs, a la de Bs. */
+export function statementCurrencyOf(currency: PaymentCurrency): BankEntryCurrency {
+  return currency === PaymentCurrency.DIVISAS ? BankEntryCurrency.USD : BankEntryCurrency.BS;
 }
 
+export function amountMatchesBankEntry(
+  payment: Payment,
+  bankMonto: number,
+  entryCurrency: BankEntryCurrency = BankEntryCurrency.BS
+): boolean {
+  const tol = 0.02;
+  // Cada pago solo puede aparecer en el extracto de la cuenta a la que llega,
+  // aunque la referencia coincida con un movimiento de la otra.
+  if (statementCurrencyOf(payment.currency) !== entryCurrency) return false;
+  const expected = entryCurrency === BankEntryCurrency.USD ? payment.amount : payment.amountBs;
+  if (expected == null) return false;
+  return Math.abs(Number(expected) - bankMonto) <= tol;
+}
+
+/**
+ * Movimiento libre (o casado) del extracto que corresponde a un pago: misma
+ * cuenta y referencia exacta o por sufijo en cualquier sentido, como `refsMatch`
+ * (el banco puede traer menos dígitos que los que escribió el vecino).
+ */
+export function findBankEntryFor(
+  repo: Repository<BankEntry>,
+  payment: Pick<Payment, "reference" | "currency">,
+  matched: boolean
+): Promise<BankEntry | null> {
+  const ref = normalizeRef(payment.reference);
+  return repo
+    .createQueryBuilder("be")
+    .where("be.matched = :matched", { matched })
+    .andWhere("be.currency = :currency", { currency: statementCurrencyOf(payment.currency) })
+    .andWhere(
+      `(be.referencia = :ref OR be.referencia LIKE :suffix
+        OR (length(be.referencia) >= :min AND :ref LIKE '%' || be.referencia))`,
+      { ref, suffix: `%${ref}`, min: MIN_SUFFIX }
+    )
+    .getOne();
+}
+
+const money = (n: number, currency: BankEntryCurrency) =>
+  currency === BankEntryCurrency.USD
+    ? `$ ${n.toLocaleString("es-VE", { minimumFractionDigits: 2 })}`
+    : `Bs. ${n.toLocaleString("es-VE")}`;
+
 export const ReconciliationService = {
-  async reconcile(buffer: Buffer, adminId: string): Promise<ReconciliationResult> {
+  async reconcile(
+    buffer: Buffer,
+    adminId: string,
+    currency: BankEntryCurrency = BankEntryCurrency.BS
+  ): Promise<ReconciliationResult> {
     // raw: false → texto formateado (preserva ceros a la izquierda en referencias)
     const wbText = XLSX.read(buffer, { type: "buffer", cellText: true, cellDates: false });
     // raw: true + cellDates: true → objetos Date reales para celdas de fecha (evita dependencia del locale del servidor)
@@ -192,6 +235,7 @@ export const ReconciliationService = {
     for (const row of parsed) {
       const existing = await entryRepo.findOneBy({
         referencia: normalizeRef(row.referencia),
+        currency,
       });
       if (existing) {
         duplicates++;
@@ -199,6 +243,7 @@ export const ReconciliationService = {
       }
       const entry = entryRepo.create({
         referencia: normalizeRef(row.referencia),
+        currency,
         monto: row.monto,
         fecha: row.fecha,
         descripcion: row.descripcion,
@@ -208,13 +253,16 @@ export const ReconciliationService = {
       newEntries++;
     }
 
-    // Match new entries against PENDING payments
-    const pending = await AppDataSource.getRepository(Payment).find({
-      where: { status: PaymentStatus.PENDING },
-      relations: { receipts: true },
-    });
+    // Cruzar contra los pagos PENDING que llegan a esta cuenta.
+    const pending = (
+      await AppDataSource.getRepository(Payment).find({
+        where: { status: PaymentStatus.PENDING },
+        relations: { receipts: true },
+      })
+    ).filter((p) => statementCurrencyOf(p.currency) === currency);
 
     const result: ReconciliationResult = {
+      currency,
       newEntries,
       duplicates,
       confirmed: [],
@@ -242,7 +290,7 @@ export const ReconciliationService = {
         continue;
       }
 
-      if (amountMatchesBankEntry(refMatch, row.monto)) {
+      if (amountMatchesBankEntry(refMatch, row.monto, currency)) {
         try {
           await PaymentService.confirm(refMatch.id, adminId);
           matchedIds.add(refMatch.id);
@@ -267,10 +315,10 @@ export const ReconciliationService = {
           });
         }
       } else {
-        const registrado =
-          refMatch.currency === PaymentCurrency.BS && refMatch.amountBs != null
-            ? `Bs. ${Number(refMatch.amountBs).toLocaleString("es-VE")}`
-            : `REF ${Number(refMatch.amount).toFixed(2)} en divisas`;
+        const registrado = money(
+          Number(currency === BankEntryCurrency.USD ? refMatch.amount : refMatch.amountBs ?? 0),
+          currency
+        );
         result.review.push({
           bankRef: normalizeRef(row.referencia),
           bankAmount: row.monto,
@@ -292,20 +340,11 @@ export const ReconciliationService = {
    */
   async tryAutoConfirm(payment: Payment): Promise<boolean> {
     try {
-      const ref = normalizeRef(payment.reference);
-      if (ref.length < MIN_SUFFIX) return false;
+      if (normalizeRef(payment.reference).length < MIN_SUFFIX) return false;
 
-      const entry = await AppDataSource.getRepository(BankEntry)
-        .createQueryBuilder("be")
-        .where("be.matched = false")
-        .andWhere("(be.referencia = :ref OR be.referencia LIKE :suffix)", {
-          ref,
-          suffix: `%${ref}`,
-        })
-        .getOne();
-
+      const entry = await findBankEntryFor(AppDataSource.getRepository(BankEntry), payment, false);
       if (!entry) return false;
-      if (!amountMatchesBankEntry(payment, Number(entry.monto))) return false;
+      if (!amountMatchesBankEntry(payment, Number(entry.monto), entry.currency)) return false;
 
       await PaymentService.confirm(payment.id, null);
       return true;
@@ -332,21 +371,12 @@ export const ReconciliationService = {
     let review = 0;
 
     for (const payment of pending) {
-      const ref = normalizeRef(payment.reference);
-      if (ref.length < MIN_SUFFIX) continue;
+      if (normalizeRef(payment.reference).length < MIN_SUFFIX) continue;
 
-      const entry = await AppDataSource.getRepository(BankEntry)
-        .createQueryBuilder("be")
-        .where("be.matched = false")
-        .andWhere("(be.referencia = :ref OR be.referencia LIKE :suffix)", {
-          ref,
-          suffix: `%${ref}`,
-        })
-        .getOne();
-
+      const entry = await findBankEntryFor(AppDataSource.getRepository(BankEntry), payment, false);
       if (!entry) continue;
 
-      if (amountMatchesBankEntry(payment, Number(entry.monto))) {
+      if (amountMatchesBankEntry(payment, Number(entry.monto), entry.currency)) {
         try {
           await PaymentService.confirm(payment.id, null);
           confirmed++;

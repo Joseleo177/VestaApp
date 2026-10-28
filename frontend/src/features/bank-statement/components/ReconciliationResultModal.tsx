@@ -5,9 +5,12 @@ import { Button } from "@/components/ui/Button";
 import { Money } from "@/components/ui/Money";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { ReconciliationResult, ReviewMatch } from "../services/reconciliation.service";
+import { ReconciliationResult, ReviewMatch, StatementAccount } from "../services/reconciliation.service";
 
-export const bs = (n: number) => `Bs. ${Number(n).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const amount = (n: number) => Number(n).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export const bs = (n: number) => `Bs. ${amount(n)}`;
+/** Monto en la moneda de la cuenta del extracto. */
+export const money = (n: number, account: StatementAccount = "BS") => (account === "USD" ? `$ ${amount(n)}` : bs(n));
 
 interface Props {
   open: boolean;
@@ -42,7 +45,7 @@ export function ReconciliationResultModal({ open, onClose, result, busyId, onCon
       open={open}
       onClose={onClose}
       className="sm:max-w-2xl"
-      title="Extracto procesado"
+      title={result.currency === "USD" ? "Extracto en divisas procesado" : "Extracto procesado"}
       description={
         pendingReview
           ? `${pendingReview} ${pendingReview === 1 ? "pago necesita" : "pagos necesitan"} tu revisión`
@@ -91,7 +94,7 @@ export function ReconciliationResultModal({ open, onClose, result, busyId, onCon
                       </div>
                       <div className="shrink-0 text-right">
                         <p className="text-[11px] text-ios-secondary">Llegó al banco</p>
-                        <Money value={bs(m.bankAmount)} className="text-[14px] font-semibold text-ios-label" />
+                        <Money value={money(m.bankAmount, result.currency)} className="text-[14px] font-semibold text-ios-label" />
                       </div>
                     </div>
                     <p className="rounded-lg bg-amber-500/[0.08] px-3 py-2 text-[12px] text-amber-800 dark:text-amber-300">
@@ -139,7 +142,7 @@ export function ReconciliationResultModal({ open, onClose, result, busyId, onCon
                     <span className="min-w-0 truncate text-ios-label">
                       {m.ownerName} <span className="text-ios-secondary">· {m.propertyCode} · Ref. {m.bankRef}</span>
                     </span>
-                    <Money value={bs(m.bankAmount)} className="shrink-0 font-semibold text-ios-label" />
+                    <Money value={money(m.bankAmount, result.currency)} className="shrink-0 font-semibold text-ios-label" />
                   </li>
                 ))}
               </ul>

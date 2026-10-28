@@ -12,7 +12,7 @@ import { amountDue, clearWriteOff } from "./charge.service";
 import { PropertyService } from "./property.service";
 import { getRateConfig, getRateForDate } from "./exchange-rate.service";
 import { RateCurrency } from "../models/ExchangeRateRecord";
-import { ReconciliationService, isSamePayment } from "./reconciliation.service";
+import { ReconciliationService, findBankEntryFor, isSamePayment } from "./reconciliation.service";
 import { SettingsService } from "./settings.service";
 
 function normalizeRef(s: string): string {
@@ -639,15 +639,7 @@ export const PaymentService = {
       const settled = await settlePayment(manager, payment);
 
       // Marcar la entrada bancaria como casada con este pago (sufijo o exacta).
-      const ref = normalizeRef(payment.reference);
-      const bankEntry = await manager.getRepository(BankEntry)
-        .createQueryBuilder("be")
-        .where("be.matched = false")
-        .andWhere("(be.referencia = :ref OR be.referencia LIKE :suffix)", {
-          ref,
-          suffix: `%${ref}`,
-        })
-        .getOne();
+      const bankEntry = await findBankEntryFor(manager.getRepository(BankEntry), payment, false);
       if (bankEntry) {
         bankEntry.matched = true;
         await manager.save(BankEntry, bankEntry);
@@ -698,15 +690,7 @@ export const PaymentService = {
       await manager.save(payment);
 
       // Marcar entrada bancaria como casada (sufijo o exacta).
-      const refP = normalizeRef(payment.reference);
-      const bankEntryP = await manager.getRepository(BankEntry)
-        .createQueryBuilder("be")
-        .where("be.matched = false")
-        .andWhere("(be.referencia = :ref OR be.referencia LIKE :suffix)", {
-          ref: refP,
-          suffix: `%${refP}`,
-        })
-        .getOne();
+      const bankEntryP = await findBankEntryFor(manager.getRepository(BankEntry), payment, false);
       if (bankEntryP) {
         bankEntryP.matched = true;
         await manager.save(BankEntry, bankEntryP);
@@ -918,15 +902,7 @@ export const PaymentService = {
 
       // Liberar la entrada bancaria que estaba casada con este pago
       if (payment.status === PaymentStatus.CONFIRMED) {
-        const refR = normalizeRef(payment.reference);
-        const bankEntry = await manager.getRepository(BankEntry)
-          .createQueryBuilder("be")
-          .where("be.matched = true")
-          .andWhere("(be.referencia = :ref OR be.referencia LIKE :suffix)", {
-            ref: refR,
-            suffix: `%${refR}`,
-          })
-          .getOne();
+        const bankEntry = await findBankEntryFor(manager.getRepository(BankEntry), payment, true);
         if (bankEntry) {
           bankEntry.matched = false;
           await manager.save(BankEntry, bankEntry);

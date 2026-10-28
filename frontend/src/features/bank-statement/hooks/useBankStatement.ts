@@ -9,6 +9,7 @@ import {
   BankEntry,
   ReconciliationResult,
   ReviewMatch,
+  StatementAccount,
   reconciliationService,
 } from "../services/reconciliation.service";
 
@@ -40,17 +41,32 @@ export function useBankStatement() {
     void load();
   }, [load]);
 
+  // ── Cuenta ──
+  // La página muestra una cuenta a la vez, y el extracto que se suba va a esa.
+  const [account, setAccountState] = useState<StatementAccount>("BS");
+  const accountCounts = useMemo(
+    () => ({
+      BS: entries.filter((e) => e.currency !== "USD").length,
+      USD: entries.filter((e) => e.currency === "USD").length,
+    }),
+    [entries]
+  );
+  const accountEntries = useMemo(
+    () => entries.filter((e) => (e.currency ?? "BS") === account),
+    [entries, account]
+  );
+
   // ── Resumen ──
   const summary = useMemo(() => {
-    const matched = entries.filter((e) => e.matched);
-    const free = entries.length - matched.length;
-    const freeAmount = entries.filter((e) => !e.matched).reduce((s, e) => s + Number(e.monto), 0);
-    const lastUpload = entries.reduce<string | null>(
+    const matched = accountEntries.filter((e) => e.matched);
+    const free = accountEntries.length - matched.length;
+    const freeAmount = accountEntries.filter((e) => !e.matched).reduce((s, e) => s + Number(e.monto), 0);
+    const lastUpload = accountEntries.reduce<string | null>(
       (last, e) => (!last || e.uploadedAt > last ? e.uploadedAt : last),
       null
     );
-    return { total: entries.length, matched: matched.length, free, freeAmount, lastUpload };
-  }, [entries]);
+    return { total: accountEntries.length, matched: matched.length, free, freeAmount, lastUpload };
+  }, [accountEntries]);
 
   // ── Filtros ──
   const [status, setStatus] = useState<EntryFilter>("all");
@@ -67,7 +83,7 @@ export function useBankStatement() {
 
   const filtered = useMemo(() => {
     const needle = normalize(search.trim());
-    return entries.filter((e) => {
+    return accountEntries.filter((e) => {
       if (status === "matched" && !e.matched) return false;
       if (status === "free" && e.matched) return false;
       // Las fechas son "YYYY-MM-DD": comparar como texto ya ordena bien.
@@ -76,7 +92,7 @@ export function useBankStatement() {
       if (!needle) return true;
       return normalize(`${e.referencia} ${e.descripcion ?? ""} ${amountText(e.monto)} ${e.monto}`).includes(needle);
     });
-  }, [entries, status, search, dateFrom, dateTo]);
+  }, [accountEntries, status, search, dateFrom, dateTo]);
 
   const paged = usePagination(filtered, 50);
 
@@ -94,6 +110,12 @@ export function useBankStatement() {
     });
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(filtered.map((e) => e.id)));
   const clearSelection = () => setSelected(new Set());
+
+  // Al cambiar de cuenta la selección se suelta: no debe borrarse algo que ya no se ve.
+  const setAccount = (a: StatementAccount) => {
+    setAccountState(a);
+    setSelected(new Set());
+  };
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -141,7 +163,7 @@ export function useBankStatement() {
     }
     setUploading(true);
     try {
-      const res = await reconciliationService.reconcile(file);
+      const res = await reconciliationService.reconcile(file, account);
       setResult(res);
       setResultOpen(true);
       void load(true);
@@ -196,6 +218,7 @@ export function useBankStatement() {
   return {
     loading,
     entries,
+    account, setAccount, accountCounts,
     summary,
     // filtros
     status, setStatus, search, setSearch, dateFrom, setDateFrom, dateTo, setDateTo, hasFilters, clearFilters,

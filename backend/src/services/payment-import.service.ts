@@ -3,7 +3,7 @@ import { AppDataSource } from "../config/data-source";
 import { Charge, ChargeStatus } from "../models/Charge";
 import { Property } from "../models/Property";
 import { Payment, PaymentCurrency, PaymentStatus } from "../models/Payment";
-import { BankEntry } from "../models/BankEntry";
+import { BankEntry, BankEntryCurrency } from "../models/BankEntry";
 import { amountDue } from "./charge.service";
 import {
   PaymentService,
@@ -18,6 +18,7 @@ import {
   isSamePayment,
   normalizeRef,
   refsMatch,
+  statementCurrencyOf,
   MIN_SUFFIX,
 } from "./reconciliation.service";
 import { findColumn, parseAmount, parseDate, readSheet, stripAccents } from "../utils/sheet";
@@ -622,21 +623,24 @@ export const PaymentImportService = {
 
       // --- ¿La confirmará sola el extracto ya cargado? ---
       if (ref.length >= MIN_SUFFIX) {
+        const account = statementCurrencyOf(r.moneda);
         const entry = freeEntries.find(
-          (e) => !usedEntries.has(e.id) && refsMatch(e.referencia, r.referencia)
+          (e) => !usedEntries.has(e.id) && e.currency === account && refsMatch(e.referencia, r.referencia)
         );
         if (
           entry &&
           amountMatchesBankEntry(
             { currency: r.moneda, amountBs: out.amountBs, amount: eur } as Payment,
-            Number(entry.monto)
+            Number(entry.monto),
+            entry.currency
           )
         ) {
           out.willAutoConfirm = true;
           usedEntries.add(entry.id);
         } else if (entry) {
+          const prefix = entry.currency === BankEntryCurrency.USD ? "$" : "Bs.";
           out.warnings.push(
-            `La referencia está en el extracto por Bs. ${Number(entry.monto).toLocaleString("es-VE")} — quedará pendiente`
+            `La referencia está en el extracto por ${prefix} ${Number(entry.monto).toLocaleString("es-VE")} — quedará pendiente`
           );
         }
       }

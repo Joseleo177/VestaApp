@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { StatusMark } from "@/components/ui/StatusMark";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { bs } from "./ReconciliationResultModal";
+import { money } from "./ReconciliationResultModal";
 
 interface EntriesTableProps {
   entries: BankEntry[];
@@ -90,7 +90,7 @@ export function EntriesTable(p: EntriesTableProps) {
                       {e.descripcion || "—"}
                     </td>
                     <td className="whitespace-nowrap text-right">
-                      <Money value={bs(e.monto)} className="font-semibold text-ios-label" />
+                      <Money value={money(e.monto, e.currency)} className="font-semibold text-ios-label" />
                     </td>
                     <td className="pr-5">
                       <EntryStatus matched={e.matched} />
@@ -126,7 +126,7 @@ export function EntriesTable(p: EntriesTableProps) {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="truncate font-semibold tabular-nums text-ios-label">{e.referencia}</span>
-                    <Money value={bs(e.monto)} className="shrink-0 font-semibold text-ios-label" />
+                    <Money value={money(e.monto, e.currency)} className="shrink-0 font-semibold text-ios-label" />
                   </div>
                   <div className="mt-0.5 flex items-center justify-between gap-2 text-[12px] text-ios-secondary">
                     <span className="truncate">{[e.fecha && formatDate(e.fecha), e.descripcion].filter(Boolean).join(" · ")}</span>

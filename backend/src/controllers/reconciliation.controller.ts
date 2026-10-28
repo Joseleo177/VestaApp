@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { AppDataSource } from "../config/data-source";
-import { BankEntry } from "../models/BankEntry";
+import { BankEntry, BankEntryCurrency } from "../models/BankEntry";
 import { ReconciliationService } from "../services/reconciliation.service";
 import { HttpError } from "../middlewares/error.middleware";
 
@@ -9,9 +9,14 @@ export const ReconciliationController = {
   async reconcile(req: Request, res: Response, next: NextFunction) {
     try {
       if (!req.file) throw new HttpError(400, "Archivo de extracto requerido");
+      const currency = (req.body?.currency ?? BankEntryCurrency.BS) as string;
+      if (!Object.values(BankEntryCurrency).includes(currency as BankEntryCurrency)) {
+        throw new HttpError(400, "Cuenta del extracto inválida");
+      }
       const result = await ReconciliationService.reconcile(
         req.file.buffer,
-        req.user!.sub
+        req.user!.sub,
+        currency as BankEntryCurrency
       );
       res.json(result);
     } catch (err) {

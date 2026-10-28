@@ -26,7 +26,12 @@ export interface UnmatchedRow {
   bankDesc?: string;
 }
 
+/** Cuenta de la que viene un extracto: la de bolívares o la de divisas. */
+export type StatementAccount = "BS" | "USD";
+
 export interface ReconciliationResult {
+  /** Cuenta a la que se subió el extracto. */
+  currency: StatementAccount;
   newEntries: number;
   duplicates: number;
   confirmed: ConfirmedMatch[];
@@ -38,6 +43,7 @@ export interface ReconciliationResult {
 export interface BankEntry {
   id: string;
   referencia: string;
+  currency: StatementAccount;
   monto: number;
   fecha?: string;
   descripcion?: string;
@@ -46,8 +52,9 @@ export interface BankEntry {
 }
 
 export const reconciliationService = {
-  async reconcile(file: File): Promise<ReconciliationResult> {
+  async reconcile(file: File, account: StatementAccount): Promise<ReconciliationResult> {
     const form = new FormData();
+    form.append("currency", account);
     form.append("statement", file);
     const { data } = await api.post<ReconciliationResult>(
       "/bank-statements/reconcile",
