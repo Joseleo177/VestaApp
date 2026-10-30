@@ -84,6 +84,9 @@ export function GenerateChargesForm({ onGenerated, onCancel, emittedPeriods = []
   const rate = currency ? rateOf(currency) : null;
 
   const amount = watch("amount");
+  // Precio en Bs distinto del de divisas (p. ej. promoción por pagar en divisas).
+  const bsPriceRaw = Number(watch("bsPrice"));
+  const bsPrice = bsPriceRaw > 0 && bsPriceRaw !== Number(amount) ? bsPriceRaw : null;
   const type = watch("type");
   const towerIds = watch("towerIds");
   const isSpecial = type === ChargeType.SPECIAL;
@@ -219,17 +222,26 @@ export function GenerateChargesForm({ onGenerated, onCancel, emittedPeriods = []
               id="amount"
               type="number"
               step="0.01"
-              label="Cuota (REF)"
+              label="Cuota (divisas)"
               placeholder="25.00"
               error={errors.amount?.message}
               {...register("amount")}
+            />
+            <Input
+              id="bsPrice"
+              type="number"
+              step="0.01"
+              label="Si pagan en Bs (opcional)"
+              placeholder={amount ? `Igual: ${amount}` : "Igual a la cuota"}
+              error={errors.bsPrice?.message}
+              {...register("bsPrice")}
             />
             {!isSpecial && (
               <Input
                 id="moraAmount"
                 type="number"
                 step="0.01"
-                label="Mora (REF)"
+                label="Mora (divisas)"
                 placeholder="5.00"
                 error={errors.moraAmount?.message}
                 {...register("moraAmount")}
@@ -409,7 +421,13 @@ export function GenerateChargesForm({ onGenerated, onCancel, emittedPeriods = []
                 {targetCount} {targetCount === 1 ? "cuota" : "cuotas"}
               </span>{" "}
               de <span className="font-semibold">{formatCurrency(amount)}</span>
-              {targetCount > 1 && (
+              {bsPrice !== null && (
+                <>
+                  {" "}
+                  (<span className="font-semibold">{formatCurrency(bsPrice)}</span> si pagan en Bs)
+                </>
+              )}
+              {targetCount > 1 && bsPrice === null && (
                 <>
                   {" "}
                   (<span className="font-semibold">{formatCurrency(amount * targetCount)}</span> en total)
@@ -418,7 +436,7 @@ export function GenerateChargesForm({ onGenerated, onCancel, emittedPeriods = []
               .
               {rate && (
                 <span className="mt-0.5 block text-ios-secondary">
-                  Cada una equivale hoy a {formatBs(amount, rate.rate)} a la tasa BCV{" "}
+                  Cada una equivale hoy a {formatBs(bsPrice ?? amount, rate.rate)} a la tasa BCV{" "}
                   {currency === RateCurrency.USD ? "dólar" : "euro"}.
                 </span>
               )}

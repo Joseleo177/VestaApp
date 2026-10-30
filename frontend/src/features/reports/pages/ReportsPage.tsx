@@ -144,7 +144,7 @@ export function ReportsPage() {
           title="Cobros"
           format="Excel"
           description="Lo que entró: los pagos confirmados en un período."
-          includes={["Fecha de pago", "Departamento y titular", "Monto en REF y Bs con su tasa", "Banco y referencia", "Cuota", "Quién lo registró"]}
+          includes={["Fecha de pago", "Departamento y titular", "Monto en divisas y Bs con su tasa", "Banco y referencia", "Cuota", "Quién lo registró"]}
         >
           <RangePicker
             presets={COLLECTED_PRESETS}

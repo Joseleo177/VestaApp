@@ -146,25 +146,44 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, credit
     dueDate.setHours(0, 0, 0, 0);
     return payDate.getTime() > dueDate.getTime();
   };
-  /** Lo que resta de la cuota sin la mora que depende de la moneda. */
-  const baseDue = (c: Charge) =>
-    c.status === ChargeStatus.PARTIAL
-      ? (c.amountDueDivisas ?? Math.max(0, c.amount - (c.amountPaid ?? 0)))
-      : (c.amountDueDivisas ?? c.amount);
-  /** Lo que se paga por la cuota: en Bs lleva la mora si ya venció; en divisas se anula. */
-  const dueFor = (c: Charge) =>
-    baseDue(c) +
-    (isBS && c.status !== ChargeStatus.PARTIAL && overdueAt(c) ? (c.moraAmount ?? 0) : 0);
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  /** Precio de la cuota según la moneda: en Bs puede ser otro (p. ej. una promoción). */
+  const priceFor = (c: Charge, bs: boolean) => (bs && (c.bsPrice ?? 0) > 0 ? Number(c.bsPrice) : c.amount);
+  /**
+   * Lo que se paga por la cuota, como lo calcula el backend: su precio en esa
+   * moneda, más la mora si ya venció y es en Bs (en divisas se anula), menos lo abonado.
+   */
+  const dueIn = (c: Charge, bs: boolean) =>
+    Math.max(0, round2(priceFor(c, bs) + (bs && overdueAt(c) ? (c.moraAmount ?? 0) : 0) - (c.amountPaid ?? 0)));
+  const dueFor = (c: Charge) => dueIn(c, isBS);
 
   const isPartial = selected?.status === ChargeStatus.PARTIAL;
   const overdueAtPaymentDate = selected ? overdueAt(selected) : false;
-  const amountEurRef = selected ? baseDue(selected) : 0;
+  const amountEurRef = selected ? dueIn(selected, false) : 0;
   const moraAnnulled = !isBS && overdueAtPaymentDate && (selected?.moraAmount ?? 0) > 0;
-  // Para el cálculo en Bs incluimos la mora cuando hay vencimiento y no se anula (pago en Bs)
-  const amountEurForBs = selected ? dueFor(selected) : 0;
+  const amountEurForBs = selected ? dueIn(selected, true) : 0;
+  // Lo que cuesta de más pagar en Bs las cuotas elegidas (promoción por pagar en divisas).
+  const bsExtra = round2(selectedCharges.reduce((sum, c) => sum + priceFor(c, true) - c.amount, 0));
 
-  // Varias cuotas: total en REF y en Bs (cada una a la tasa de su moneda).
-  const round2 = (n: number) => Math.round(n * 100) / 100;
+  const promo =
+    Math.abs(bsExtra) < 0.005
+      ? null
+      : (bsExtra > 0) !== isBS
+        ? { saves: true, text: `Pagando en ${isBS ? "Bs" : "divisas"} te ahorras ${formatCurrency(Math.abs(bsExtra))}.` }
+        : { saves: false, text: `Pagando en ${isBS ? "divisas" : "Bs"} serían ${formatCurrency(Math.abs(bsExtra))} menos.` };
+  const promoNote = promo && (
+    <p
+      className={
+        promo.saves
+          ? "mt-2 rounded-lg bg-ios-green/10 px-2.5 py-1.5 text-xs text-ios-green"
+          : "mt-2 rounded-lg bg-amber-500/[0.08] px-2.5 py-1.5 text-xs text-amber-800 dark:text-amber-300"
+      }
+    >
+      {promo.text}
+    </p>
+  );
+
+  // Varias cuotas: total en divisas y en Bs (cada una a la tasa de su moneda).
   const multiTotal = round2(selectedCharges.reduce((sum, c) => sum + dueFor(c), 0));
   const multiBs =
     isBS && selectedCharges.every((c) => dateRates[c.currency])
@@ -211,7 +230,7 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, credit
     }
   };
 
-  // Total de lo elegido en REF, y cuánto de eso cubre lo entregado (para decir qué queda).
+  // Total de lo elegido en divisas, y cuánto de eso cubre lo entregado (para decir qué queda).
   const totalRef = multi ? multiTotal : isBS ? amountEurForBs : amountEurRef;
   const paidRef = isBS
     ? amountBsInput && suggestedBs
@@ -404,6 +423,7 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, credit
               Pagando en divisas se anula la mora.
             </p>
           )}
+          {promoNote}
           {isBS && (
             <div className="mt-2 rounded-lg bg-ios-blue/10 px-3 py-2.5 text-xs text-ios-blue space-y-1">
               {(neededCurrencies.split(",") as RateCurrency[]).map((cur) => {
@@ -437,12 +457,14 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, credit
             <>
               <div className="flex items-center justify-between">
                 <span className="text-ios-secondary"> Monto Cuota</span>
-                <span className="text-ios-secondary">{formatCurrency(selected.amount)}</span>
+                <span className="text-ios-secondary">{formatCurrency(priceFor(selected, isBS))}</span>
               </div>
               {overdueAtPaymentDate && (selected.moraAmount ?? 0) > 0 && (
                 <div className="flex items-center justify-between">
                   <span className="text-ios-secondary">Mora (vencida)</span>
-                  <span className="font-medium text-ios-red">{formatCurrency(selected.moraAmount ?? 0)}</span>
+                  <span className={moraAnnulled ? "text-ios-green line-through" : "font-medium text-ios-red"}>
+                    {formatCurrency(selected.moraAmount ?? 0)}
+                  </span>
                 </div>
               )}
               <div className="flex items-center justify-between">
@@ -451,14 +473,17 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, credit
               </div>
               <div className="flex items-center justify-between border-t border-ios-separator pt-2 mt-1">
                 <span className="font-semibold text-ios-label">Pendiente</span>
-                <span className="text-lg font-bold text-ios-label">{formatCurrency(amountEurRef)}</span>
+                <span className="text-lg font-bold text-ios-label">
+                  {formatCurrency(isBS ? amountEurForBs : amountEurRef)}
+                </span>
               </div>
+              {promoNote}
             </>
           ) : (
             <>
               <div className="flex items-center justify-between">
                 <span className="text-ios-secondary">Monto Cuota</span>
-                <span className="font-medium text-ios-label">{formatCurrency(selected.amount)}</span>
+                <span className="font-medium text-ios-label">{formatCurrency(priceFor(selected, isBS))}</span>
               </div>
               {overdueAtPaymentDate && (selected.moraAmount ?? 0) > 0 && (
                 <div className="flex items-center justify-between">
@@ -479,6 +504,7 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, credit
                   Pagando en divisas se anula la mora.
                 </p>
               )}
+              {promoNote}
             </>
           )}
           {isBS && dateRate && (
@@ -539,7 +565,7 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, credit
               step="0.01"
               min="0.01"
               inputMode="decimal"
-              label={`${verb.amount} (REF)`}
+              label={`${verb.amount} (divisas)`}
               placeholder="Ej. 20,00"
               autoFocus
               error={errors.amountEur?.message}

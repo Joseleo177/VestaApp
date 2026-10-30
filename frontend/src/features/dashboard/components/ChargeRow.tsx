@@ -107,6 +107,12 @@ export function ChargeRow({ charge: c, multiUnit, check, onPay }: ChargeRowProps
           {open ? (
             <>
               <DueLabel dueDate={c.dueDate} />
+              {c.bsPrice != null && c.bsPrice !== c.amount && (
+                <>
+                  <Sep />
+                  <span>{formatCurrency(c.bsPrice)} si pagas en Bs</span>
+                </>
+              )}
               {c.status === ChargeStatus.PARTIAL && paid > 0 && (
                 <>
                   <Sep />

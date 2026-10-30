@@ -53,6 +53,14 @@ export class Charge {
   @Column({ type: "varchar", length: 3, default: RateCurrency.EUR })
   currency!: RateCurrency;
 
+  /**
+   * Monto (en divisas) que se cobra si se paga en bolívares, p. ej. una
+   * promoción de 200 en divisas o 220 en Bs. Null: cuesta `amount` en ambas
+   * monedas. La deuda se muestra con `amount`.
+   */
+  @Column({ name: "bs_price", type: "numeric", precision: 12, scale: 2, nullable: true })
+  bsPrice?: number | null;
+
   @Column({ name: "mora_amount", type: "numeric", precision: 12, scale: 2, default: 0 })
   moraAmount!: number;
 

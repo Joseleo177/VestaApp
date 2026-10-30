@@ -362,6 +362,7 @@ export const PaymentImportService = {
       description: c.description ?? "",
       dueDate: String(c.dueDate),
       amount: Number(c.amount),
+      bsPrice: c.bsPrice != null ? Number(c.bsPrice) : null,
       moraAmount: Number(c.moraAmount ?? 0),
       amountPaid: Number(c.amountPaid ?? 0),
       status: c.status,
@@ -846,7 +847,7 @@ export const PaymentImportService = {
     }
 
     const unidades = XLSX.utils.aoa_to_sheet([
-      ["codigo", "torre", "titular", "cedula", "cuotas pendientes", "deuda REF", "cuota mas antigua"],
+      ["codigo", "torre", "titular", "cedula", "cuotas pendientes", "deuda (divisas)", "cuota mas antigua"],
       ...properties.map((p) => {
         const pend = (pendingByProp.get(p.id) ?? []).sort((a, b) =>
           String(a.dueDate) < String(b.dueDate) ? -1 : 1
@@ -880,7 +881,7 @@ export const PaymentImportService = {
       );
 
     const cuotas = XLSX.utils.aoa_to_sheet([
-      ["codigo", "periodo", "descripcion", "tipo", "vence", "deuda REF", "tasa", "estado"],
+      ["codigo", "periodo", "descripcion", "tipo", "vence", "deuda (divisas)", "tasa", "estado"],
       ...pendientes.map((c) => [
         c.property?.code ?? "",
         c.period,

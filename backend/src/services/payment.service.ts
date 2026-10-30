@@ -8,7 +8,7 @@ import { Receipt } from "../models/Receipt";
 import { BankEntry } from "../models/BankEntry";
 import { User } from "../models/User";
 import { HttpError } from "../middlewares/error.middleware";
-import { amountDue, clearWriteOff } from "./charge.service";
+import { amountDue, baseAmount, clearWriteOff } from "./charge.service";
 import { PropertyService } from "./property.service";
 import { getRateConfig, getRateForDate } from "./exchange-rate.service";
 import { RateCurrency } from "../models/ExchangeRateRecord";
@@ -47,6 +47,8 @@ type TxManager = EntityManager;
 /** Lo mínimo que necesita `computeApplication`: sirve para una cuota real o simulada. */
 export interface ChargeLike {
   amount: number | string;
+  /** Monto si se paga en Bs (ver `baseAmount`). */
+  bsPrice?: number | string | null;
   moraAmount: number | string;
   amountPaid?: number | string | null;
   dueDate: string;
@@ -93,7 +95,7 @@ export function computeApplication(
     currency !== PaymentCurrency.DIVISAS &&
     Number(charge.moraAmount) > 0;
   const totalExpected =
-    Number(charge.amount) + (moraApplies ? Number(charge.moraAmount) : 0);
+    baseAmount(charge, currency) + (moraApplies ? Number(charge.moraAmount) : 0);
 
   const stillOwed = Math.max(0, Math.round((totalExpected - alreadyPaid) * 100) / 100);
   const applied = Math.min(paidAmount, stillOwed);
@@ -956,7 +958,7 @@ export const PaymentService = {
             payment.currency !== PaymentCurrency.DIVISAS &&
             Number(charge.moraAmount) > 0;
           const totalExpected =
-            Number(charge.amount) + (moraApplies ? Number(charge.moraAmount) : 0);
+            baseAmount(charge, payment.currency) + (moraApplies ? Number(charge.moraAmount) : 0);
 
           const directApplied = Math.min(Number(payment.amount), totalExpected);
           charge.amountPaid = Math.max(

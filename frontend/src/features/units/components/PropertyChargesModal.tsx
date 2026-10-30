@@ -329,6 +329,7 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
                       {[
                         c.description,
                         isOpen(c) && `Vence ${formatDate(c.dueDate)}`,
+                        isOpen(c) && c.bsPrice != null && c.bsPrice !== c.amount && `${formatCurrency(c.bsPrice)} si paga en Bs`,
                         c.status === ChargeStatus.PARTIAL && paid > 0 && `Abonó ${formatCurrency(paid)}`,
                         c.pendingPayment && "Pago en revisión",
                       ]

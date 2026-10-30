@@ -31,6 +31,21 @@ function bs(n: number): string {
 }
 
 /** Genera el PDF del recibo de la asociación en memoria. */
+/**
+ * Lo que se cobró por una cuota pagada: la base, o base + mora si lo pagado pasó
+ * de la base. Una cuota con precio en Bs pudo pagarse a cualquiera de los dos
+ * precios: vale lo pagado, sin pasar del máximo posible.
+ */
+function chargeTotal(c: Charge): number {
+  const b = Number(c.amount);
+  const m = Number(c.moraAmount);
+  const paid = Number(c.amountPaid);
+  if (Number(c.bsPrice ?? 0) > 0 && paid > 0.01) {
+    return Math.min(paid, Math.max(b, Number(c.bsPrice)) + m);
+  }
+  return paid > b + 0.01 ? b + m : b;
+}
+
 export function generateReceiptPdf(
   payment: Payment,
   receiptNumber: string,
@@ -64,9 +79,7 @@ export function generateReceiptPdf(
     const multi = (lines?.length ?? 0) > 1;
 
     const base = charge ? Number(charge.amount) : Number(payment.amount);
-    const mora = charge ? Number(charge.moraAmount) : 0;
-    const moraPaid = charge ? Number(charge.amountPaid) > base + 0.01 : false;
-    const total = moraPaid ? base + mora : base;
+    const total = charge ? chargeTotal(charge) : base;
     // La tasa del pago es la de la moneda de su cuota destino. Una cuota cerrada
     // en cascada con otra moneda se convirtió con otra tasa: ahí no se muestra
     // un equivalente en Bs que sería falso, solo la referencia en divisas.
@@ -84,9 +97,9 @@ export function generateReceiptPdf(
             .map((l) => [l.charge.currency ?? "EUR", l.bsRate as number] as [string, number])
         ).entries()]
       : exRate ? [[rateCurrency, exRate]] : [];
-    // Los REF van redondeados a centavos, así que REF × tasa se aleja de lo
+    // Los montos en divisas van redondeados a centavos, así que monto × tasa se aleja de lo
     // transferido hasta media centésima por tasa (24.000 Bs / 466,6014 = 51,44
-    // REF, y 51,44 × 466,6014 = 24.001,98). Si la diferencia es solo ese
+    // divisas, y 51,44 × 466,6014 = 24.001,98). Si la diferencia es solo ese
     // redondeo, el recibo muestra los Bs que de verdad se pagaron.
     const transferredBs =
       payment.currency === PaymentCurrency.BS && payment.amountBs != null ? Number(payment.amountBs) : null;
@@ -266,9 +279,7 @@ export function generateReceiptPdf(
     const totalOf = (c: Charge) => {
       // Condonada: vale lo pagado, igual que con una sola cuota.
       if (Number(c.writeOffAmount ?? 0) > 0) return Number(c.amountPaid);
-      const b = Number(c.amount);
-      const m = Number(c.moraAmount);
-      return Number(c.amountPaid) > b + 0.01 ? b + m : b;
+      return chargeTotal(c);
     };
     const multiRows: (Row & { sub?: string })[] = multi
       ? lines!.map((l) => {
@@ -325,13 +336,13 @@ export function generateReceiptPdf(
         doc.fillColor("#000000")
           .font("Helvetica-Bold")
           .fontSize(9)
-          .text(`REF ${eur(row.eurAmt)}`, tableX + labelW + bsW, textY, { width: eurW - 8, align: "right" });
+          .text(eur(row.eurAmt), tableX + labelW + bsW, textY, { width: eurW - 8, align: "right" });
       } else {
         // Sin Bs — solo EUR a la derecha
         doc.fillColor("#000000")
           .font(row.bold ? "Helvetica-Bold" : "Helvetica")
           .fontSize(row.bold ? 12 : 10)
-          .text(`REF ${eur(row.eurAmt)}`, tableX + labelW, textY, { width: bsW + eurW - 8, align: "right" });
+          .text(eur(row.eurAmt), tableX + labelW, textY, { width: bsW + eurW - 8, align: "right" });
       }
 
       ty += rowH + (row.sub ? 6 : 0);
@@ -350,7 +361,7 @@ export function generateReceiptPdf(
     const credit = Number(payment.creditAmount ?? 0);
     if (multi && credit > 0) {
       doc.fontSize(8).fillColor("#000000").font("Helvetica-Bold")
-        .text(`Saldo a favor abonado con este pago: REF ${eur(credit)}`, 55, doc.y, { width: pageW, align: "center" });
+        .text(`Saldo a favor abonado con este pago: ${eur(credit)}`, 55, doc.y, { width: pageW, align: "center" });
       doc.moveDown(0.4);
     }
     if (footerRates.length > 0) {

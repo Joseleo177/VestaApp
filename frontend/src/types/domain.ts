@@ -116,6 +116,8 @@ export interface Charge {
   description: string;
   type: ChargeType;
   amount: number;
+  /** Lo que cuesta si se paga en Bs (p. ej. una promoción); null = lo mismo que `amount`. */
+  bsPrice?: number | null;
   /** Tasa con que se convierte a Bs. */
   currency: RateCurrency;
   amountPaid?: number;

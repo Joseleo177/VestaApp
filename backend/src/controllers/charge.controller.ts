@@ -22,9 +22,6 @@ function parseDueDate(value: unknown): string {
 function serializeCharge(charge: import("../models/Charge").Charge) {
   const prop = charge.property;
   const isPartial = charge.status === ChargeStatus.PARTIAL;
-  const remaining = isPartial
-    ? amountDue(charge, PaymentCurrency.BS) // incluye mora si está vencida
-    : null;
 
   // Pago confirmado (para mostrar referencia/banco/fecha en la tabla)
   const confirmed =
@@ -47,13 +44,15 @@ function serializeCharge(charge: import("../models/Charge").Charge) {
     type: charge.type,
     currency: charge.currency ?? RateCurrency.EUR,
     amount: Number(charge.amount),
+    /** Lo que cuesta si se paga en Bs; null = lo mismo que `amount`. */
+    bsPrice: charge.bsPrice != null ? Number(charge.bsPrice) : null,
     amountPaid: Number(charge.amountPaid ?? 0),
     moraAmount: Number(charge.moraAmount),
     dueDate: charge.dueDate,
     status: charge.status,
     overdue: isOverdue(charge),
     amountDue: amountDue(charge),
-    amountDueDivisas: remaining !== null ? remaining : Number(charge.amount),
+    amountDueDivisas: isPartial ? amountDue(charge, PaymentCurrency.DIVISAS) : Number(charge.amount),
     writeOff:
       Number(charge.writeOffAmount) > 0
         ? {
@@ -176,9 +175,16 @@ export const ChargeController = {
   // POST /api/charges/generate  (admin)
   async generate(req: Request, res: Response, next: NextFunction) {
     try {
-      const { period, amount, moraAmount, dueDate, type, currency, towerIds, propertyIds, description } = req.body;
+      const { period, amount, bsPrice, moraAmount, dueDate, type, currency, towerIds, propertyIds, description } = req.body;
       if (!period || !amount || !dueDate) {
         throw new HttpError(400, "period, amount y dueDate son requeridos");
+      }
+      // Vacío o igual al monto: cuesta lo mismo en cualquier moneda.
+      let priceInBs: number | null = null;
+      if (bsPrice !== undefined && bsPrice !== null && bsPrice !== "") {
+        const n = Math.round(Number(bsPrice) * 100) / 100;
+        if (!Number.isFinite(n) || n <= 0) throw new HttpError(400, "El monto si paga en Bs debe ser mayor a 0");
+        if (n !== Math.round(Number(amount) * 100) / 100) priceInBs = n;
       }
       const chargeType =
         type === ChargeType.SPECIAL ? ChargeType.SPECIAL : ChargeType.REGULAR;
@@ -189,6 +195,7 @@ export const ChargeController = {
       const result = await ChargeService.generateForPeriod({
         period,
         amount: Number(amount),
+        bsPrice: priceInBs,
         moraAmount: Number(moraAmount ?? 0),
         dueDate,
         type: chargeType,

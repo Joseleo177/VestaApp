@@ -22,16 +22,30 @@ export function isOverdue(charge: Charge, asOfDate?: string): boolean {
 }
 
 /**
+ * Monto base de la cuota según la moneda del pago. En Bs puede costar otra cosa
+ * (`bsPrice`, p. ej. una promoción por pagar en divisas); sin moneda —la deuda
+ * que se muestra— se usa el monto en divisas.
+ */
+export function baseAmount(
+  charge: { amount: number | string; bsPrice?: number | string | null },
+  currency?: PaymentCurrency
+): number {
+  const bs = Number(charge.bsPrice ?? 0);
+  return currency === PaymentCurrency.BS && bs > 0 ? bs : Number(charge.amount);
+}
+
+/**
  * Monto pendiente de pago de una cuota:
  * - PARTIAL: saldo restante (base − amountPaid), sin mora
  * - PENDING: base + mora si estaba vencida en la fecha de pago (asOfDate) y no es DIVISAS
+ * La base depende de la moneda (ver `baseAmount`).
  */
 export function amountDue(charge: Charge, currency?: PaymentCurrency, asOfDate?: string): number {
   if (charge.status === ChargeStatus.PAID || charge.status === ChargeStatus.EXONERATED) {
     return 0;
   }
   if (charge.status === ChargeStatus.PARTIAL) {
-    const base  = Number(charge.amount);
+    const base  = baseAmount(charge, currency);
     const paid  = Number(charge.amountPaid ?? 0);
     const mora  = Number(charge.moraAmount ?? 0);
     // Si hay mora y la cuota está vencida, el pendiente incluye lo que falte de mora
@@ -39,7 +53,7 @@ export function amountDue(charge: Charge, currency?: PaymentCurrency, asOfDate?:
     const total = base + (moraApplies ? mora : 0);
     return Math.max(0, Math.round((total - paid) * 100) / 100);
   }
-  const base = Number(charge.amount);
+  const base = baseAmount(charge, currency);
   const mora = Number(charge.moraAmount);
   const moraApplies =
     isOverdue(charge, asOfDate) && currency !== PaymentCurrency.DIVISAS && mora > 0;
@@ -291,6 +305,8 @@ export const ChargeService = {
   async generateForPeriod(input: {
     period: string;
     amount: number;
+    /** Monto si se paga en Bs; null = el mismo `amount`. */
+    bsPrice?: number | null;
     moraAmount: number;
     dueDate: string;
     type: ChargeType;
@@ -299,7 +315,7 @@ export const ChargeService = {
     propertyIds?: string[];
     description?: string;
   }): Promise<{ created: number }> {
-    const { period, amount, moraAmount, dueDate, type, currency, towerIds, propertyIds, description } = input;
+    const { period, amount, bsPrice, moraAmount, dueDate, type, currency, towerIds, propertyIds, description } = input;
     const filterByTowers = towerIds && towerIds.length > 0;
     const filterByProperties = propertyIds && propertyIds.length > 0;
 
@@ -355,6 +371,7 @@ export const ChargeService = {
         description: desc,
         type,
         amount,
+        bsPrice: bsPrice ?? null,
         currency,
         moraAmount: effectiveMora,
         dueDate,

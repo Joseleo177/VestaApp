@@ -166,6 +166,8 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
 
   const unpaidCurrency = unpaid.length && unpaid.every((u) => u.currency === unpaid[0].currency) ? unpaid[0].currency : null;
   const mixedRates = new Set(charges.map((c) => c.currency)).size > 1;
+  // Precio distinto si pagan en Bs (p. ej. una promoción); se emite igual para todo el lote.
+  const bsPrice = charges.find((c) => c.bsPrice != null && c.bsPrice !== c.amount);
 
   // Vencimiento del lote: el más repetido entre las no pagadas (o entre todas si no
   // queda ninguna). Si alguna se corrigió aparte, el lote tiene vencimientos distintos.
@@ -309,7 +311,8 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
             <div className="min-w-0 flex-1">
               <p className="text-[13px] font-semibold text-ios-label">¿Con qué tasa se cobra en bolívares?</p>
               <p className="text-[12px] text-ios-secondary">
-                Las cuotas están en REF. Quien pague en Bs paga al cambio de esta tasa BCV.
+                Las cuotas están en divisas. Quien pague en Bs paga al cambio de esta tasa BCV
+                {bsPrice && `, y ${formatCurrency(bsPrice.bsPrice!)} en vez de ${formatCurrency(bsPrice.amount)}`}.
                 {unpaidCurrency
                   ? " Las ya pagadas conservan la tasa con que se pagaron."
                   : " Hoy hay cuotas con tasas distintas: elige una para igualarlas."}

@@ -66,7 +66,7 @@ function AccountPreview() {
           <div>
             <p className="text-[13px] font-medium text-ios-secondary">Saldo pendiente</p>
             <p className="mt-1 text-[32px] font-bold leading-none tracking-tight text-ios-label">
-              <span className="mr-1 text-[0.5em] font-medium text-ios-secondary">REF</span>60,00
+              60,00
             </p>
             <p className="mt-1.5 text-[13px] tabular-nums text-ios-secondary">≈ Bs. 58.358,92 a la tasa de hoy</p>
           </div>
@@ -85,7 +85,6 @@ function AccountPreview() {
                 <p className={`text-[12px] font-medium ${r.tone}`}>{r.due}</p>
               </div>
               <p className="text-[14px] font-semibold tabular-nums text-ios-label">
-                <span className="mr-1 text-[0.78em] font-medium text-ios-secondary">REF</span>
                 {r.amount}
               </p>
             </li>
@@ -93,7 +92,7 @@ function AccountPreview() {
         </ul>
         <div className="border-t border-ios-separator px-6 py-4">
           <div className="flex h-11 items-center justify-center rounded-xl bg-brand-600 text-[15px] font-semibold text-white">
-            Pagar REF 60,00
+            Pagar 60,00
           </div>
         </div>
       </div>

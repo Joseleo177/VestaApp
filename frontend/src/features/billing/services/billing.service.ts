@@ -16,6 +16,8 @@ export interface PeriodSummary {
 export interface GenerateChargesInput {
   period: string;
   amount: number;
+  /** Monto si pagan en Bs; vacío = el mismo en cualquier moneda. */
+  bsPrice?: number;
   moraAmount: number;
   dueDate: string;
   type: ChargeType;

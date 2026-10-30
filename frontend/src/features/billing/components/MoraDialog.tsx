@@ -74,7 +74,7 @@ export function MoraDialog({ target, onClose, onDone }: Props) {
           step="0.01"
           min="0"
           inputMode="decimal"
-          label="Mora por vencimiento (REF)"
+          label="Mora por vencimiento (divisas)"
           placeholder="5.00"
           autoFocus
           value={value}

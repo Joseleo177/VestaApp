@@ -142,12 +142,12 @@ export function generateAccountStatementPdf(
     let ty = doc.y;
     doc.rect(tableX, ty, tableW, rowH).fillColor("#f1f5f9").fill();
     
-    doc.fillColor("#000000").font("Helvetica-Bold").fontSize(10).text("Saldo a Favor (REF)", tableX + 8, ty + 8, { width: tableW/2 });
+    doc.fillColor("#000000").font("Helvetica-Bold").fontSize(10).text("Saldo a Favor (divisas)", tableX + 8, ty + 8, { width: tableW/2 });
     doc.text(eur(creditBalance), tableX + tableW/2, ty + 8, { width: tableW/2 - 8, align: "right" });
     ty += rowH;
     
     doc.rect(tableX, ty, tableW, rowH).fillColor("#fef2f2").fill();
-    doc.fillColor("#000000").font("Helvetica-Bold").fontSize(10).text("Deuda Total (REF)", tableX + 8, ty + 8, { width: tableW/2 });
+    doc.fillColor("#000000").font("Helvetica-Bold").fontSize(10).text("Deuda Total (divisas)", tableX + 8, ty + 8, { width: tableW/2 });
     doc.text(eur(balance), tableX + tableW/2, ty + 8, { width: tableW/2 - 8, align: "right" });
     ty += rowH;
 
@@ -233,8 +233,8 @@ export function generateAccountStatementPdf(
         doc.font("Helvetica").fontSize(8.5);
         for (const c of condonadas) {
             doc.text(
-                `${c.period} · ${c.description || "Cuota"}: pagado REF ${eur(Number(c.amountPaid))}` +
-                    ` · condonado REF ${eur(Number(c.writeOffAmount))}`,
+                `${c.period} · ${c.description || "Cuota"}: pagado ${eur(Number(c.amountPaid))}` +
+                    ` · condonado ${eur(Number(c.writeOffAmount))}`,
                 detailX, doc.y + 2, { width: tableW }
             );
         }

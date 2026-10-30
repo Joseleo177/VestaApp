@@ -20,7 +20,7 @@ const NAV: [string, string][] = [
 ];
 
 const HIGHLIGHTS = [
-  "Cuotas en REF, pago en Bs a tasa BCV",
+  "Cuotas en divisas, pago en Bs a tasa BCV",
   "Varias cuotas en un solo pago",
   "Recibo en PDF de cada cuota",
   "Hecho para usarse en el teléfono",

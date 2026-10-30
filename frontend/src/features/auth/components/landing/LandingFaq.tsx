@@ -11,7 +11,7 @@ const FAQ: [string, string][] = [
   ],
   [
     "¿En qué moneda pago?",
-    "Las cuotas están expresadas en referencia (REF). Puedes pagarlas en divisas o en bolívares; en bolívares se convierten con la tasa BCV de la fecha de tu pago.",
+    "Las cuotas están expresadas en divisas. Puedes pagarlas en divisas o en bolívares; en bolívares se convierten con la tasa BCV de la fecha de tu pago.",
   ],
   [
     "¿Puedo pagar varias cuotas juntas?",

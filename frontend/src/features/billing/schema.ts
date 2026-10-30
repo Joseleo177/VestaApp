@@ -5,6 +5,11 @@ export const generateChargesSchema = z
   .object({
     period: z.string().regex(/^\d{4}-\d{2}$/, "Selecciona un período válido"),
     amount: z.coerce.number({ invalid_type_error: "Monto inválido" }).positive("La cuota debe ser mayor a cero"),
+    // Vacío: la cuota cuesta lo mismo en divisas que en Bs.
+    bsPrice: z.preprocess(
+      (v) => (v === "" || v === null || (typeof v === "number" && Number.isNaN(v)) ? undefined : v),
+      z.coerce.number({ invalid_type_error: "Monto inválido" }).positive("Debe ser mayor a cero").optional()
+    ),
     moraAmount: z.coerce.number({ invalid_type_error: "Monto inválido" }).min(0),
     dueDate: z.string().min(1, "Indica la fecha de vencimiento"),
     type: z.nativeEnum(ChargeType),

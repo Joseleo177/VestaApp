@@ -58,7 +58,7 @@ export interface ClientUnit {
  */
 export interface Client extends User {
   units: ClientUnit[];
-  /** Suma de saldos pendientes de sus departamentos, en REF. */
+  /** Suma de saldos pendientes de sus departamentos, en divisas. */
   debt: number;
   unitsWithDebt: number;
 }

@@ -69,7 +69,7 @@ export function CreditDialog({ owner, credit, onClose, onDone }: CreditDialogPro
               step="0.01"
               min="0"
               inputMode="decimal"
-              label="Nuevo saldo (REF)"
+              label="Nuevo saldo (divisas)"
               value={balance}
               onChange={(e) => setBalance(e.target.value)}
             />

@@ -1,8 +1,9 @@
 /** Formateadores reutilizables de moneda y fechas. */
 
-// Los montos de cuotas y pagos son "REF": se pagan tal cual en $ (efectivo o
-// transferencia) o en Bs a la tasa de la cuota, que puede ser la del dólar o la
-// del euro. Con "$" una cuota a tasa € parecía cobrarse en dos monedas.
+// Los montos de cuotas y pagos van sin prefijo: se pagan tal cual en divisas
+// (efectivo o transferencia) o en Bs a la tasa de la cuota, que puede ser la del
+// dólar o la del euro. Con "$" una cuota a tasa € parecía cobrarse en dos
+// monedas, y "REF" confundía por lo mismo. Los bolívares sí llevan "Bs.".
 const refFmt = new Intl.NumberFormat("es-VE", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
@@ -10,7 +11,7 @@ const refFmt = new Intl.NumberFormat("es-VE", {
 
 export function formatCurrency(value: number | string): string {
   const n = Number(value);
-  return `${n < 0 ? "-" : ""}REF ${refFmt.format(Math.abs(n))}`;
+  return `${n < 0 ? "-" : ""}${refFmt.format(Math.abs(n))}`;
 }
 
 const bsFmt = new Intl.NumberFormat("es-VE", {
