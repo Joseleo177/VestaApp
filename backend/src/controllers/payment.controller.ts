@@ -53,6 +53,19 @@ export const PaymentController = {
     }
   },
 
+  // POST /api/payments/from-credit  {chargeIds}  — pagar cuotas con el saldo a favor
+  async applyCredit(req: Request, res: Response, next: NextFunction) {
+    try {
+      const ids: string[] = Array.isArray(req.body?.chargeIds)
+        ? req.body.chargeIds.filter((id: unknown): id is string => typeof id === "string")
+        : [];
+      const payment = await PaymentService.applyCredit(req.user!.sub, ids, req.user!.role as UserRole);
+      res.status(201).json(payment);
+    } catch (err) {
+      next(err);
+    }
+  },
+
   // GET /api/payments/import/template  (admin) — planilla .xlsx para llenar
   async importTemplate(_req: Request, res: Response, next: NextFunction) {
     try {

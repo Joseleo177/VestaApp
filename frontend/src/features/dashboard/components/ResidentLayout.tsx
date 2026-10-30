@@ -121,6 +121,7 @@ export function ResidentLayout() {
             key={dashboard.payIds.join(",")}
             charges={dashboard.open}
             defaultChargeIds={dashboard.payIds}
+            creditBalance={dashboard.creditBalance}
             onSuccess={dashboard.onPaid}
             onCancel={dashboard.closePay}
           />

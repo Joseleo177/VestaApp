@@ -12,8 +12,9 @@ import { Receipt } from "../models/Receipt";
 import { BankEntry } from "../models/BankEntry";
 import { ExchangeRateRecord } from "../models/ExchangeRateRecord";
 import { Setting } from "../models/Setting";
+import { CreditAdjustment } from "../models/CreditAdjustment";
 
-const entities = [User, Tower, Property, Charge, Payment, PaymentApplication, PaymentTarget, Receipt, BankEntry, ExchangeRateRecord, Setting];
+const entities = [User, Tower, Property, Charge, Payment, PaymentApplication, PaymentTarget, Receipt, BankEntry, ExchangeRateRecord, Setting, CreditAdjustment];
 
 const poolOptions = {
   // En Vercel cada instancia abre su propio pool y bajo carga se levantan

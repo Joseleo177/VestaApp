@@ -5,7 +5,8 @@ import { PaymentCurrency } from "../models/Payment";
 import { RateCurrency, isRateCurrency } from "../models/ExchangeRateRecord";
 import { HttpError } from "../middlewares/error.middleware";
 import { CREDIT_MIN } from "./payment.service";
-import { PaymentStatus } from "../models/Payment";
+import { Payment, PaymentStatus } from "../models/Payment";
+import { PaymentTarget } from "../models/PaymentTarget";
 import { PaymentApplication } from "../models/PaymentApplication";
 import { Receipt } from "../models/Receipt";
 import { User } from "../models/User";
@@ -483,6 +484,105 @@ export const ChargeService = {
     });
     if (!charge) throw new HttpError(404, "Cuota no encontrada");
     return charge;
+  },
+
+  /**
+   * Elimina una cuota que no debió emitirse. Si ya tenía abonos, lo abonado
+   * vuelve al saldo a favor del titular y se anota en cada pago como sobrante
+   * (`creditAmount`): el pago sigue cuadrando, y si después se elimina, se
+   * descuenta del saldo como cualquier sobrante. Devuelve lo acreditado.
+   * Una cuota pagada no se elimina: primero se elimina o anula su pago.
+   */
+  async deleteCharge(id: string): Promise<number> {
+    return AppDataSource.transaction(async (manager) => {
+      const charge = await manager.findOne(Charge, {
+        where: { id },
+        relations: { property: { owner: true } },
+      });
+      if (!charge) throw new HttpError(404, "Cuota no encontrada");
+      if (charge.status === ChargeStatus.PAID) {
+        throw new HttpError(
+          409,
+          "La cuota está pagada: elimina o anula primero el pago que la pagó en Pagos."
+        );
+      }
+
+      // Un pago en revisión o rechazado que la nombra la ata: se avisa con el pago
+      // concreto y qué hacer. Los confirmados se sueltan más abajo.
+      const linked = await manager
+        .createQueryBuilder(Payment, "p")
+        .select(["p.id", "p.status", "p.reference", "p.paymentDate"])
+        .where("p.status <> :confirmed", { confirmed: PaymentStatus.CONFIRMED })
+        .andWhere(
+          "(p.charge_id = :id OR p.id IN (SELECT t.payment_id FROM payment_targets t WHERE t.charge_id = :id))",
+          { id }
+        )
+        .orderBy("p.paymentDate", "DESC")
+        .getMany();
+      if (linked.length > 0) {
+        const p = linked.find((x) => x.status === PaymentStatus.PENDING) ?? linked[0];
+        const which = `${p.reference ? `ref. ${p.reference}` : "sin referencia"}, del ${p.paymentDate}`;
+        const what =
+          p.status === PaymentStatus.PENDING
+            ? `Tiene un pago en revisión (${which}). Recházalo o elimínalo en Pagos y vuelve a intentarlo.`
+            : `Tiene un pago rechazado registrado a esta cuota (${which}). Elimínalo en Pagos › Rechazados y vuelve a intentarlo.`;
+        throw new HttpError(409, `No se puede eliminar la cuota. ${what}`);
+      }
+
+      // Un recibo (anulado) que la nombra impide borrarla en la base de datos.
+      if ((await manager.count(Receipt, { where: { charge: { id } } })) > 0) {
+        throw new HttpError(
+          409,
+          "La cuota figura en un recibo anulado y no se puede eliminar. Exonérala en su lugar."
+        );
+      }
+
+      const round2 = (n: number) => Math.round(n * 100) / 100;
+      const credited = round2(Number(charge.amountPaid ?? 0));
+      const ownerId = charge.property?.owner?.id;
+      if (credited > 0 && !ownerId) {
+        throw new HttpError(409, "La cuota tiene abonos y el departamento no tiene titular a quien devolverlos");
+      }
+
+      const applications = await manager.find(PaymentApplication, {
+        where: { charge: { id } },
+        relations: { payment: true },
+      });
+      for (const app of applications) {
+        // Los pagos anteriores al campo (null) ya deducen el sobrante del monto.
+        if (app.payment.creditAmount == null) continue;
+        await manager.update(Payment, app.payment.id, {
+          creditAmount: round2(Number(app.payment.creditAmount) + Number(app.amount)),
+        });
+      }
+      await manager.delete(PaymentApplication, { charge: { id } });
+
+      if (credited > 0 && ownerId) {
+        const owner = await manager.findOne(User, {
+          where: { id: ownerId },
+          lock: { mode: "pessimistic_write" },
+        });
+        if (owner) {
+          owner.creditBalance = round2(Number(owner.creditBalance ?? 0) + credited);
+          await manager.save(User, owner);
+        }
+      }
+
+      // Un pago confirmado cuya cuota principal era esta pasa a apuntar a la
+      // siguiente que eligió, o a ninguna si solo era esta.
+      await manager.query(
+        `UPDATE payments p
+            SET charge_id = (
+              SELECT t.charge_id FROM payment_targets t
+               WHERE t.payment_id = p.id AND t.charge_id <> $1
+               ORDER BY t.position LIMIT 1)
+          WHERE p.charge_id = $1`,
+        [id]
+      );
+      await manager.delete(PaymentTarget, { charge: { id } });
+      await manager.delete(Charge, { id });
+      return credited;
+    });
   },
 
   async setExonerated(id: string, exonerated: boolean): Promise<Charge> {

@@ -37,6 +37,12 @@ export const paymentService = {
     return data;
   },
 
+  /** Paga las cuotas con el saldo a favor del titular, hasta donde alcance. */
+  async payWithCredit(chargeIds: string[]): Promise<Payment> {
+    const { data } = await api.post<Payment>("/payments/from-credit", { chargeIds });
+    return data;
+  },
+
   /** `allowSettled`: confirmar aunque sus cuotas ya estén pagadas (ver `useSettledGuard`). */
   async confirm(paymentId: string, allowSettled = false): Promise<void> {
     await api.post(`/payments/${paymentId}/confirm`, { allowSettled });

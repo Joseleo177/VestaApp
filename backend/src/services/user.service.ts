@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { AppDataSource } from "../config/data-source";
 import { DocumentType, User, UserRole, isDocumentType } from "../models/User";
 import { HttpError } from "../middlewares/error.middleware";
+import { CreditAdjustment } from "../models/CreditAdjustment";
 
 const repo = () => AppDataSource.getRepository(User);
 
@@ -118,4 +119,68 @@ export const UserService = {
     user.isActive = isActive;
     return toPublicUser(await repo().save(user));
   },
+
+  /** Saldo a favor del titular y sus últimas correcciones manuales. */
+  async getCredit(id: string): Promise<CreditInfo> {
+    const user = await this.getById(id);
+    const adjustments = await AppDataSource.getRepository(CreditAdjustment).find({
+      where: { user: { id } },
+      relations: { createdBy: true },
+      order: { createdAt: "DESC" },
+      take: 10,
+    });
+    return {
+      creditBalance: Number(user.creditBalance ?? 0),
+      adjustments: adjustments.map((a) => ({
+        id: a.id,
+        amount: Number(a.amount),
+        balanceAfter: Number(a.balanceAfter),
+        reason: a.reason,
+        createdBy: a.createdBy?.fullName ?? null,
+        createdAt: a.createdAt,
+      })),
+    };
+  },
+
+  /**
+   * Corrige a mano el saldo a favor de un titular (lo deja en `balance`). Queda
+   * registrado cuánto cambió, por qué y quién lo hizo.
+   */
+  async setCredit(id: string, balance: number, reason: string, adminId: string): Promise<CreditInfo> {
+    const motivo = (reason ?? "").trim();
+    if (motivo.length < 5) throw new HttpError(400, "Indica el motivo del ajuste (mínimo 5 caracteres)");
+    if (!Number.isFinite(balance) || balance < 0) throw new HttpError(400, "El saldo debe ser 0 o mayor");
+    const target = Math.round(balance * 100) / 100;
+
+    await AppDataSource.transaction(async (manager) => {
+      const user = await manager.findOne(User, { where: { id }, lock: { mode: "pessimistic_write" } });
+      if (!user) throw new HttpError(404, "Usuario no encontrado");
+      const delta = Math.round((target - Number(user.creditBalance ?? 0)) * 100) / 100;
+      if (delta === 0) throw new HttpError(409, "El saldo ya es ese");
+      user.creditBalance = target;
+      await manager.save(User, user);
+      await manager.save(
+        manager.create(CreditAdjustment, {
+          user: { id } as User,
+          amount: delta,
+          balanceAfter: target,
+          reason: motivo,
+          createdBy: { id: adminId } as User,
+        })
+      );
+    });
+    return this.getCredit(id);
+  },
 };
+
+export interface CreditInfo {
+  creditBalance: number;
+  adjustments: {
+    id: string;
+    amount: number;
+    balanceAfter: number;
+    reason: string;
+    createdBy: string | null;
+    createdAt: Date;
+  }[];
+}

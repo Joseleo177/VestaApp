@@ -118,7 +118,9 @@ export const billingService = {
     return data;
   },
 
-  async deleteCharge(chargeId: string): Promise<void> {
-    await api.delete(`/charges/${chargeId}`);
+  /** Elimina la cuota; devuelve lo abonado que pasó al saldo a favor del titular. */
+  async deleteCharge(chargeId: string): Promise<number> {
+    const { data } = await api.delete<{ credited?: number }>(`/charges/${chargeId}`);
+    return Number(data?.credited ?? 0);
   },
 };

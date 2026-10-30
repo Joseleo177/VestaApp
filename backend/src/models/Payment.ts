@@ -97,6 +97,13 @@ export class Payment {
   @Column({ name: "credit_amount", type: "numeric", precision: 12, scale: 2, nullable: true })
   creditAmount?: number | null;
 
+  /**
+   * Pagado con el saldo a favor del titular, no con dinero nuevo: no cuenta como
+   * cobrado ni se busca en el extracto, y al eliminarlo lo aplicado vuelve al saldo.
+   */
+  @Column({ name: "from_credit", type: "boolean", default: false })
+  fromCredit!: boolean;
+
   @OneToMany(() => Receipt, (receipt) => receipt.payment)
   receipts?: Receipt[];
 

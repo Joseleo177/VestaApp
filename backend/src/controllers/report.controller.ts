@@ -24,6 +24,8 @@ export const ReportController = {
         .leftJoinAndSelect("payment.submittedBy", "user")
         .leftJoinAndSelect("payment.charge", "charge")
         .where("payment.status = :status", { status: PaymentStatus.CONFIRMED })
+        // Lo pagado con saldo a favor ya se cobró cuando entró el pago que lo dejó.
+        .andWhere("payment.fromCredit = false")
         .andWhere("payment.paymentDate >= :startDate", { startDate })
         .andWhere("payment.paymentDate <= :endDate", { endDate })
         .orderBy("payment.paymentDate", "ASC")

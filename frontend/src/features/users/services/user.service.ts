@@ -1,6 +1,6 @@
 import { api } from "@/services/api";
 import { User } from "@/types/domain";
-import { CreateUserInput, UpdateUserInput } from "../types";
+import { CreateUserInput, CreditInfo, UpdateUserInput } from "../types";
 
 /** Capa de datos del módulo de usuarios (solo admin). */
 export const userService = {
@@ -21,6 +21,18 @@ export const userService = {
 
   async setActive(id: string, isActive: boolean): Promise<User> {
     const { data } = await api.patch<User>(`/users/${id}/status`, { isActive });
+    return data;
+  },
+
+  /** Saldo a favor del titular y sus últimos ajustes manuales. */
+  async getCredit(id: string): Promise<CreditInfo> {
+    const { data } = await api.get<CreditInfo>(`/users/${id}/credit`);
+    return data;
+  },
+
+  /** Deja el saldo a favor en `balance`; el motivo queda registrado. */
+  async setCredit(id: string, balance: number, reason: string): Promise<CreditInfo> {
+    const { data } = await api.put<CreditInfo>(`/users/${id}/credit`, { balance, reason });
     return data;
   },
 };

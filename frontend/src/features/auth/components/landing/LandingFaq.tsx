@@ -23,7 +23,7 @@ const FAQ: [string, string][] = [
   ],
   [
     "¿Qué pasa si pago de más?",
-    "El excedente queda como saldo a favor en tu cuenta y se aplica a tus próximas cuotas.",
+    "El excedente queda como saldo a favor en tu cuenta. Al pagar tu próxima cuota puedes usarlo con «Pagar con saldo a favor».",
   ],
   [
     "Olvidé mi contraseña, ¿qué hago?",

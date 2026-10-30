@@ -26,6 +26,7 @@ router.post(
 
 // --- Copropietario ---
 router.post("/", PaymentController.create);
+router.post("/from-credit", PaymentController.applyCredit);
 router.get("/me", PaymentController.listMine);
 router.get("/:id/receipt", PaymentController.downloadReceipt);
 

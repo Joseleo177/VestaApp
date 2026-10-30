@@ -575,6 +575,112 @@ export const PaymentService = {
   },
 
   /**
+   * Paga cuotas con el saldo a favor del titular. Queda como un pago en divisas
+   * ya confirmado (sin mora, como cualquier pago en $), con sus aplicaciones y
+   * su recibo si cierra alguna cuota, para que se pueda revertir igual que los
+   * demás. Usa lo que alcance del saldo, sin pasar de lo que deben las cuotas.
+   */
+  async applyCredit(userId: string, chargeIds: string[], userRole?: UserRole): Promise<Payment> {
+    const ids = [...new Set(chargeIds)];
+    if (ids.length === 0) throw new HttpError(400, "Selecciona al menos una cuota");
+    if (ids.length > MAX_CHARGES_PER_PAYMENT) {
+      throw new HttpError(400, `Un pago puede cubrir hasta ${MAX_CHARGES_PER_PAYMENT} cuotas`);
+    }
+    const isAdmin = userRole === UserRole.ADMIN;
+    // La fecha del pago es la de hoy en Venezuela, no la del servidor en UTC.
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Caracas" }).format(new Date());
+
+    const paymentId = await AppDataSource.transaction(async (manager) => {
+      const found = await manager.find(Charge, {
+        where: { id: In(ids) },
+        relations: { property: { owner: true, authorized: true } },
+      });
+      if (found.length !== ids.length) throw new HttpError(404, "Cuota no encontrada");
+      const charges = found.sort(
+        (a, b) =>
+          String(a.dueDate).localeCompare(String(b.dueDate)) ||
+          a.period.localeCompare(b.period) ||
+          a.description.localeCompare(b.description)
+      );
+
+      for (const c of charges) {
+        const canPay =
+          isAdmin || c.property.owner?.id === userId || c.property.authorized?.id === userId;
+        if (!canPay) throw new HttpError(403, "No puedes pagar la cuota de otra propiedad");
+        if (c.status !== ChargeStatus.PENDING && c.status !== ChargeStatus.PARTIAL) {
+          throw new HttpError(409, `La cuota de ${c.period} no tiene nada por pagar`);
+        }
+      }
+      // El saldo es de un titular: no se usa para pagar cuotas de otro.
+      const ownerIds = new Set(charges.map((c) => c.property.owner?.id ?? null));
+      const ownerId = charges[0].property.owner?.id;
+      if (!ownerId || ownerIds.size > 1) {
+        throw new HttpError(409, "El saldo a favor solo paga cuotas de departamentos del mismo titular");
+      }
+
+      // Una cuota con un pago en revisión podría quedar pagada dos veces.
+      const inReview = await manager
+        .createQueryBuilder(Payment, "p")
+        .where("p.status = :pending", { pending: PaymentStatus.PENDING })
+        .andWhere(
+          "(p.charge_id IN (:...ids) OR p.id IN (SELECT t.payment_id FROM payment_targets t WHERE t.charge_id IN (:...ids)))",
+          { ids }
+        )
+        .getCount();
+      if (inReview > 0) {
+        throw new HttpError(409, "Una de las cuotas tiene un pago en revisión: espera a que se confirme o rechace");
+      }
+
+      // Bloqueado hasta terminar: dos usos simultáneos no gastan el mismo saldo.
+      const owner = await manager.findOne(User, {
+        where: { id: ownerId },
+        lock: { mode: "pessimistic_write" },
+      });
+      const credit = Number(owner?.creditBalance ?? 0);
+      if (!owner || credit <= 0.005) throw new HttpError(409, "No hay saldo a favor disponible");
+
+      const round2 = (n: number) => Math.round(n * 100) / 100;
+      const owed = round2(
+        charges.reduce((sum, c) => sum + amountDue(c, PaymentCurrency.DIVISAS, today), 0)
+      );
+      const amount = round2(Math.min(credit, owed));
+      if (amount <= 0) throw new HttpError(409, "Las cuotas elegidas no tienen saldo pendiente");
+
+      const payment = await manager.save(
+        manager.create(Payment, {
+          property: charges[0].property,
+          submittedBy: { id: userId } as User,
+          charge: charges[0],
+          amount,
+          currency: PaymentCurrency.DIVISAS,
+          bank: "Saldo a favor",
+          reference: "",
+          paymentDate: today,
+          status: PaymentStatus.CONFIRMED,
+          reviewedBy: isAdmin ? ({ id: userId } as User) : undefined,
+          reviewedAt: new Date(),
+          fromCredit: true,
+          targets:
+            charges.length > 1
+              ? charges.map((c, position) => ({ charge: c, position }) as PaymentTarget)
+              : [],
+        })
+      );
+
+      // No sobra nada (el monto no pasa de lo que se debe), así que el reparto
+      // no devuelve saldo a favor: solo abona y, si cierra cuotas, emite recibo.
+      const settled = await settlePayment(manager, payment);
+      await issueReceipt(manager, payment, settled, isAdmin ? userId : null);
+
+      owner.creditBalance = round2(credit - amount);
+      await manager.save(User, owner);
+      return payment.id;
+    });
+
+    return PaymentService.getById(paymentId);
+  },
+
+  /**
    * Historial de las unidades que el usuario gestiona (como titular o como
    * autorizado), no solo de los pagos que él mismo registró: titular y
    * autorizado ven el mismo movimiento del departamento.
@@ -898,10 +1004,19 @@ export const PaymentService = {
             await manager.save(User, user);
           }
         }
+
+        // Un pago con saldo a favor no trajo dinero: lo que aplicó vuelve al saldo.
+        if (payment.fromCredit && reverted > 0 && payment.property?.owner?.id) {
+          const user = await manager.findOneBy(User, { id: payment.property.owner.id });
+          if (user) {
+            user.creditBalance = Math.round((Number(user.creditBalance) + reverted) * 100) / 100;
+            await manager.save(User, user);
+          }
+        }
       }
 
       // Liberar la entrada bancaria que estaba casada con este pago
-      if (payment.status === PaymentStatus.CONFIRMED) {
+      if (payment.status === PaymentStatus.CONFIRMED && !payment.fromCredit) {
         const bankEntry = await findBankEntryFor(manager.getRepository(BankEntry), payment, true);
         if (bankEntry) {
           bankEntry.matched = false;

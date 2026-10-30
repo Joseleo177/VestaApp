@@ -174,6 +174,8 @@ export interface Payment {
   applications?: { amount: number | string; charge: Charge }[] | null;
   /** Sobrante que no cupo en ninguna cuota y fue al saldo a favor. */
   creditAmount?: number | string | null;
+  /** Pagado con el saldo a favor: no es dinero nuevo. */
+  fromCredit?: boolean;
   createdAt: string;
 }
 

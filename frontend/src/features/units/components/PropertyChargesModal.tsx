@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Ban, Building, CalendarClock, Download, HandCoins, RotateCcw, Trash2, Undo2, Wallet } from "lucide-react";
+import { Ban, Building, CalendarClock, Download, HandCoins, PiggyBank, RotateCcw, Trash2, Undo2, Wallet } from "lucide-react";
 import { Modal, ModalIcon } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -20,6 +20,9 @@ import { PropertyWithBalance } from "@/features/admin-panel/types";
 import { PaymentForm } from "@/features/payments/components/PaymentForm";
 import { WriteOffDialog } from "@/features/billing/components/WriteOffDialog";
 import { DueDateDialog, mergeDue } from "@/features/billing/components/DueDateDialog";
+import { userService } from "@/features/users/services/user.service";
+import { CreditInfo } from "@/features/users/types";
+import { CreditDialog } from "./CreditDialog";
 
 interface PropertyChargesModalProps {
   property: PropertyWithBalance | null;
@@ -91,6 +94,15 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
   const [revertTarget, setRevertTarget] = useState<Charge | null>(null);
   const [dueTarget, setDueTarget] = useState<Charge | null>(null);
   const [chosen, setChosen] = useState<Filter | null>(null);
+  const [credit, setCredit] = useState<CreditInfo | null>(null);
+  const [creditOpen, setCreditOpen] = useState(false);
+  const owner = property?.owner ?? null;
+
+  // El saldo a favor es del titular: se pide fresco, no el de la lista de departamentos.
+  const loadCredit = () => {
+    if (!owner) return setCredit(null);
+    userService.getCredit(owner.id).then(setCredit).catch(() => setCredit(null));
+  };
 
   const load = () => {
     if (!property) return;
@@ -100,6 +112,7 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
       .then(setCharges)
       .catch(() => toast.error("No se pudieron cargar las cuotas"))
       .finally(() => setLoading(false));
+    loadCredit();
   };
 
   useEffect(() => {
@@ -158,9 +171,14 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
     if (!target) return;
     setDeleteTarget(null);
     await run(target, async () => {
-      await billingService.deleteCharge(target.id);
+      const credited = await billingService.deleteCharge(target.id);
       setCharges((prev) => prev.filter((c) => c.id !== target.id));
-      toast.success("Cuota eliminada");
+      if (credited > 0) {
+        toast.success(`Cuota eliminada. ${formatCurrency(credited)} pasaron al saldo a favor`);
+        loadCredit();
+      } else {
+        toast.success("Cuota eliminada");
+      }
     });
   };
 
@@ -190,8 +208,16 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
       items.push({ label: "Cambiar vencimiento", icon: CalendarClock, onClick: () => setDueTarget(c), hint: `Hoy vence el ${formatDate(c.dueDate)}` });
     if (c.status === ChargeStatus.PENDING) items.push({ label: "Exonerar", icon: Ban, onClick: () => toggleExonerated(c) });
     if (c.status === ChargeStatus.EXONERATED) items.push({ label: "Reactivar", icon: RotateCcw, onClick: () => toggleExonerated(c) });
-    if (c.status === ChargeStatus.PENDING || c.status === ChargeStatus.EXONERATED)
-      items.push({ label: "Eliminar cuota", icon: Trash2, tone: "danger", onClick: () => setDeleteTarget(c) });
+    // Una cuota que no debió emitirse se elimina aunque tenga abonos: vuelven al saldo a favor.
+    if (c.status !== ChargeStatus.PAID)
+      items.push({
+        label: "Eliminar cuota",
+        icon: Trash2,
+        tone: "danger",
+        onClick: () => setDeleteTarget(c),
+        disabled: !!c.pendingPayment,
+        hint: c.pendingPayment ? "Tiene un pago en revisión" : undefined,
+      });
     return items;
   };
 
@@ -233,12 +259,25 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
                   <p className="text-[20px] font-bold leading-tight text-ios-label">Al día</p>
                 )}
               </div>
-              {payable.length > 0 && (
-                <Button size="sm" onClick={() => setPayIds(payable.map((c) => c.id))}>
-                  <Wallet className="h-4 w-4" />
-                  Registrar pago
-                </Button>
-              )}
+              <div className="flex flex-wrap items-center gap-2">
+                {owner && credit && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setCreditOpen(true)}
+                    title="Ver o ajustar el saldo a favor del titular"
+                  >
+                    <PiggyBank className="h-4 w-4" />
+                    {credit.creditBalance > 0.005 ? `A favor ${formatCurrency(credit.creditBalance)}` : "Saldo a favor"}
+                  </Button>
+                )}
+                {payable.length > 0 && (
+                  <Button size="sm" onClick={() => setPayIds(payable.map((c) => c.id))}>
+                    <Wallet className="h-4 w-4" />
+                    Registrar pago
+                  </Button>
+                )}
+              </div>
             </div>
           )
         )}
@@ -356,6 +395,16 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
         }}
       />
 
+      <CreditDialog
+        owner={creditOpen ? owner : null}
+        credit={credit}
+        onClose={() => setCreditOpen(false)}
+        onDone={(updated) => {
+          setCredit(updated);
+          setCreditOpen(false);
+        }}
+      />
+
       <ConfirmDialog
         open={revertTarget !== null}
         onClose={() => setRevertTarget(null)}
@@ -371,7 +420,11 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => void handleDelete()}
         title={`¿Eliminar la cuota de ${deleteTarget ? formatPeriod(deleteTarget.period) : ""}?`}
-        description="Desaparece del estado de cuenta del departamento. Esta acción no se puede deshacer."
+        description={
+          deleteTarget && Number(deleteTarget.amountPaid ?? 0) > 0
+            ? `Desaparece del estado de cuenta del departamento. Lo abonado (${formatCurrency(Number(deleteTarget.amountPaid))}) pasa al saldo a favor del titular. Esta acción no se puede deshacer.`
+            : "Desaparece del estado de cuenta del departamento. Esta acción no se puede deshacer."
+        }
         confirmLabel="Eliminar"
         loading={busyId === deleteTarget?.id}
       />
@@ -392,6 +445,7 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
             key={payIds.join(",")}
             charges={open_}
             defaultChargeIds={payIds}
+            creditBalance={credit?.creditBalance ?? 0}
             onSuccess={() => {
               setPayIds(null);
               load();

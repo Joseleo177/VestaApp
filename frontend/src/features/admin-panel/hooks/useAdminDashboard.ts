@@ -110,7 +110,8 @@ export function useAdminDashboard() {
     const index = new Map(months.map((m) => [m.key, m]));
     for (const p of confirmed) {
       const m = index.get(p.paymentDate.slice(0, 7));
-      if (!m) continue;
+      // Lo pagado con saldo a favor ya entró como ingreso con el pago que lo dejó.
+      if (!m || p.fromCredit) continue;
       m.total += Number(p.amount);
       m.count++;
     }

@@ -12,5 +12,7 @@ router.get("/", UserController.list);
 router.post("/", UserController.create);
 router.patch("/:id", UserController.update);
 router.patch("/:id/status", UserController.setStatus);
+router.get("/:id/credit", UserController.getCredit);
+router.put("/:id/credit", UserController.setCredit);
 
 export default router;

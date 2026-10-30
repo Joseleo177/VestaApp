@@ -21,6 +21,20 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   [UserRole.AUTHORIZED]: "Autorizado",
 };
 
+/** Saldo a favor de un titular y sus últimos ajustes manuales. */
+export interface CreditInfo {
+  creditBalance: number;
+  adjustments: {
+    id: string;
+    /** Lo que sumó (positivo) o quitó (negativo). */
+    amount: number;
+    balanceAfter: number;
+    reason: string;
+    createdBy: string | null;
+    createdAt: string;
+  }[];
+}
+
 /** Saldos por debajo de esto son redondeo, no deuda. */
 export const DEBT_EPSILON = 0.005;
 

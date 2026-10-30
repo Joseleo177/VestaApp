@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CheckCircle2, Clock, Building2 } from "lucide-react";
+import { CheckCircle2, Clock, Building2, Wallet } from "lucide-react";
 import { Input, Select } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { DatePicker, toISODate } from "@/components/ui/DatePicker";
@@ -29,11 +29,13 @@ interface PaymentFormProps {
   defaultChargeId?: string;
   /** Varias cuotas ya elegidas (las marcadas en el estado de cuenta). Gana a `defaultChargeId`. */
   defaultChargeIds?: string[];
+  /** Saldo a favor del titular: si hay, se ofrece pagar con él. */
+  creditBalance?: number;
   onSuccess: () => void;
   onCancel: () => void;
 }
 
-export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, onSuccess, onCancel }: PaymentFormProps) {
+export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, creditBalance = 0, onSuccess, onCancel }: PaymentFormProps) {
   // En hora local: con toISOString, de noche en Venezuela ya era el día siguiente.
   const today = toISODate(new Date());
   // Solo inicial: lo que se marque después vive en el formulario.
@@ -235,6 +237,31 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, onSucc
     }
   };
 
+  // Con saldo a favor se paga en divisas (sin mora), hasta donde alcance.
+  const owedDivisas = round2(
+    selectedCharges.reduce(
+      (sum, c) => sum + (c.status === ChargeStatus.PARTIAL ? Math.max(0, c.amount - (c.amountPaid ?? 0)) : c.amount),
+      0
+    )
+  );
+  const creditUse = round2(Math.min(creditBalance, owedDivisas));
+  const [usingCredit, setUsingCredit] = useState(false);
+  const [creditResult, setCreditResult] = useState<{ applied: number; left: number } | null>(null);
+
+  const payWithCredit = async () => {
+    setSubmitError(null);
+    setUsingCredit(true);
+    try {
+      const payment = await paymentService.payWithCredit(chargeIds);
+      const applied = Number(payment.amount);
+      setCreditResult({ applied, left: round2(Math.max(0, owedDivisas - applied)) });
+    } catch (err) {
+      setSubmitError(err instanceof ApiError ? err.message : "No se pudo usar el saldo a favor");
+    } finally {
+      setUsingCredit(false);
+    }
+  };
+
   const onValidationError = (errs: object) => {
     const msgs = Object.entries(errs).map(([f, e]: [string, any]) => `${f}: ${e?.message}`).join(" | ");
     setSubmitError(`Error de validación: ${msgs}`);
@@ -266,6 +293,28 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, onSucc
     );
   }
 
+  if (creditResult) {
+    return (
+      <div className="flex flex-col items-center gap-5 py-4 text-center">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-violet-500/10">
+          <Wallet className="h-8 w-8 text-violet-600 dark:text-violet-400" />
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold text-ios-label">Pagado con saldo a favor</h3>
+          <p className="mt-1.5 max-w-xs text-sm text-ios-secondary">
+            Se aplicaron {formatCurrency(creditResult.applied)} del saldo a favor.{" "}
+            {creditResult.left > 0.005
+              ? `Quedan ${formatCurrency(creditResult.left)} por pagar: regístralos como un pago normal.`
+              : "Las cuotas elegidas quedaron pagadas; el recibo está en el historial."}
+          </p>
+        </div>
+        <Button className="w-full justify-center" onClick={onSuccess}>
+          Cerrar
+        </Button>
+      </div>
+    );
+  }
+
   const modalidadOpts = isBS ? MODALIDADES_BS : MODALIDADES_DIVISAS;
 
   const bank = bankInfo
@@ -276,6 +325,32 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, onSucc
 
   return (
     <form onSubmit={handleSubmit(onSubmit, onValidationError)} className="space-y-4">
+      {/* Saldo a favor: paga sin transferir, hasta donde alcance. */}
+      {creditUse > 0.005 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-violet-500/30 bg-violet-500/[0.06] p-4">
+          <div className="min-w-0 text-sm">
+            <p className="font-semibold text-violet-700 dark:text-violet-300">
+              Saldo a favor: {formatCurrency(creditBalance)}
+            </p>
+            <p className="text-[13px] text-ios-secondary">
+              {creditUse >= owedDivisas - 0.005
+                ? `Alcanza para ${selectedCharges.length > 1 ? "las cuotas elegidas" : "esta cuota"} (${formatCurrency(owedDivisas)}).`
+                : `Cubre ${formatCurrency(creditUse)} de ${formatCurrency(owedDivisas)}; el resto se paga aparte.`}
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            loading={usingCredit}
+            disabled={isSubmitting}
+            onClick={() => void payWithCredit()}
+          >
+            Pagar con saldo a favor
+          </Button>
+        </div>
+      )}
+
       {/* Moneda + Modalidad en fila */}
       <div className="grid grid-cols-2 gap-3">
         <Select id="currency" label="Moneda" error={errors.currency?.message} {...register("currency")}>

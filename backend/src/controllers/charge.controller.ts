@@ -269,39 +269,10 @@ export const ChargeController = {
     }
   },
 
-  // DELETE /api/charges/:id  (admin) — solo si no tiene pagos confirmados
+  // DELETE /api/charges/:id  (admin) — no pagada; lo abonado vuelve al saldo a favor
   async deleteOne(req: Request, res: Response, next: NextFunction) {
     try {
-      const charge = await ChargeService.getById(req.params.id);
-      if (charge.status === ChargeStatus.PAID || charge.status === ChargeStatus.PARTIAL) {
-        throw new HttpError(409, "No se puede eliminar una cuota con pagos confirmados. Elimina primero los pagos.");
-      }
-
-      // Un pago que la nombra (como su cuota o entre las que paga) la ata: la base
-      // de datos rechazaba el borrado con un error técnico, y el vínculo de un pago
-      // en revisión con varias cuotas se borraba en silencio. Se avisa con el pago
-      // concreto y qué hacer, igual que al eliminar un período completo.
-      const linked = await AppDataSource.getRepository(Payment)
-        .createQueryBuilder("p")
-        .select(["p.id", "p.status", "p.reference", "p.paymentDate"])
-        .where("p.charge_id = :id", { id: charge.id })
-        .orWhere("p.id IN (SELECT t.payment_id FROM payment_targets t WHERE t.charge_id = :id)", { id: charge.id })
-        .orderBy("p.paymentDate", "DESC")
-        .getMany();
-      if (linked.length > 0) {
-        const p = linked.find((x) => x.status === PaymentStatus.PENDING) ?? linked[0];
-        const which = `${p.reference ? `ref. ${p.reference}` : "sin referencia"}, del ${p.paymentDate}`;
-        const what =
-          p.status === PaymentStatus.PENDING
-            ? `Tiene un pago en revisión (${which}). Recházalo o elimínalo en Pagos y vuelve a intentarlo.`
-            : p.status === PaymentStatus.REJECTED
-              ? `Tiene un pago rechazado registrado a esta cuota (${which}). Elimínalo en Pagos › Rechazados y vuelve a intentarlo.`
-              : `Tiene un pago asociado (${which}). Elimínalo en Pagos y vuelve a intentarlo.`;
-        throw new HttpError(409, `No se puede eliminar la cuota. ${what}`);
-      }
-
-      await AppDataSource.getRepository(Charge).remove(charge);
-      res.status(204).send();
+      res.json({ credited: await ChargeService.deleteCharge(req.params.id) });
     } catch (err) {
       next(err);
     }

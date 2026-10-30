@@ -77,4 +77,23 @@ export const UserController = {
       next(err);
     }
   },
+
+  // GET /api/users/:id/credit  (admin) — saldo a favor y sus ajustes
+  async getCredit(req: Request, res: Response, next: NextFunction) {
+    try {
+      res.json(await UserService.getCredit(req.params.id));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // PUT /api/users/:id/credit  {balance, reason}  (admin) — corregir el saldo a favor
+  async setCredit(req: Request, res: Response, next: NextFunction) {
+    try {
+      const balance = Number(req.body?.balance);
+      res.json(await UserService.setCredit(req.params.id, balance, String(req.body?.reason ?? ""), req.user!.sub));
+    } catch (err) {
+      next(err);
+    }
+  },
 };

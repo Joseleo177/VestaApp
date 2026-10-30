@@ -187,7 +187,7 @@ export function AccountHero(p: AccountHeroProps) {
               <span className="font-medium text-ios-secondary">Sin saldo</span>
             )
           }
-          sub={p.creditBalance > 0.005 ? "Se aplica a tu próxima cuota" : undefined}
+          sub={p.creditBalance > 0.005 ? "Úsalo al pagar tu próxima cuota" : undefined}
         />
         <Fact
           label={p.properties.length === 1 ? "Departamento" : "Departamentos"}
