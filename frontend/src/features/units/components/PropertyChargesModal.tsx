@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Ban, Building, CalendarClock, Download, HandCoins, PiggyBank, RotateCcw, Trash2, Undo2, Wallet } from "lucide-react";
+import { Ban, Building, CalendarClock, Coins, Download, HandCoins, PiggyBank, RotateCcw, Trash2, Undo2, Wallet } from "lucide-react";
 import { Modal, ModalIcon } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -20,6 +20,7 @@ import { PropertyWithBalance } from "@/features/admin-panel/types";
 import { PaymentForm } from "@/features/payments/components/PaymentForm";
 import { WriteOffDialog } from "@/features/billing/components/WriteOffDialog";
 import { DueDateDialog, mergeDue } from "@/features/billing/components/DueDateDialog";
+import { AmountDialog, mergeAmount } from "@/features/billing/components/AmountDialog";
 import { userService } from "@/features/users/services/user.service";
 import { CreditInfo } from "@/features/users/types";
 import { CreditDialog } from "./CreditDialog";
@@ -93,6 +94,7 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
   const [writeOffTarget, setWriteOffTarget] = useState<Charge | null>(null);
   const [revertTarget, setRevertTarget] = useState<Charge | null>(null);
   const [dueTarget, setDueTarget] = useState<Charge | null>(null);
+  const [amountTarget, setAmountTarget] = useState<Charge | null>(null);
   const [chosen, setChosen] = useState<Filter | null>(null);
   const [credit, setCredit] = useState<CreditInfo | null>(null);
   const [creditOpen, setCreditOpen] = useState(false);
@@ -174,10 +176,10 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
       const credited = await billingService.deleteCharge(target.id);
       setCharges((prev) => prev.filter((c) => c.id !== target.id));
       if (credited > 0) {
-        toast.success(`Cuota eliminada. ${formatCurrency(credited)} pasaron al saldo a favor`);
+        toast.success(`Cuota anulada. ${formatCurrency(credited)} pasaron al saldo a favor`);
         loadCredit();
       } else {
-        toast.success("Cuota eliminada");
+        toast.success("Cuota anulada");
       }
     });
   };
@@ -206,17 +208,26 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
     // Un vencimiento mal cargado hace que el pago con mora no cuadre: se corrige aquí.
     if (c.status !== ChargeStatus.PAID)
       items.push({ label: "Cambiar vencimiento", icon: CalendarClock, onClick: () => setDueTarget(c), hint: `Hoy vence el ${formatDate(c.dueDate)}` });
-    if (c.status === ChargeStatus.PENDING) items.push({ label: "Exonerar", icon: Ban, onClick: () => toggleExonerated(c) });
-    if (c.status === ChargeStatus.EXONERATED) items.push({ label: "Reactivar", icon: RotateCcw, onClick: () => toggleExonerated(c) });
-    // Una cuota que no debió emitirse se elimina aunque tenga abonos: vuelven al saldo a favor.
+    // Una cuota emitida con un monto equivocado se corrige sin anularla.
     if (c.status !== ChargeStatus.PAID)
       items.push({
-        label: "Eliminar cuota",
+        label: "Corregir monto",
+        icon: Coins,
+        onClick: () => setAmountTarget(c),
+        disabled: !!c.pendingPayment,
+        hint: c.pendingPayment ? "Tiene un pago en revisión" : `Hoy es de ${formatCurrency(c.amount)}`,
+      });
+    if (c.status === ChargeStatus.PENDING) items.push({ label: "Exonerar", icon: Ban, onClick: () => toggleExonerated(c) });
+    if (c.status === ChargeStatus.EXONERATED) items.push({ label: "Reactivar", icon: RotateCcw, onClick: () => toggleExonerated(c) });
+    // Una cuota que no debió emitirse se anula aunque tenga abonos: vuelven al saldo a favor.
+    if (c.status !== ChargeStatus.PAID)
+      items.push({
+        label: "Anular cuota",
         icon: Trash2,
         tone: "danger",
         onClick: () => setDeleteTarget(c),
         disabled: !!c.pendingPayment,
-        hint: c.pendingPayment ? "Tiene un pago en revisión" : undefined,
+        hint: c.pendingPayment ? "Tiene un pago en revisión" : "No debió emitirse",
       });
     return items;
   };
@@ -378,6 +389,15 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
         )}
       </Modal>
 
+      <AmountDialog
+        target={amountTarget ? { kind: "charge", charge: amountTarget } : null}
+        onClose={() => setAmountTarget(null)}
+        onDone={(updated) => {
+          if (updated && amountTarget) replaceCharge(mergeAmount(amountTarget, updated));
+          setAmountTarget(null);
+        }}
+      />
+
       <DueDateDialog
         target={dueTarget ? { kind: "charge", charge: dueTarget } : null}
         onClose={() => setDueTarget(null)}
@@ -420,13 +440,13 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
         open={deleteTarget !== null}
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => void handleDelete()}
-        title={`¿Eliminar la cuota de ${deleteTarget ? formatPeriod(deleteTarget.period) : ""}?`}
+        title={`¿Anular la cuota de ${deleteTarget ? formatPeriod(deleteTarget.period) : ""}?`}
         description={
           deleteTarget && Number(deleteTarget.amountPaid ?? 0) > 0
             ? `Desaparece del estado de cuenta del departamento. Lo abonado (${formatCurrency(Number(deleteTarget.amountPaid))}) pasa al saldo a favor del titular. Esta acción no se puede deshacer.`
-            : "Desaparece del estado de cuenta del departamento. Esta acción no se puede deshacer."
+            : "Desaparece del estado de cuenta del departamento, como si nunca se hubiera emitido. Esta acción no se puede deshacer."
         }
-        confirmLabel="Eliminar"
+        confirmLabel="Anular cuota"
         loading={busyId === deleteTarget?.id}
       />
 

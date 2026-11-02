@@ -19,6 +19,21 @@ function parseDueDate(value: unknown): string {
   return s;
 }
 
+/** Monto de una cuota en divisas: mayor a 0, a centavos, o 400. */
+function parseAmount(value: unknown): number {
+  const n = Math.round(Number(value) * 100) / 100;
+  if (!Number.isFinite(n) || n <= 0) throw new HttpError(400, "El monto debe ser mayor a 0");
+  return n;
+}
+
+/** Precio si se paga en Bs. Vacío o igual al monto: cuesta lo mismo en cualquier moneda (null). */
+function parseBsPrice(value: unknown, amount: number): number | null {
+  if (value === undefined || value === null || value === "") return null;
+  const n = Math.round(Number(value) * 100) / 100;
+  if (!Number.isFinite(n) || n <= 0) throw new HttpError(400, "El monto si paga en Bs debe ser mayor a 0");
+  return n === amount ? null : n;
+}
+
 function serializeCharge(charge: import("../models/Charge").Charge) {
   const prop = charge.property;
   const isPartial = charge.status === ChargeStatus.PARTIAL;
@@ -179,13 +194,7 @@ export const ChargeController = {
       if (!period || !amount || !dueDate) {
         throw new HttpError(400, "period, amount y dueDate son requeridos");
       }
-      // Vacío o igual al monto: cuesta lo mismo en cualquier moneda.
-      let priceInBs: number | null = null;
-      if (bsPrice !== undefined && bsPrice !== null && bsPrice !== "") {
-        const n = Math.round(Number(bsPrice) * 100) / 100;
-        if (!Number.isFinite(n) || n <= 0) throw new HttpError(400, "El monto si paga en Bs debe ser mayor a 0");
-        if (n !== Math.round(Number(amount) * 100) / 100) priceInBs = n;
-      }
+      const priceInBs = parseBsPrice(bsPrice, Math.round(Number(amount) * 100) / 100);
       const chargeType =
         type === ChargeType.SPECIAL ? ChargeType.SPECIAL : ChargeType.REGULAR;
       // Sin moneda explícita se cobra a la tasa principal.
@@ -240,37 +249,11 @@ export const ChargeController = {
     }
   },
 
-  // DELETE /api/charges/period/:period  (admin)
+  // DELETE /api/charges/period/:period?type=  (admin) — anular el lote completo
   async deletePeriod(req: Request, res: Response, next: NextFunction) {
     try {
-      const { period } = req.params;
       const type = req.query.type as string | undefined;
-      
-      const qb = AppDataSource.getRepository(Charge)
-        .createQueryBuilder("charge")
-        .where("charge.period = :period", { period });
-        
-      if (type) {
-        qb.andWhere("charge.type = :type", { type });
-      }
-      
-      // Check for associated payments to provide a clear error message
-      const paymentsCount =
-        (await qb.clone().innerJoin("charge.payments", "payment").getCount()) +
-        (await qb.clone().innerJoin("charge.paymentTargets", "target").getCount());
-        
-      if (paymentsCount > 0) {
-        throw new HttpError(409, "No se puede eliminar el lote porque hay cuotas con pagos asociados (pendientes, rechazados o confirmados).");
-      }
-
-      const result = await AppDataSource.getRepository(Charge)
-        .createQueryBuilder()
-        .delete()
-        .where("period = :period", { period })
-        .andWhere(type ? "type = :type" : "1=1", { type })
-        .execute();
-
-      res.json({ deleted: result.affected ?? 0 });
+      res.json(await ChargeService.deletePeriod(req.params.period, type));
     } catch (err) {
       next(err);
     }
@@ -310,6 +293,28 @@ export const ChargeController = {
       await ChargeService.setCurrency(currency, { chargeId: charge.id });
       charge.currency = currency;
       res.json(serializeCharge(charge));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // PATCH /api/charges/:id/amount  {amount, bsPrice}  (admin) — corregir el monto de una cuota
+  async setAmount(req: Request, res: Response, next: NextFunction) {
+    try {
+      const amount = parseAmount(req.body?.amount);
+      await ChargeService.setAmount(amount, parseBsPrice(req.body?.bsPrice, amount), { chargeId: req.params.id });
+      res.json(serializeCharge(await ChargeService.getById(req.params.id)));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // PATCH /api/charges/period/:period/amount?type=  {amount, bsPrice}  (admin) — el lote completo
+  async setPeriodAmount(req: Request, res: Response, next: NextFunction) {
+    try {
+      const amount = parseAmount(req.body?.amount);
+      const type = req.query.type as string | undefined;
+      res.json(await ChargeService.setAmount(amount, parseBsPrice(req.body?.bsPrice, amount), { period: req.params.period, type }));
     } catch (err) {
       next(err);
     }

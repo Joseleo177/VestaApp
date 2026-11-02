@@ -75,7 +75,8 @@ export function generateReceiptPdf(
     const condoAddress = (opts?.condoAddress ?? "").trim();
     const condoRif = opts?.condoRif ?? "";
     const condoPhone = opts?.condoPhone ?? "";
-    const charge = lines?.[0]?.charge ?? chargeOverride ?? payment.charge;
+    // Un recibo anulado cuya cuota se anuló después no toma otra cuota del pago.
+    const charge = lines?.[0]?.charge ?? chargeOverride ?? (opts?.voided ? null : payment.charge);
     const multi = (lines?.length ?? 0) > 1;
 
     const base = charge ? Number(charge.amount) : Number(payment.amount);

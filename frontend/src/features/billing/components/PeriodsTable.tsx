@@ -98,12 +98,15 @@ export function PeriodsTable({ periods, loading, onSelect, onDeleted, onCreate }
     if (!target) return;
     setDeleting(true);
     try {
-      await billingService.deletePeriod(target.period, target.type);
-      toast.success(`Cuotas de ${formatPeriod(target.period)} eliminadas`);
+      const { credited } = await billingService.deletePeriod(target.period, target.type);
+      toast.success(
+        `Cuotas de ${formatPeriod(target.period)} anuladas` +
+          (credited > 0 ? `. ${formatCurrency(credited)} de abonos pasaron al saldo a favor` : "")
+      );
       setTarget(null);
       onDeleted();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudieron eliminar las cuotas");
+      toast.error(err instanceof ApiError ? err.message : "No se pudieron anular las cuotas");
     } finally {
       setDeleting(false);
     }
@@ -180,7 +183,7 @@ export function PeriodsTable({ periods, loading, onSelect, onDeleted, onCreate }
                             <RowIcon
                               icon={Trash2}
                               tone="danger"
-                              title="Eliminar las cuotas del período"
+                              title="Anular las cuotas del período"
                               onClick={() => setTarget(p)}
                             />
                           </td>
@@ -221,7 +224,7 @@ export function PeriodsTable({ periods, loading, onSelect, onDeleted, onCreate }
                             <RowIcon
                               icon={Trash2}
                               tone="danger"
-                              title="Eliminar las cuotas del período"
+                              title="Anular las cuotas del período"
                               onClick={() => setTarget(p)}
                             />
                           </div>
@@ -243,11 +246,11 @@ export function PeriodsTable({ periods, loading, onSelect, onDeleted, onCreate }
         open={target !== null}
         onClose={() => setTarget(null)}
         onConfirm={handleDelete}
-        title={`¿Eliminar las cuotas de ${target ? formatPeriod(target.period) : ""}?`}
-        description={`Se eliminarán las ${target?.count ?? ""} cuotas ${
+        title={`¿Anular las cuotas de ${target ? formatPeriod(target.period) : ""}?`}
+        description={`Se anularán las ${target?.count ?? ""} cuotas ${
           target?.type === ChargeType.SPECIAL ? "especiales" : "regulares"
-        } del período. Esta acción no se puede deshacer.`}
-        confirmLabel="Eliminar cuotas"
+        } del período, como si nunca se hubieran emitido. Si alguna tiene abonos, pasan al saldo a favor de su titular; si alguna ya está pagada, no se anula ninguna. Esta acción no se puede deshacer.`}
+        confirmLabel="Anular cuotas"
         loading={deleting}
       />
     </>

@@ -1,4 +1,4 @@
-import { Charge, Payment } from "@/types/domain";
+import { Charge, Payment, PaymentStatus } from "@/types/domain";
 import { formatPeriod } from "@/lib/format";
 
 /**
@@ -37,7 +37,8 @@ export function chargeLabelFull(c: Charge): string {
 /** Título corto de un pago: "Julio de 2026" si fue una cuota, "3 cuotas" si fueron varias. */
 export function paymentTitle(payment: Payment): string {
   const charges = coveredCharges(payment);
-  if (charges.length === 0) return "Abono a saldo a favor";
+  // Un pago anulado cuyas cuotas se anularon después ya no nombra ninguna.
+  if (charges.length === 0) return payment.status === PaymentStatus.REJECTED ? "Cuotas anuladas" : "Abono a saldo a favor";
   if (charges.length === 1) return formatPeriod(charges[0].period);
   return `${charges.length} cuotas`;
 }

@@ -72,6 +72,27 @@ export const billingService = {
     return data;
   },
 
+  /** Corrige el monto (y el precio en Bs) de una cuota no pagada. */
+  async setChargeAmount(chargeId: string, amount: number, bsPrice: number | null): Promise<Charge> {
+    const { data } = await api.patch<Charge>(`/charges/${chargeId}/amount`, { amount, bsPrice });
+    return data;
+  },
+
+  /** Corrige el monto (y el precio en Bs) de todas las cuotas no pagadas de un lote. */
+  async setPeriodAmount(
+    period: string,
+    type: ChargeType,
+    amount: number,
+    bsPrice: number | null
+  ): Promise<{ updated: number }> {
+    const { data } = await api.patch<{ updated: number }>(
+      `/charges/period/${period}/amount`,
+      { amount, bsPrice },
+      { params: { type } }
+    );
+    return data;
+  },
+
   /** Corrige el vencimiento de todas las cuotas no pagadas de un lote. */
   async setPeriodDueDate(period: string, type: ChargeType, dueDate: string): Promise<{ updated: number }> {
     const { data } = await api.patch<{ updated: number }>(
@@ -109,8 +130,12 @@ export const billingService = {
     return data;
   },
 
-  async deletePeriod(period: string, type?: string): Promise<void> {
-    await api.delete(`/charges/period/${period}`, { params: { type } });
+  /** Anula el lote completo; devuelve cuántas cuotas y lo abonado que pasó al saldo a favor. */
+  async deletePeriod(period: string, type?: string): Promise<{ deleted: number; credited: number }> {
+    const { data } = await api.delete<{ deleted: number; credited?: number }>(`/charges/period/${period}`, {
+      params: { type },
+    });
+    return { deleted: data.deleted, credited: Number(data.credited ?? 0) };
   },
 
   async setExonerated(chargeId: string, exonerated: boolean): Promise<Charge> {
@@ -120,7 +145,7 @@ export const billingService = {
     return data;
   },
 
-  /** Elimina la cuota; devuelve lo abonado que pasó al saldo a favor del titular. */
+  /** Anula (elimina) la cuota; devuelve lo abonado que pasó al saldo a favor del titular. */
   async deleteCharge(chargeId: string): Promise<number> {
     const { data } = await api.delete<{ credited?: number }>(`/charges/${chargeId}`);
     return Number(data?.credited ?? 0);

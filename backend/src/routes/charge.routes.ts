@@ -47,6 +47,16 @@ router.patch(
   ChargeController.setPeriodMora
 );
 router.patch(
+  "/period/:period/amount",
+  authorize(UserRole.ADMIN),
+  ChargeController.setPeriodAmount
+);
+router.patch(
+  "/:id/amount",
+  authorize(UserRole.ADMIN),
+  ChargeController.setAmount
+);
+router.patch(
   "/:id/due-date",
   authorize(UserRole.ADMIN),
   ChargeController.setDueDate

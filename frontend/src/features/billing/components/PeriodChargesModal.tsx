@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeftRight, CalendarClock, Download, Percent, Receipt } from "lucide-react";
+import { ArrowLeftRight, CalendarClock, Coins, Download, Percent, Receipt, Trash2 } from "lucide-react";
 import { Modal, ModalIcon } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyBlock, RowIcon } from "@/components/ui/Ledger";
 import { RowMenu } from "@/components/ui/RowMenu";
 import { Money } from "@/components/ui/Money";
@@ -22,6 +23,7 @@ import { progressOf } from "../hooks/usePeriods";
 import { WriteOffDialog } from "./WriteOffDialog";
 import { DueDateDialog, DueDateTarget, mergeDue } from "./DueDateDialog";
 import { MoraDialog, MoraTarget } from "./MoraDialog";
+import { AmountDialog, AmountTarget, mergeAmount } from "./AmountDialog";
 
 interface PeriodChargesModalProps {
   period: string | null;
@@ -63,6 +65,8 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
   const [writeOffTarget, setWriteOffTarget] = useState<Charge | null>(null);
   const [dueTarget, setDueTarget] = useState<DueDateTarget | null>(null);
   const [moraTarget, setMoraTarget] = useState<MoraTarget | null>(null);
+  const [amountTarget, setAmountTarget] = useState<AmountTarget | null>(null);
+  const [annulTarget, setAnnulTarget] = useState<Charge | null>(null);
   const [filter, setFilter] = useState<Filter>("ALL");
   const [search, setSearch] = useState("");
 
@@ -150,6 +154,28 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
     }
   };
 
+  /** Anula una cuota que no debió emitirse: desaparece y lo abonado va al saldo a favor. */
+  const annul = async () => {
+    const target = annulTarget;
+    if (!target) return;
+    setBusyId(target.id);
+    try {
+      const credited = await billingService.deleteCharge(target.id);
+      setCharges((prev) => prev.filter((c) => c.id !== target.id));
+      onChanged?.();
+      toast.success(
+        credited > 0
+          ? `Cuota anulada. ${formatCurrency(credited)} pasaron al saldo a favor`
+          : `Cuota de ${target.property?.code ?? "la cuota"} anulada`
+      );
+      setAnnulTarget(null);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo anular la cuota");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   /** El recibo se pide por su número: es el que cubre esta cuota concreta. */
   const download = async (charge: Charge) => {
     const cp = charge.confirmedPayment;
@@ -176,6 +202,17 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
   dueBase.forEach((c) => dueCounts.set(c.dueDate.slice(0, 10), (dueCounts.get(c.dueDate.slice(0, 10)) ?? 0) + 1));
   const periodDue = [...dueCounts].sort((a, b) => b[1] - a[1])[0]?.[0];
   const mixedDue = dueCounts.size > 1;
+
+  // Monto del lote, igual: el más repetido entre las no pagadas, con su precio en Bs.
+  const amountCounts = new Map<string, { amount: number; bsPrice: number | null; n: number }>();
+  dueBase.forEach((c) => {
+    const key = `${c.amount}|${c.bsPrice ?? ""}`;
+    const e = amountCounts.get(key) ?? { amount: c.amount, bsPrice: c.bsPrice ?? null, n: 0 };
+    e.n++;
+    amountCounts.set(key, e);
+  });
+  const periodAmount = [...amountCounts.values()].sort((a, b) => b.n - a.n)[0];
+  const mixedAmount = amountCounts.size > 1;
 
   // Mora del lote, igual: la más repetida. Las especiales no llevan mora.
   const isRegular = type === ChargeType.REGULAR;
@@ -253,6 +290,34 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
                     className="font-semibold text-brand-600 hover:underline"
                   >
                     Cambiar vencimiento
+                  </button>
+                )}
+              </div>
+            )}
+            {/* Monto del lote, corregible si se emitió con una cifra equivocada. */}
+            {periodAmount && (
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[13px]">
+                <span className="flex items-center gap-1.5 text-ios-secondary">
+                  <Coins className="h-4 w-4" />
+                  Monto <Money value={formatCurrency(periodAmount.amount)} className="font-semibold text-ios-label" />
+                  {periodAmount.bsPrice != null && <span>({formatCurrency(periodAmount.bsPrice)} si pagan en Bs)</span>}
+                  {mixedAmount && <span className="text-amber-700 dark:text-amber-400">· algunas cuotas tienen otro monto</span>}
+                </span>
+                {unpaid.length > 0 && period && type && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAmountTarget({
+                        kind: "period",
+                        period,
+                        type: type as ChargeType,
+                        amount: periodAmount.amount,
+                        bsPrice: periodAmount.bsPrice,
+                      })
+                    }
+                    className="font-semibold text-brand-600 hover:underline"
+                  >
+                    Corregir monto
                   </button>
                 )}
               </div>
@@ -430,6 +495,21 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
                             disabled: busy,
                             hint: `Hoy vence el ${formatDate(c.dueDate)}`,
                           },
+                          {
+                            label: "Corregir monto",
+                            icon: Coins,
+                            onClick: () => setAmountTarget({ kind: "charge", charge: c }),
+                            disabled: busy || !!c.pendingPayment,
+                            hint: c.pendingPayment ? "Tiene un pago en revisión" : `Hoy es de ${formatCurrency(c.amount)}`,
+                          },
+                          {
+                            label: "Anular cuota",
+                            icon: Trash2,
+                            tone: "danger",
+                            onClick: () => setAnnulTarget(c),
+                            disabled: busy || !!c.pendingPayment,
+                            hint: c.pendingPayment ? "Tiene un pago en revisión" : "No debió emitirse",
+                          },
                         ]}
                       />
                     )}
@@ -475,6 +555,34 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
             onChanged?.();
           }
         }}
+      />
+
+      <AmountDialog
+        target={amountTarget}
+        onClose={() => setAmountTarget(null)}
+        onDone={(updated) => {
+          const t = amountTarget;
+          setAmountTarget(null);
+          if (updated && t?.kind === "charge") replace(mergeAmount(t.charge, updated));
+          else {
+            load();
+            onChanged?.();
+          }
+        }}
+      />
+
+      <ConfirmDialog
+        open={annulTarget !== null}
+        onClose={() => setAnnulTarget(null)}
+        onConfirm={() => void annul()}
+        title={`¿Anular la cuota de ${annulTarget?.property?.code ?? ""}?`}
+        description={
+          annulTarget && Number(annulTarget.amountPaid ?? 0) > 0
+            ? `Desaparece del estado de cuenta del departamento. Lo abonado (${formatCurrency(Number(annulTarget.amountPaid))}) pasa al saldo a favor del titular. Esta acción no se puede deshacer.`
+            : "Desaparece del estado de cuenta del departamento, como si nunca se hubiera emitido. Esta acción no se puede deshacer."
+        }
+        confirmLabel="Anular cuota"
+        loading={busyId === annulTarget?.id}
       />
 
       <MoraDialog

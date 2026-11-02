@@ -237,7 +237,7 @@ function paymentTargets(payment: Payment): Charge[] {
 export const SETTLED_TARGETS = "CHARGES_ALREADY_SETTLED";
 export const RECEIPTS_ISSUED = "RECEIPTS_ISSUED";
 /** Motivo con que queda un pago anulado; lo distingue de uno rechazado en revisión. */
-const VOID_PREFIX = "Anulado: ";
+export const VOID_PREFIX = "Anulado: ";
 
 /**
  * Un pago cuyas cuotas ya están todas pagadas (o exoneradas) no les abona nada:
@@ -1116,9 +1116,11 @@ export const PaymentService = {
       relations: { property: { tower: true, owner: true, authorized: true } },
       order: { dueDate: "ASC", period: "ASC", description: "ASC" },
     });
+    // Un recibo anulado cuya cuota se anuló después ya no nombra ninguna: no se
+    // le atribuye otra cuota del pago.
     const charges = covered.length
       ? covered
-      : [receipt.charge ?? receipt.payment.charge].filter((c): c is Charge => !!c);
+      : [receipt.charge ?? (receipt.voidedAt ? null : receipt.payment.charge)].filter((c): c is Charge => !!c);
 
     // Lo descarga quien registró el pago, o el titular o el autorizado de
     // cualquiera de los departamentos que ampara.

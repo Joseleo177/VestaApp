@@ -1,10 +1,11 @@
+import { EntityManager, In, IsNull } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { Charge, ChargeStatus, ChargeType } from "../models/Charge";
 import { Property } from "../models/Property";
 import { PaymentCurrency } from "../models/Payment";
 import { RateCurrency, isRateCurrency } from "../models/ExchangeRateRecord";
 import { HttpError } from "../middlewares/error.middleware";
-import { CREDIT_MIN } from "./payment.service";
+import { CREDIT_MIN, VOID_PREFIX } from "./payment.service";
 import { Payment, PaymentStatus } from "../models/Payment";
 import { PaymentTarget } from "../models/PaymentTarget";
 import { PaymentApplication } from "../models/PaymentApplication";
@@ -71,6 +72,111 @@ export function clearWriteOff(charge: Charge): void {
   charge.writtenOffAt = null;
   charge.writtenOffBy = null;
   charge.status = Number(charge.amountPaid) > CREDIT_MIN ? ChargeStatus.PARTIAL : ChargeStatus.PENDING;
+}
+
+/**
+ * Anula (elimina) cuotas no pagadas, dentro de una transacción. Lo abonado vuelve
+ * al saldo a favor de su titular y se anota en cada pago como sobrante
+ * (`creditAmount`): el pago sigue cuadrando, y si después se elimina, se
+ * descuenta del saldo como cualquier sobrante. Un pago anulado que las nombraba
+ * se conserva como registro, pero las suelta; uno en revisión o rechazado las
+ * ata hasta que se resuelva. Devuelve lo acreditado en total.
+ */
+async function removeCharges(manager: EntityManager, charges: Charge[]): Promise<number> {
+  if (charges.length === 0) return 0;
+  const ids = charges.map((c) => c.id);
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+
+  const linked = await manager
+    .createQueryBuilder(Payment, "p")
+    .leftJoin("p.property", "prop")
+    .select(["p.id", "p.status", "p.reference", "p.paymentDate", "p.rejectReason", "prop.id", "prop.code"])
+    .where("p.status <> :confirmed", { confirmed: PaymentStatus.CONFIRMED })
+    .andWhere(
+      "(p.charge_id IN (:...ids) OR p.id IN (SELECT t.payment_id FROM payment_targets t WHERE t.charge_id IN (:...ids)))",
+      { ids }
+    )
+    .orderBy("p.paymentDate", "DESC")
+    .getMany();
+  const annulled = (p: Payment) =>
+    p.status === PaymentStatus.REJECTED && !!p.rejectReason?.startsWith(VOID_PREFIX);
+  const blocking = linked.filter((p) => !annulled(p));
+  if (blocking.length > 0) {
+    const p = blocking.find((x) => x.status === PaymentStatus.PENDING) ?? blocking[0];
+    const who = charges.length > 1 && p.property?.code ? `${p.property.code} tiene` : "Tiene";
+    const which = `${p.reference ? `ref. ${p.reference}` : "sin referencia"}, del ${p.paymentDate}`;
+    const what =
+      p.status === PaymentStatus.PENDING
+        ? `${who} un pago en revisión (${which}). Recházalo o elimínalo en Pagos y vuelve a intentarlo.`
+        : `${who} un pago rechazado registrado (${which}). Elimínalo en Pagos › Rechazados y vuelve a intentarlo.`;
+    throw new HttpError(409, `No se puede anular. ${what}`);
+  }
+
+  // Un recibo vigente no puede amparar una cuota sin pagar. Uno anulado se
+  // conserva, pero deja de nombrar la cuota que desaparece.
+  if ((await manager.count(Receipt, { where: { charge: { id: In(ids) }, voidedAt: IsNull() } })) > 0) {
+    throw new HttpError(409, "No se puede anular: la cuota figura en un recibo vigente.");
+  }
+  await manager
+    .createQueryBuilder()
+    .update(Receipt)
+    .set({ charge: null })
+    .where("charge_id IN (:...ids)", { ids })
+    .execute();
+
+  // Lo abonado vuelve al saldo a favor de cada titular.
+  const creditByOwner = new Map<string, number>();
+  for (const c of charges) {
+    const paid = round2(Number(c.amountPaid ?? 0));
+    if (paid <= 0) continue;
+    const ownerId = c.property?.owner?.id;
+    if (!ownerId) {
+      throw new HttpError(409, `${c.property?.code ?? "La cuota"} tiene abonos y no tiene titular a quien devolverlos`);
+    }
+    creditByOwner.set(ownerId, round2((creditByOwner.get(ownerId) ?? 0) + paid));
+  }
+
+  const applications = await manager.find(PaymentApplication, {
+    where: { charge: { id: In(ids) } },
+    relations: { payment: true },
+  });
+  const toCredit = new Map<string, { payment: Payment; amount: number }>();
+  for (const app of applications) {
+    // Los pagos anteriores al campo (null) ya deducen el sobrante del monto.
+    if (app.payment.creditAmount == null) continue;
+    const entry = toCredit.get(app.payment.id) ?? { payment: app.payment, amount: 0 };
+    entry.amount = round2(entry.amount + Number(app.amount));
+    toCredit.set(app.payment.id, entry);
+  }
+  for (const { payment, amount } of toCredit.values()) {
+    await manager.update(Payment, payment.id, {
+      creditAmount: round2(Number(payment.creditAmount) + amount),
+    });
+  }
+  await manager.delete(PaymentApplication, { charge: { id: In(ids) } });
+
+  for (const [ownerId, credited] of creditByOwner) {
+    const owner = await manager.findOne(User, { where: { id: ownerId }, lock: { mode: "pessimistic_write" } });
+    if (owner) {
+      owner.creditBalance = round2(Number(owner.creditBalance ?? 0) + credited);
+      await manager.save(User, owner);
+    }
+  }
+
+  // Un pago cuya cuota principal desaparece pasa a apuntar a la siguiente que
+  // eligió, o a ninguna si no le queda otra.
+  await manager.query(
+    `UPDATE payments p
+        SET charge_id = (
+          SELECT t.charge_id FROM payment_targets t
+           WHERE t.payment_id = p.id AND NOT (t.charge_id = ANY($1::uuid[]))
+           ORDER BY t.position LIMIT 1)
+      WHERE p.charge_id = ANY($1::uuid[])`,
+    [ids]
+  );
+  await manager.delete(PaymentTarget, { charge: { id: In(ids) } });
+  await manager.delete(Charge, { id: In(ids) });
+  return round2([...creditByOwner.values()].reduce((a, b) => a + b, 0));
 }
 
 export const ChargeService = {
@@ -260,6 +366,79 @@ export const ChargeService = {
       .andWhere("type = :type", { type: ChargeType.REGULAR })
       .execute();
     return { updated: result.affected ?? 0 };
+  },
+
+  /**
+   * Corrige el monto (y el precio en Bs) de cuotas no pagadas: una o un lote, p.
+   * ej. si se emitieron con un monto equivocado. Las pagadas no se tocan; una con
+   * abono no puede quedar por debajo de lo abonado, y una con un pago en revisión
+   * espera a que se resuelva (ese pago se calculó con el monto anterior).
+   */
+  async setAmount(
+    amount: number,
+    bsPrice: number | null,
+    scope: { chargeId: string } | { period: string; type?: string }
+  ): Promise<{ updated: number }> {
+    return AppDataSource.transaction(async (manager) => {
+      const qb = manager
+        .createQueryBuilder(Charge, "c")
+        .leftJoinAndSelect("c.property", "prop")
+        .where("c.status IN (:...statuses)", {
+          statuses: [ChargeStatus.PENDING, ChargeStatus.PARTIAL, ChargeStatus.EXONERATED],
+        });
+      if ("chargeId" in scope) {
+        qb.andWhere("c.id = :id", { id: scope.chargeId });
+      } else {
+        qb.andWhere("c.period = :period", { period: scope.period });
+        if (scope.type) qb.andWhere("c.type = :type", { type: scope.type });
+      }
+      const charges = await qb.getMany();
+      if (charges.length === 0) {
+        throw new HttpError(
+          409,
+          "chargeId" in scope
+            ? "La cuota ya está pagada: su monto quedó fijado por el pago"
+            : "El lote no tiene cuotas sin pagar"
+        );
+      }
+
+      // Con abono, el monto nuevo debe dejar algo por pagar en cualquier moneda.
+      const lowest = Math.min(amount, bsPrice ?? amount);
+      const short = charges.filter((c) => Number(c.amountPaid ?? 0) >= lowest - 0.005);
+      if (short.length > 0) {
+        const which = short.map((c) => c.property?.code ?? c.period).slice(0, 5).join(", ");
+        throw new HttpError(
+          409,
+          `${short.length === 1 ? "Una cuota ya tiene" : `${short.length} cuotas ya tienen`} abonado lo mismo o más ` +
+            `que el monto nuevo (${which}). Corrígela con un monto mayor a lo abonado, o anúlala.`
+        );
+      }
+
+      const ids = charges.map((c) => c.id);
+      const inReview = await manager
+        .createQueryBuilder(Payment, "p")
+        .where("p.status = :pending", { pending: PaymentStatus.PENDING })
+        .andWhere(
+          "(p.charge_id IN (:...ids) OR p.id IN (SELECT t.payment_id FROM payment_targets t WHERE t.charge_id IN (:...ids)))",
+          { ids }
+        )
+        .getCount();
+      if (inReview > 0) {
+        throw new HttpError(
+          409,
+          `${inReview === 1 ? "Hay un pago en revisión" : `Hay ${inReview} pagos en revisión`} de estas cuotas, ` +
+            "calculado con el monto anterior: confírmalo o recházalo antes de corregir el monto."
+        );
+      }
+
+      await manager
+        .createQueryBuilder()
+        .update(Charge)
+        .set({ amount, bsPrice })
+        .where("id IN (:...ids)", { ids })
+        .execute();
+      return { updated: ids.length };
+    });
   },
 
   listForPeriod(period: string, type?: string): Promise<Charge[]> {
@@ -504,11 +683,9 @@ export const ChargeService = {
   },
 
   /**
-   * Elimina una cuota que no debió emitirse. Si ya tenía abonos, lo abonado
-   * vuelve al saldo a favor del titular y se anota en cada pago como sobrante
-   * (`creditAmount`): el pago sigue cuadrando, y si después se elimina, se
-   * descuenta del saldo como cualquier sobrante. Devuelve lo acreditado.
-   * Una cuota pagada no se elimina: primero se elimina o anula su pago.
+   * Anula una cuota que no debió emitirse o se emitió mal (ver `removeCharges`).
+   * Una cuota pagada no se anula: primero se elimina o anula su pago.
+   * Devuelve lo que pasó al saldo a favor.
    */
   async deleteCharge(id: string): Promise<number> {
     return AppDataSource.transaction(async (manager) => {
@@ -523,82 +700,27 @@ export const ChargeService = {
           "La cuota está pagada: elimina o anula primero el pago que la pagó en Pagos."
         );
       }
+      return removeCharges(manager, [charge]);
+    });
+  },
 
-      // Un pago en revisión o rechazado que la nombra la ata: se avisa con el pago
-      // concreto y qué hacer. Los confirmados se sueltan más abajo.
-      const linked = await manager
-        .createQueryBuilder(Payment, "p")
-        .select(["p.id", "p.status", "p.reference", "p.paymentDate"])
-        .where("p.status <> :confirmed", { confirmed: PaymentStatus.CONFIRMED })
-        .andWhere(
-          "(p.charge_id = :id OR p.id IN (SELECT t.payment_id FROM payment_targets t WHERE t.charge_id = :id))",
-          { id }
-        )
-        .orderBy("p.paymentDate", "DESC")
-        .getMany();
-      if (linked.length > 0) {
-        const p = linked.find((x) => x.status === PaymentStatus.PENDING) ?? linked[0];
-        const which = `${p.reference ? `ref. ${p.reference}` : "sin referencia"}, del ${p.paymentDate}`;
-        const what =
-          p.status === PaymentStatus.PENDING
-            ? `Tiene un pago en revisión (${which}). Recházalo o elimínalo en Pagos y vuelve a intentarlo.`
-            : `Tiene un pago rechazado registrado a esta cuota (${which}). Elimínalo en Pagos › Rechazados y vuelve a intentarlo.`;
-        throw new HttpError(409, `No se puede eliminar la cuota. ${what}`);
-      }
-
-      // Un recibo (anulado) que la nombra impide borrarla en la base de datos.
-      if ((await manager.count(Receipt, { where: { charge: { id } } })) > 0) {
+  /** Anula todas las cuotas de un lote; si alguna ya está pagada, no anula ninguna. */
+  async deletePeriod(period: string, type?: string): Promise<{ deleted: number; credited: number }> {
+    return AppDataSource.transaction(async (manager) => {
+      const charges = await manager.find(Charge, {
+        where: { period, ...(type ? { type: type as ChargeType } : {}) },
+        relations: { property: { owner: true } },
+      });
+      const paid = charges.filter((c) => c.status === ChargeStatus.PAID).length;
+      if (paid > 0) {
         throw new HttpError(
           409,
-          "La cuota figura en un recibo anulado y no se puede eliminar. Exonérala en su lugar."
+          `No se puede anular el lote: ${paid} ${paid === 1 ? "cuota ya está pagada" : "cuotas ya están pagadas"}. ` +
+            "Corrige el monto del lote o anula una por una las que no correspondan."
         );
       }
-
-      const round2 = (n: number) => Math.round(n * 100) / 100;
-      const credited = round2(Number(charge.amountPaid ?? 0));
-      const ownerId = charge.property?.owner?.id;
-      if (credited > 0 && !ownerId) {
-        throw new HttpError(409, "La cuota tiene abonos y el departamento no tiene titular a quien devolverlos");
-      }
-
-      const applications = await manager.find(PaymentApplication, {
-        where: { charge: { id } },
-        relations: { payment: true },
-      });
-      for (const app of applications) {
-        // Los pagos anteriores al campo (null) ya deducen el sobrante del monto.
-        if (app.payment.creditAmount == null) continue;
-        await manager.update(Payment, app.payment.id, {
-          creditAmount: round2(Number(app.payment.creditAmount) + Number(app.amount)),
-        });
-      }
-      await manager.delete(PaymentApplication, { charge: { id } });
-
-      if (credited > 0 && ownerId) {
-        const owner = await manager.findOne(User, {
-          where: { id: ownerId },
-          lock: { mode: "pessimistic_write" },
-        });
-        if (owner) {
-          owner.creditBalance = round2(Number(owner.creditBalance ?? 0) + credited);
-          await manager.save(User, owner);
-        }
-      }
-
-      // Un pago confirmado cuya cuota principal era esta pasa a apuntar a la
-      // siguiente que eligió, o a ninguna si solo era esta.
-      await manager.query(
-        `UPDATE payments p
-            SET charge_id = (
-              SELECT t.charge_id FROM payment_targets t
-               WHERE t.payment_id = p.id AND t.charge_id <> $1
-               ORDER BY t.position LIMIT 1)
-          WHERE p.charge_id = $1`,
-        [id]
-      );
-      await manager.delete(PaymentTarget, { charge: { id } });
-      await manager.delete(Charge, { id });
-      return credited;
+      const credited = await removeCharges(manager, charges);
+      return { deleted: charges.length, credited };
     });
   },
 
