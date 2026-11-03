@@ -29,7 +29,8 @@ export const paymentService = {
       chargeIds: values.chargeIds,
       currency: values.currency,
       bank: values.modalidad,
-      reference: values.reference ?? "",
+      // En efectivo no hay referencia, aunque quedara algo escrito antes de cambiar.
+      reference: values.modalidad === "Efectivo" ? "" : values.reference?.trim() ?? "",
       paymentDate: values.paymentDate,
       amountBs: values.amountBs,
       amountEur: values.amountEur,

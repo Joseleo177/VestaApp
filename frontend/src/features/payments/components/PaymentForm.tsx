@@ -81,6 +81,7 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, credit
 
   const isBS = currency === PaymentCurrency.BS;
   const isEfectivo = modalidad === "Efectivo";
+  const refField = register("reference");
   // En efectivo se entrega; por transferencia se transfiere (en Bs o en divisas).
   const verb = isEfectivo
     ? { past: "entregó", owe: "Debes entregar", amount: "Monto entregado" }
@@ -650,10 +651,23 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, credit
       {!isEfectivo && (
         <Input
           id="reference"
-          label="Nº de referencia"
-          placeholder="Ej. 000000520107342"
+          label="Últimos 6 dígitos de la referencia"
+          placeholder="Ej. 107342"
+          inputMode="numeric"
+          autoComplete="off"
           error={errors.reference?.message}
-          {...register("reference")}
+          {...refField}
+          // Solo dígitos y a lo sumo 6.
+          onChange={(e) => {
+            e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6);
+            return refField.onChange(e);
+          }}
+          // Si pega la referencia completa, se quedan los últimos 6.
+          onPaste={(e) => {
+            e.preventDefault();
+            const digits = e.clipboardData.getData("text").replace(/\D/g, "").slice(-6);
+            setValue("reference", digits, { shouldValidate: true, shouldDirty: true });
+          }}
         />
       )}
 

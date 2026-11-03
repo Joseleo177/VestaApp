@@ -44,10 +44,11 @@ export const paymentSchema = z
       });
     }
     if (data.modalidad !== "Efectivo") {
-      if (!data.reference || data.reference.trim().length < 4) {
+      // Solo los últimos 6 dígitos: la conciliación los casa con el extracto.
+      if (!/^\d{6}$/.test(data.reference?.trim() ?? "")) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "La referencia debe tener al menos 4 caracteres",
+          message: "Escribe los últimos 6 dígitos de la referencia",
           path: ["reference"],
         });
       }

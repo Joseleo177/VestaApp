@@ -18,6 +18,20 @@ export type EntryFilter = "all" | "free" | "matched";
 const amountText = (n: number) => Number(n).toLocaleString("es-VE", { minimumFractionDigits: 2 });
 
 /**
+ * Día del movimiento como "YYYY-MM-DD". Normalmente ya viene así, pero se
+ * toleran "YYYY-MM-DDTHH:mm…" y "DD/MM/YYYY": con ellos la comparación como
+ * texto fallaba (el "Hasta" dejaba fuera su propio día).
+ */
+function movementDay(fecha?: string): string | null {
+  const s = (fecha ?? "").trim();
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const dmy = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+  if (dmy) return `${dmy[3]}-${dmy[2]!.padStart(2, "0")}-${dmy[1]!.padStart(2, "0")}`;
+  return null;
+}
+
+/**
  * Estado de la página del extracto: movimientos guardados, filtros, selección,
  * subida de archivos y el resultado de la última conciliación.
  */
@@ -86,9 +100,11 @@ export function useBankStatement() {
     return accountEntries.filter((e) => {
       if (status === "matched" && !e.matched) return false;
       if (status === "free" && e.matched) return false;
-      // Las fechas son "YYYY-MM-DD": comparar como texto ya ordena bien.
-      if (dateFrom && (!e.fecha || e.fecha < dateFrom)) return false;
-      if (dateTo && (!e.fecha || e.fecha > dateTo)) return false;
+      // Por la fecha del movimiento en el banco, nunca por la de subida.
+      // "YYYY-MM-DD": comparar como texto ya ordena bien.
+      const day = movementDay(e.fecha);
+      if (dateFrom && (!day || day < dateFrom)) return false;
+      if (dateTo && (!day || day > dateTo)) return false;
       if (!needle) return true;
       return normalize(`${e.referencia} ${e.descripcion ?? ""} ${amountText(e.monto)} ${e.monto}`).includes(needle);
     });

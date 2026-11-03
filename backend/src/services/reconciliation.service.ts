@@ -76,7 +76,10 @@ export function isSamePayment(
   const na = normalizeRef(a.reference);
   const nb = normalizeRef(b.reference);
   if (!na || !nb) return false;
-  if (na === nb) return true;
+  // Una referencia completa idéntica es el mismo pago. Una de solo los últimos
+  // seis dígitos (lo que registra el vecino) puede repetirse en otra fecha sin
+  // ser la misma transferencia: ahí también se exige el mismo día.
+  if (na === nb && na.length > MIN_SUFFIX) return true;
   const day = (d: string | null) => (d ? String(d).slice(0, 10) : null);
   return !!day(a.paymentDate) && day(a.paymentDate) === day(b.paymentDate) && refsMatch(na, nb);
 }
@@ -135,13 +138,14 @@ export function amountMatchesBankEntry(
  * cuenta y referencia exacta o por sufijo en cualquier sentido, como `refsMatch`
  * (el banco puede traer menos dígitos que los que escribió el vecino).
  */
-export function findBankEntryFor(
+export async function findBankEntryFor(
   repo: Repository<BankEntry>,
-  payment: Pick<Payment, "reference" | "currency">,
+  payment: Payment,
   matched: boolean
 ): Promise<BankEntry | null> {
-  const ref = normalizeRef(payment.reference);
-  return repo
+  const ref = normalizeRef(payment.reference ?? "");
+  if (!ref) return null;
+  const candidates = await repo
     .createQueryBuilder("be")
     .where("be.matched = :matched", { matched })
     .andWhere("be.currency = :currency", { currency: statementCurrencyOf(payment.currency) })
@@ -150,7 +154,14 @@ export function findBankEntryFor(
         OR (length(be.referencia) >= :min AND :ref LIKE '%' || be.referencia))`,
       { ref, suffix: `%${ref}`, min: MIN_SUFFIX }
     )
-    .getOne();
+    .getMany();
+  // Con seis dígitos varios movimientos pueden terminar igual: se prefiere el
+  // que además trae el monto del pago.
+  return (
+    candidates.find((e) => amountMatchesBankEntry(payment, Number(e.monto), e.currency)) ??
+    candidates[0] ??
+    null
+  );
 }
 
 const money = (n: number, currency: BankEntryCurrency) =>
@@ -274,11 +285,13 @@ export const ReconciliationService = {
     const matchedIds = new Set<string>();
 
     for (const row of parsed) {
-      const refMatch = pending.find(
-        (p) =>
-          !matchedIds.has(p.id) &&
-          refsMatch(p.reference, row.referencia)
+      // Con referencias de seis dígitos dos pagos pueden terminar igual: primero
+      // el que además casa en monto; si ninguno, el primero por referencia (revisión).
+      const byRef = pending.filter(
+        (p) => !matchedIds.has(p.id) && refsMatch(p.reference, row.referencia)
       );
+      const refMatch =
+        byRef.find((p) => amountMatchesBankEntry(p, row.monto, currency)) ?? byRef[0];
 
       if (!refMatch) {
         result.unmatched.push({

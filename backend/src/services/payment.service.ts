@@ -451,6 +451,15 @@ export const PaymentService = {
       throw new HttpError(400, `Un pago puede cubrir hasta ${MAX_CHARGES_PER_PAYMENT} cuotas`);
     }
 
+    // El vecino registra solo los últimos 6 dígitos de la referencia de su
+    // transferencia; la conciliación los casa por sufijo con la del banco.
+    // El admin y la carga en lote (sin rol) pueden seguir usando la completa.
+    input.reference = (input.reference ?? "").trim();
+    const byResident = userRole !== undefined && userRole !== UserRole.ADMIN;
+    if (byResident && input.bank !== "Efectivo" && !/^\d{6}$/.test(input.reference)) {
+      throw new HttpError(400, "La referencia debe ser los últimos 6 dígitos de la transferencia");
+    }
+
     const found = await chargeRepo().find({
       where: { id: In(ids) },
       relations: { property: { owner: true, authorized: true } },
