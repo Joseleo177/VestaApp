@@ -104,6 +104,10 @@ export function generateReceiptPdf(
     // redondeo, el recibo muestra los Bs que de verdad se pagaron.
     const transferredBs =
       payment.currency === PaymentCurrency.BS && payment.amountBs != null ? Number(payment.amountBs) : null;
+    // Pagado en $: los montos en divisas llevan el símbolo. Pagado en Bs quedan
+    // sin prefijo (la cuota puede ir a tasa USD o EUR y "$" confundiría).
+    const divSym = payment.currency === PaymentCurrency.DIVISAS ? "$ " : "";
+    const div = (n: number) => `${divSym}${eur(n)}`;
     const snapBs = (computed: number | null, rateSum: number): number | null =>
       computed != null && transferredBs != null && Math.abs(computed - transferredBs) <= rateSum * 0.005 + 0.01
         ? transferredBs
@@ -337,13 +341,13 @@ export function generateReceiptPdf(
         doc.fillColor("#000000")
           .font("Helvetica-Bold")
           .fontSize(9)
-          .text(eur(row.eurAmt), tableX + labelW + bsW, textY, { width: eurW - 8, align: "right" });
+          .text(div(row.eurAmt), tableX + labelW + bsW, textY, { width: eurW - 8, align: "right" });
       } else {
         // Sin Bs — solo EUR a la derecha
         doc.fillColor("#000000")
           .font(row.bold ? "Helvetica-Bold" : "Helvetica")
           .fontSize(row.bold ? 12 : 10)
-          .text(eur(row.eurAmt), tableX + labelW, textY, { width: bsW + eurW - 8, align: "right" });
+          .text(div(row.eurAmt), tableX + labelW, textY, { width: bsW + eurW - 8, align: "right" });
       }
 
       ty += rowH + (row.sub ? 6 : 0);
@@ -362,7 +366,7 @@ export function generateReceiptPdf(
     const credit = Number(payment.creditAmount ?? 0);
     if (multi && credit > 0) {
       doc.fontSize(8).fillColor("#000000").font("Helvetica-Bold")
-        .text(`Saldo a favor abonado con este pago: ${eur(credit)}`, 55, doc.y, { width: pageW, align: "center" });
+        .text(`Saldo a favor abonado con este pago: ${div(credit)}`, 55, doc.y, { width: pageW, align: "center" });
       doc.moveDown(0.4);
     }
     if (footerRates.length > 0) {
