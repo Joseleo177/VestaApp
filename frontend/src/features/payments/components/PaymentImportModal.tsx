@@ -80,15 +80,6 @@ function PreviewRow({ row }: { row: ImportPreviewRow }) {
               abono parcial
             </span>
           )}
-          {row.cascade.map((c) => (
-            <span
-              key={`${c.period}-${c.description}`}
-              className="rounded-full bg-ios-green/10 px-2 py-0.5 font-medium text-ios-green"
-              title={c.description}
-            >
-              + {formatPeriod(c.period)}
-            </span>
-          ))}
           {row.creditLeft > 0 && (
             <span className="rounded-full bg-ios-purple/10 px-2 py-0.5 font-medium text-ios-purple">
               saldo a favor {formatCurrency(row.creditLeft)}
@@ -336,7 +327,7 @@ export function PaymentImportModal({ open, onClose, onImported }: PaymentImportM
               <li>· Si indicas el <strong>período</strong>, el pago se imputa a esa cuota.</li>
               <li>· Si ese mes tiene varias cuotas (luz, agua…), añade la <strong>descripción</strong>.</li>
               <li>· Si dejas ambos vacíos, va a la cuota pendiente más antigua.</li>
-              <li>· El excedente cierra las siguientes cuotas y lo que sobre queda como saldo a favor.</li>
+              <li>· Si el monto supera la cuota, lo que sobre queda como saldo a favor del titular.</li>
               <li>· Si la referencia ya está en el extracto y el monto cuadra, el pago se confirma solo.</li>
             </ul>
           </div>

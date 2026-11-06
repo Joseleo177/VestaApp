@@ -22,7 +22,7 @@ export class PaymentTarget {
   payment!: Payment;
 
   // CASCADE: si se borra una cuota aún no pagada, el pago simplemente deja de
-  // apuntarla y al confirmarse ese monto va a la cascada o al saldo a favor.
+  // apuntarla y al confirmarse ese monto va al saldo a favor.
   @ManyToOne(() => Charge, (charge) => charge.paymentTargets, { onDelete: "CASCADE", nullable: false })
   @JoinColumn({ name: "charge_id" })
   charge!: Charge;

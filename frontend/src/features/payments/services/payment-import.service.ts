@@ -15,7 +15,6 @@ export interface ImportPreviewRow {
   targetDescription: string | null;
   targetSettled: boolean;
   periodExplicit: boolean;
-  cascade: { period: string; description: string }[];
   creditLeft: number;
   willAutoConfirm: boolean;
   errors: string[];

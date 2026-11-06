@@ -58,7 +58,7 @@ export interface ChargeLike {
 export interface ChargeApplication {
   /** EUR que efectivamente absorbe la cuota. */
   applied: number;
-  /** EUR sobrantes, que van a la cascada o al saldo a favor. */
+  /** EUR sobrantes, que van al saldo a favor. */
   excess: number;
   amountPaid: number;
   status: ChargeStatus;
@@ -127,17 +127,18 @@ export interface PaymentAmounts {
 }
 
 export interface Allocation<C> {
-  /** Cuotas tocadas, en orden: primero la destino y luego la cascada. */
+  /** Cuotas elegidas que el pago tocó, en orden. */
   steps: { charge: C; app: ChargeApplication }[];
   /** Divisas sobrantes que van al saldo a favor (0 si no supera CREDIT_MIN). */
   credit: number;
 }
 
 /**
- * Reparte un pago entre las cuotas que el vecino eligió (`targets`, en orden) y,
- * con el excedente, las demás cuotas abiertas del titular (`others`, ya
- * ordenadas por vencimiento). No toca la base de datos: la confirmación real y
- * la vista previa del import usan la misma aritmética.
+ * Reparte un pago entre las cuotas que el vecino eligió (`targets`, en orden).
+ * Lo que sobre va SIEMPRE al saldo a favor del titular: no se abona solo a
+ * otras cuotas abiertas; el vecino decide cuándo usarlo («Pagar con saldo a
+ * favor»). No toca la base de datos: la confirmación real y la vista previa
+ * del import usan la misma aritmética.
  *
  * Un pago en divisas se reparte en divisas, 1 a 1. Un pago en Bs se reparte en
  * bolívares: cada cuota convierte con la tasa de SU moneda (`rates`), porque el
@@ -146,30 +147,22 @@ export interface Allocation<C> {
  */
 export function allocatePayment<C extends ChargeLike & { id: string; currency?: RateCurrency | null }>(
   targets: C[],
-  others: C[],
   pay: PaymentAmounts,
   rates: Partial<Record<RateCurrency, number>>,
   primary: RateCurrency
 ): Allocation<C> {
   const steps: Allocation<C>["steps"] = [];
-  const targetIds = new Set(targets.map((t) => t.id));
-  const queue = [...targets, ...others.filter((c) => !targetIds.has(c.id))];
-  const isTarget = (c: C) => targets.includes(c);
-  const isOpen = (c: C) =>
-    isTarget(c) || c.status === ChargeStatus.PENDING || c.status === ChargeStatus.PARTIAL;
+  const queue = targets;
   const round2 = (n: number) => Math.round(n * 100) / 100;
   // La primera cuota elegida siempre se procesa (como con una sola cuota). Las
-  // demás elegidas reciben lo que quede, por poco que sea; en la cascada no se
-  // reparten migajas por debajo de CREDIT_MIN.
-  const exhausted = (c: C, available: number) =>
-    c !== targets[0] && available <= (isTarget(c) ? 0.005 : CREDIT_MIN);
+  // demás elegidas reciben lo que quede, por poco que sea.
+  const exhausted = (c: C, available: number) => c !== targets[0] && available <= 0.005;
 
   const inBs = pay.currency === PaymentCurrency.BS && Number(pay.amountBs) > 0;
 
   if (!inBs) {
     let remaining = pay.amount;
     for (const charge of queue) {
-      if (!isOpen(charge)) continue;
       if (exhausted(charge, remaining)) break;
       const app = computeApplication(charge, remaining, pay.currency, pay.paymentDate);
       steps.push({ charge, app });
@@ -186,7 +179,6 @@ export function allocatePayment<C extends ChargeLike & { id: string; currency?: 
 
   let remainingBs = Number(pay.amountBs);
   for (const charge of queue) {
-    if (!isOpen(charge)) continue;
     const rate = rateOf(chargeRateCurrency(charge));
     // Redondeado a céntimos: es lo que se guarda en la cuota y en el registro de
     // aplicaciones, y así ambos cuadran al revertir un borrado.
@@ -241,7 +233,7 @@ export const VOID_PREFIX = "Anulado: ";
 
 /**
  * Un pago cuyas cuotas ya están todas pagadas (o exoneradas) no les abona nada:
- * todo su monto se va a la cascada o al saldo a favor. Casi siempre es la misma
+ * todo su monto se va al saldo a favor. Casi siempre es la misma
  * transferencia registrada dos veces, así que el admin tiene que confirmarlo a
  * sabiendas. Un segundo abono a una cuota que sigue parcial pasa sin preguntar.
  */
@@ -260,18 +252,18 @@ function assertTargetsOpen(payment: Payment, allowSettled: boolean): void {
   throw new HttpError(
     409,
     `${several ? "Las cuotas de este pago ya están pagadas" : "La cuota de este pago ya está pagada"} ` +
-      `(${which}). Si lo confirmas, el monto irá a otras cuotas pendientes del titular ` +
-      "o a su saldo a favor. Si es la misma transferencia registrada dos veces, recházalo.",
+      `(${which}). Si lo confirmas, el monto irá al saldo a favor del titular. ` +
+      "Si es la misma transferencia registrada dos veces, recházalo.",
     SETTLED_TARGETS
   );
 }
 
 /**
- * Aplica un pago confirmado: salda las cuotas elegidas, reparte el excedente en
- * cascada sobre las demás cuotas abiertas del titular y deja el sobrante como
- * saldo a favor. Registra cuánto aportó a cada cuota (`PaymentApplication`) y
- * al saldo a favor (`creditAmount`) para poder revertirlo exacto.
- * Devuelve las cuotas que este pago dejó PAID (elegidas y de cascada), en orden.
+ * Aplica un pago confirmado: salda las cuotas elegidas y deja el sobrante como
+ * saldo a favor del titular (nunca lo abona solo a otras cuotas). Registra
+ * cuánto aportó a cada cuota (`PaymentApplication`) y al saldo a favor
+ * (`creditAmount`) para poder revertirlo exacto.
+ * Devuelve las cuotas que este pago dejó PAID, en orden.
  * Requiere `payment.targets.charge`, `payment.charge` y `payment.property.owner`.
  */
 async function settlePayment(manager: TxManager, payment: Payment): Promise<Charge[]> {
@@ -279,28 +271,14 @@ async function settlePayment(manager: TxManager, payment: Payment): Promise<Char
   if (targets.length === 0) return [];
   const ownerId = payment.property?.owner?.id;
 
-  const others = ownerId
-    ? await manager.find(Charge, {
-        where: [
-          { property: { owner: { id: ownerId } }, status: ChargeStatus.PENDING },
-          { property: { owner: { id: ownerId } }, status: ChargeStatus.PARTIAL },
-        ],
-        // Los desempates hacen falta: un mismo período puede traer varias cuotas
-        // (asociación, luz, agua…) y sin orden definido la cascada cerraría unas u
-        // otras según el humor de Postgres.
-        order: { dueDate: "ASC", period: "ASC", description: "ASC" },
-      })
-    : [];
-
   const { primary } = await getRateConfig();
   const rates =
     payment.currency === PaymentCurrency.BS
-      ? await ratesForPayment(payment, [...targets, ...others], primary)
+      ? await ratesForPayment(payment, targets, primary)
       : {};
 
   const { steps, credit } = allocatePayment(
     targets,
-    others,
     {
       currency: payment.currency,
       amount: Number(payment.amount),
@@ -342,8 +320,8 @@ async function settlePayment(manager: TxManager, payment: Payment): Promise<Char
 }
 
 /**
- * Un pago emite UN recibo con todas las cuotas que dejó saldadas (las elegidas
- * y las que cerró en cascada), aunque sean de departamentos distintos. Un pago
+ * Un pago emite UN recibo con todas las cuotas elegidas que dejó saldadas,
+ * aunque sean de departamentos distintos. Un pago
  * que no salda ninguna —un abono parcial— no emite recibo, como siempre.
  */
 async function issueReceipt(
@@ -466,8 +444,8 @@ export const PaymentService = {
     });
     if (found.length !== ids.length) throw new HttpError(404, "Cuota no encontrada");
 
-    // Se saldan de la más antigua a la más nueva, con el mismo orden que la
-    // cascada: si el monto no alcanza, queda abierta la más reciente.
+    // Se saldan de la más antigua a la más nueva: si el monto no alcanza, queda
+    // abierta la más reciente.
     const charges = found.sort(
       (a, b) =>
         String(a.dueDate).localeCompare(String(b.dueDate)) ||

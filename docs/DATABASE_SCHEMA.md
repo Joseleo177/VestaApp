@@ -100,7 +100,7 @@ copropietario (`owner_id`). El `aliquot_percentage` define su cuota relativa.
 **Autorizado.** Persona habilitada para operar la unidad (ver estado de cuenta,
 registrar pagos, descargar recibos) sin ser necesariamente su titular. Puede ser
 el mismo `owner_id` — es válido y frecuente — o un usuario distinto, típicamente
-con rol `AUTHORIZED`. El ledger financiero (saldo a favor, cascada de excedentes)
+con rol `AUTHORIZED`. El ledger financiero (saldo a favor con los excedentes)
 siempre se ancla al **titular**, aunque el pago lo registre el autorizado.
 
 En desarrollo `synchronize` crea la columna al arrancar. En producción

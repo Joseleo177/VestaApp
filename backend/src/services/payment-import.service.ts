@@ -47,9 +47,7 @@ export interface ImportPreviewRow {
   targetSettled: boolean;
   /** El período venía escrito en la planilla (no se eligió automáticamente). */
   periodExplicit: boolean;
-  /** Cuotas adicionales que cierra el excedente, en orden de vencimiento. */
-  cascade: { period: string; description: string }[];
-  /** Excedente final que queda como saldo a favor del titular. */
+  /** Excedente que queda como saldo a favor del titular. */
   creditLeft: number;
   /** La referencia ya está en el extracto y el monto cuadra → se confirmará sola. */
   willAutoConfirm: boolean;
@@ -318,7 +316,6 @@ interface SimCharge extends ChargeLike {
   amountPaid: number;
   status: ChargeStatus;
   currency: RateCurrency;
-  ownerId: string | null;
   propertyId: string;
 }
 
@@ -338,7 +335,7 @@ const byDueDate = (a: SimCharge, b: SimCharge) =>
 export const PaymentImportService = {
   /**
    * Recorre la planilla sin escribir nada y devuelve, fila por fila, qué cuota
-   * saldaría, qué cuotas cerraría en cascada y si el extracto ya cargado la
+   * saldaría, cuánto quedaría como saldo a favor y si el extracto ya cargado la
    * confirmaría sola. La simulación asume que todas las filas se confirman:
    * así el admin ve el estado final al que apunta el archivo completo.
    */
@@ -367,21 +364,14 @@ export const PaymentImportService = {
       amountPaid: Number(c.amountPaid ?? 0),
       status: c.status,
       currency: chargeRateCurrency(c),
-      ownerId: c.property?.owner?.id ?? null,
       propertyId: c.property?.id ?? "",
     }));
     const byProperty = new Map<string, SimCharge[]>();
-    const byOwner = new Map<string, SimCharge[]>();
     for (const s of sim) {
       if (!byProperty.has(s.propertyId)) byProperty.set(s.propertyId, []);
       byProperty.get(s.propertyId)!.push(s);
-      if (s.ownerId) {
-        if (!byOwner.has(s.ownerId)) byOwner.set(s.ownerId, []);
-        byOwner.get(s.ownerId)!.push(s);
-      }
     }
     for (const list of byProperty.values()) list.sort(byDueDate);
-    for (const list of byOwner.values()) list.sort(byDueDate);
 
     // Pagos ya registrados: `create` rechaza el que repita uno (misma referencia,
     // o una que termina igual el mismo día), así que se avisa desde la vista previa.
@@ -424,7 +414,6 @@ export const PaymentImportService = {
         targetDescription: null,
         targetSettled: false,
         periodExplicit: r.periodo !== null,
-        cascade: [],
         creditLeft: 0,
         willAutoConfirm: false,
         errors: [],
@@ -552,16 +541,12 @@ export const PaymentImportService = {
       out.targetPeriod = target.period;
       out.targetDescription = target.description;
 
-      // Tasas de la fecha del pago para todas las monedas que pueda tocar.
-      // Sin tasa cargada para esa fecha la fila no se puede valorar.
-      const others = (property.owner ? byOwner.get(property.owner.id) : undefined) ?? [];
+      // Tasas de la fecha del pago: la de la cuota y la principal (con la que
+      // se valora el sobrante). Sin tasa cargada la fila no se puede valorar.
       const rates: Partial<Record<RateCurrency, number>> = {};
       if (r.moneda === PaymentCurrency.BS) {
-        const open = others.filter(
-          (c) => c.status === ChargeStatus.PENDING || c.status === ChargeStatus.PARTIAL
-        );
         try {
-          for (const cur of new Set([primary, target.currency, ...open.map((c) => c.currency)])) {
+          for (const cur of new Set([primary, target.currency])) {
             rates[cur] = await rateFor(r.fecha, cur);
           }
         } catch (err) {
@@ -599,11 +584,10 @@ export const PaymentImportService = {
         continue;
       }
 
-      // --- Aplicación sobre la cuota y cascada del excedente ---
+      // --- Aplicación sobre la cuota; el excedente queda como saldo a favor ---
       // Misma aritmética que la confirmación real (`allocatePayment`).
       const { steps, credit } = allocatePayment(
         [target],
-        others,
         { currency: r.moneda, amount: eur, amountBs: out.amountBs, paymentDate: r.fecha },
         rates,
         primary
@@ -612,13 +596,8 @@ export const PaymentImportService = {
         if (charge.status === ChargeStatus.EXONERATED) continue;
         charge.amountPaid = app.amountPaid;
         charge.status = app.status;
-        if (charge === target) {
-          out.targetSettled = app.status === ChargeStatus.PAID;
-          if (out.targetSettled) settledCharges.add(target.id);
-        } else if (app.status === ChargeStatus.PAID) {
-          out.cascade.push({ period: charge.period, description: charge.description });
-          settledCharges.add(charge.id);
-        }
+        out.targetSettled = app.status === ChargeStatus.PAID;
+        if (out.targetSettled) settledCharges.add(target.id);
       }
       out.creditLeft = property.owner ? credit : 0;
 
@@ -819,9 +798,8 @@ export const PaymentImportService = {
       ["1. Si escribes un período, el pago se imputa a esa cuota."],
       ["1b. Si ese mes tiene varias cuotas, hay que indicar además la descripción; si no, la fila se marca con error y te dice cuáles hay."],
       ["2. Si dejas período y descripción vacíos, va a la cuota pendiente más antigua del departamento."],
-      ["3. Si el monto supera esa cuota, el excedente cierra las siguientes en orden de vencimiento."],
-      ["4. Lo que sobre al final queda como saldo a favor del titular."],
-      ["5. Si la referencia ya está en el extracto y el monto cuadra, el pago se confirma solo."],
+      ["3. Si el monto supera esa cuota, lo que sobre queda como saldo a favor del titular (no se abona solo a otras cuotas)."],
+      ["4. Si la referencia ya está en el extracto y el monto cuadra, el pago se confirma solo."],
       [],
       ["Antes de importar verás una vista previa fila por fila. Nada se guarda hasta que la confirmes."],
     ]);
