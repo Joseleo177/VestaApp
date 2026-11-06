@@ -3,7 +3,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Money } from "@/components/ui/Money";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, paymentCurrencyOf, formatDate } from "@/lib/format";
 import { daysPastDue } from "@/features/dashboard/dueDays";
 
 /** "hoy", "ayer", "hace 3 días": cuánto lleva esperando el vecino. */
@@ -56,7 +56,7 @@ export function PendingQueue({
                       .join(" · ")}
                   </p>
                 </div>
-                <Money value={formatCurrency(p.amount)} className="shrink-0 text-[14px] font-semibold text-ios-label" />
+                <Money value={formatCurrency(p.amount, paymentCurrencyOf(p))} className="shrink-0 text-[14px] font-semibold text-ios-label" />
                 <Button size="sm" onClick={() => onReview(p)} className="shrink-0">
                   Revisar
                 </Button>

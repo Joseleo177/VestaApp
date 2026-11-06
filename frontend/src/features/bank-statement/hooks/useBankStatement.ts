@@ -219,7 +219,7 @@ export function useBankStatement() {
       await guard(
         (allowSettled) => paymentService.confirmPartial(m.paymentId, m.bankAmount, allowSettled),
         () => {
-          toast.success(`Confirmado por lo que llegó al banco: ${amountText(m.bankAmount)}`);
+          toast.success(`Confirmado por lo que llegó al banco: ${account === "USD" ? "$" : "Bs."} ${amountText(m.bankAmount)}`);
           settle(m);
           void load(true);
         }

@@ -86,7 +86,7 @@ export function ChargeRow({ charge: c, multiUnit, check, onPay }: ChargeRowProps
             <StatusMark label="Exonerada" tone="violet" className="shrink-0" />
           ) : (
             <Money
-              value={formatCurrency(open ? dueAmount(c) : c.amountPaid ?? c.amount)}
+              value={formatCurrency(open ? dueAmount(c) : c.amountPaid ?? c.amount, c.currency)}
               className="shrink-0 text-[15px] font-semibold text-ios-label"
             />
           )}
@@ -110,13 +110,13 @@ export function ChargeRow({ charge: c, multiUnit, check, onPay }: ChargeRowProps
               {c.bsPrice != null && c.bsPrice !== c.amount && (
                 <>
                   <Sep />
-                  <span>{formatCurrency(c.bsPrice)} si pagas en Bs</span>
+                  <span>{formatCurrency(c.bsPrice, c.currency)} si pagas en Bs</span>
                 </>
               )}
               {c.status === ChargeStatus.PARTIAL && paid > 0 && (
                 <>
                   <Sep />
-                  <span>Abonaste {formatCurrency(paid)}</span>
+                  <span>Abonaste {formatCurrency(paid, c.currency)}</span>
                 </>
               )}
             </>

@@ -43,6 +43,8 @@ export interface ImportPreviewRow {
   /** Cuota a la que se imputa el pago. */
   targetPeriod: string | null;
   targetDescription: string | null;
+  /** Moneda (tasa) de la cuota destino: con ella se muestra el monto en divisas. */
+  targetCurrency: RateCurrency | null;
   /** La cuota destino queda saldada; si es false, el pago es un abono parcial. */
   targetSettled: boolean;
   /** El período venía escrito en la planilla (no se eligió automáticamente). */
@@ -412,6 +414,7 @@ export const PaymentImportService = {
         amountEur: null,
         targetPeriod: null,
         targetDescription: null,
+        targetCurrency: null,
         targetSettled: false,
         periodExplicit: r.periodo !== null,
         creditLeft: 0,
@@ -539,6 +542,7 @@ export const PaymentImportService = {
         continue;
       }
       out.targetPeriod = target.period;
+      out.targetCurrency = target.currency ?? null;
       out.targetDescription = target.description;
 
       // Tasas de la fecha del pago: la de la cuota y la principal (con la que

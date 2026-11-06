@@ -192,6 +192,13 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
 
   const unpaidCurrency = unpaid.length && unpaid.every((u) => u.currency === unpaid[0].currency) ? unpaid[0].currency : null;
   const mixedRates = new Set(charges.map((c) => c.currency)).size > 1;
+  // Moneda de los totales del lote: la de sus cuotas si todas comparten tasa;
+  // si mezcla, null y va la principal.
+  const lotCurrency = !mixedRates ? charges[0]?.currency ?? null : null;
+  // Monto, mora y precio en Bs del lote se refieren a las no pagadas.
+  const openCurrency = unpaid.length ? unpaidCurrency : lotCurrency;
+  const lotMoney = (n: number) => formatCurrency(n, lotCurrency);
+  const openMoney = (n: number) => formatCurrency(n, openCurrency);
   // Precio distinto si pagan en Bs (p. ej. una promoción); se emite igual para todo el lote.
   const bsPrice = charges.find((c) => c.bsPrice != null && c.bsPrice !== c.amount);
 
@@ -249,14 +256,14 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
                 <p className="text-[26px] font-bold leading-tight text-ios-label">
                   {pct}%{" "}
                   <span className="text-[13px] font-medium text-ios-secondary">
-                    · <Money value={formatCurrency(progress.collected)} /> de <Money value={formatCurrency(progress.billable)} />
+                    · <Money value={lotMoney(progress.collected)} /> de <Money value={lotMoney(progress.billable)} />
                   </span>
                 </p>
               </div>
               <div className="text-right">
                 <p className="text-[12px] text-ios-secondary">Por cobrar</p>
                 <Money
-                  value={formatCurrency(Math.max(0, progress.billable - progress.collected))}
+                  value={lotMoney(Math.max(0, progress.billable - progress.collected))}
                   className="text-[17px] font-semibold text-ios-label"
                 />
               </div>
@@ -285,6 +292,7 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
                         type: type as ChargeType,
                         current: periodDue,
                         moraAmount: Number(unpaid[0]?.moraAmount ?? 0),
+                        currency: openCurrency,
                       })
                     }
                     className="font-semibold text-brand-600 hover:underline"
@@ -299,8 +307,8 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[13px]">
                 <span className="flex items-center gap-1.5 text-ios-secondary">
                   <Coins className="h-4 w-4" />
-                  Monto <Money value={formatCurrency(periodAmount.amount)} className="font-semibold text-ios-label" />
-                  {periodAmount.bsPrice != null && <span>({formatCurrency(periodAmount.bsPrice)} si pagan en Bs)</span>}
+                  Monto <Money value={openMoney(periodAmount.amount)} className="font-semibold text-ios-label" />
+                  {periodAmount.bsPrice != null && <span>({openMoney(periodAmount.bsPrice)} si pagan en Bs)</span>}
                   {mixedAmount && <span className="text-amber-700 dark:text-amber-400">· algunas cuotas tienen otro monto</span>}
                 </span>
                 {unpaid.length > 0 && period && type && (
@@ -313,6 +321,7 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
                         type: type as ChargeType,
                         amount: periodAmount.amount,
                         bsPrice: periodAmount.bsPrice,
+                        currency: openCurrency,
                       })
                     }
                     className="font-semibold text-brand-600 hover:underline"
@@ -329,7 +338,7 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
                   <Percent className="h-4 w-4" />
                   {periodMora > 0 ? (
                     <>
-                      Mora por vencimiento <Money value={formatCurrency(periodMora)} className="font-semibold text-ios-label" />
+                      Mora por vencimiento <Money value={openMoney(periodMora)} className="font-semibold text-ios-label" />
                     </>
                   ) : (
                     <span>Sin mora por vencimiento</span>
@@ -339,7 +348,7 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
                 {unpaid.length > 0 && period && (
                   <button
                     type="button"
-                    onClick={() => setMoraTarget({ period, current: periodMora, dueDate: periodDue })}
+                    onClick={() => setMoraTarget({ period, current: periodMora, dueDate: periodDue, currency: openCurrency })}
                     className="font-semibold text-brand-600 hover:underline"
                   >
                     {periodMora > 0 ? "Cambiar mora" : "Agregar mora"}
@@ -377,7 +386,7 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
               <p className="text-[13px] font-semibold text-ios-label">¿Con qué tasa se cobra en bolívares?</p>
               <p className="text-[12px] text-ios-secondary">
                 Las cuotas están en divisas. Quien pague en Bs paga al cambio de esta tasa BCV
-                {bsPrice && `, y ${formatCurrency(bsPrice.bsPrice!)} en vez de ${formatCurrency(bsPrice.amount)}`}.
+                {bsPrice && `, y ${openMoney(bsPrice.bsPrice!)} en vez de ${openMoney(bsPrice.amount)}`}.
                 {unpaidCurrency
                   ? " Las ya pagadas conservan la tasa con que se pagaron."
                   : " Hoy hay cuotas con tasas distintas: elige una para igualarlas."}
@@ -430,8 +439,8 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
                         // Igual con el vencimiento: solo si esta cuota tiene otro distinto al del lote.
                         mixedDue && c.dueDate.slice(0, 10) !== periodDue && `Vence ${formatDate(c.dueDate)}`,
                         cp && `Pagada el ${formatDate(cp.paymentDate)}${cp.reference ? ` · Ref. ${cp.reference}` : ""}`,
-                        c.status === ChargeStatus.PARTIAL && paid > 0 && `Abonó ${formatCurrency(paid)}`,
-                        c.writeOff && `Condonado ${formatCurrency(c.writeOff.amount)}: ${c.writeOff.reason}`,
+                        c.status === ChargeStatus.PARTIAL && paid > 0 && `Abonó ${formatCurrency(paid, c.currency)}`,
+                        c.writeOff && `Condonado ${formatCurrency(c.writeOff.amount, c.currency)}: ${c.writeOff.reason}`,
                       ]
                         .filter(Boolean)
                         .join(" · ")}
@@ -440,7 +449,7 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
 
                   <div className="w-28 shrink-0 text-right">
                     <Money
-                      value={formatCurrency(c.status === ChargeStatus.PAID ? c.amountPaid ?? c.amount : c.amountDue ?? c.amount)}
+                      value={formatCurrency(c.status === ChargeStatus.PAID ? c.amountPaid ?? c.amount : c.amountDue ?? c.amount, c.currency)}
                       className="text-[14px] font-semibold text-ios-label"
                     />
                     {c.overdue && c.status === ChargeStatus.PENDING && (c.moraAmount ?? 0) > 0 && (
@@ -500,7 +509,7 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
                             icon: Coins,
                             onClick: () => setAmountTarget({ kind: "charge", charge: c }),
                             disabled: busy || !!c.pendingPayment,
-                            hint: c.pendingPayment ? "Tiene un pago en revisión" : `Hoy es de ${formatCurrency(c.amount)}`,
+                            hint: c.pendingPayment ? "Tiene un pago en revisión" : `Hoy es de ${formatCurrency(c.amount, c.currency)}`,
                           },
                           {
                             label: "Anular cuota",
@@ -578,7 +587,7 @@ export function PeriodChargesModal({ period, type, open, onClose, onChanged }: P
         title={`¿Anular la cuota de ${annulTarget?.property?.code ?? ""}?`}
         description={
           annulTarget && Number(annulTarget.amountPaid ?? 0) > 0
-            ? `Desaparece del estado de cuenta del departamento. Lo abonado (${formatCurrency(Number(annulTarget.amountPaid))}) pasa al saldo a favor del titular. Esta acción no se puede deshacer.`
+            ? `Desaparece del estado de cuenta del departamento. Lo abonado (${formatCurrency(Number(annulTarget.amountPaid), annulTarget.currency)}) pasa al saldo a favor del titular. Esta acción no se puede deshacer.`
             : "Desaparece del estado de cuenta del departamento, como si nunca se hubiera emitido. Esta acción no se puede deshacer."
         }
         confirmLabel="Anular cuota"

@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import { RateCurrency } from "@/types/domain";
+import { setPrimaryCurrency } from "@/lib/format";
 import {
   ActiveRates,
   ExchangeRate,
@@ -35,7 +36,10 @@ export function ExchangeRateProvider({ children }: { children: ReactNode }) {
   const load = useCallback(async (force = false) => {
     setLoading(true);
     try {
-      setData(await exchangeRateService.get(force));
+      const next = await exchangeRateService.get(force);
+      // Los totales y el saldo a favor se muestran con el símbolo de la principal.
+      setPrimaryCurrency(next?.primary);
+      setData(next);
     } catch {
       // Silencioso: el top bar mostrará "—" si no hay tasa.
     } finally {

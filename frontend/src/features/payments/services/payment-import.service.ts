@@ -13,6 +13,8 @@ export interface ImportPreviewRow {
   amountEur: number | null;
   targetPeriod: string | null;
   targetDescription: string | null;
+  /** Moneda (tasa) de la cuota destino. */
+  targetCurrency: "USD" | "EUR" | null;
   targetSettled: boolean;
   periodExplicit: boolean;
   creditLeft: number;

@@ -124,6 +124,7 @@ export function ResidentLayout() {
             creditBalance={dashboard.creditBalance}
             onSuccess={dashboard.onPaid}
             onCancel={dashboard.closePay}
+            onChanged={dashboard.refreshAccount}
           />
         ) : (
           <p className="py-4 text-center text-sm text-ios-secondary">No tienes cuotas pendientes por pagar.</p>

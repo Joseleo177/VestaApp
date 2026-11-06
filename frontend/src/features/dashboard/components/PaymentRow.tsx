@@ -4,7 +4,7 @@ import { ArrowLeftRight, Banknote, ChevronDown, Download } from "lucide-react";
 import { Charge, Payment, PaymentCurrency, PaymentStatus, RateCurrency } from "@/types/domain";
 import { Money } from "@/components/ui/Money";
 import { StatusDef, StatusMark } from "@/components/ui/StatusMark";
-import { formatCurrency, formatDate, formatPeriod, formatRate } from "@/lib/format";
+import { formatCurrency, paymentCurrencyOf, formatDate, formatPeriod, formatRate } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { paymentBreakdown } from "@/features/payments/components/PaymentBreakdown";
@@ -64,10 +64,13 @@ export function PaymentRow({ payment: pay, multiUnit }: { payment: Payment; mult
   // Con un solo departamento no hace falta repetirlo en cada cuota.
   const label = (c: Charge) =>
     multiUnit ? chargeLabelFull(c) : [formatPeriod(c.period), c.description].filter(Boolean).join(" · ");
+  // Cada cuota con su moneda; pagado en $ todo va en $.
+  const lineCurrency = (c: { currency?: string | null }) =>
+    paymentCurrencyOf({ currency: pay.currency, fromCredit: pay.fromCredit, rateCurrency: c.currency });
   // Sin registro de aplicaciones (pagos viejos o en revisión), las cuotas elegidas.
   const items = lines.length
-    ? lines.map((l) => ({ id: l.charge.id, label: label(l.charge), amount: l.amount as number | null }))
-    : coveredCharges(pay).map((c) => ({ id: c.id, label: label(c), amount: null }));
+    ? lines.map((l) => ({ id: l.charge.id, label: label(l.charge), amount: l.amount as number | null, currency: lineCurrency(l.charge) }))
+    : coveredCharges(pay).map((c) => ({ id: c.id, label: label(c), amount: null, currency: lineCurrency(c) }));
   const units = [...new Set(coveredCharges(pay).map((c) => c.property?.code ?? pay.property?.code).filter(Boolean))];
   const byOther = pay.submittedBy && pay.submittedBy.id !== user?.id;
   const rejected = pay.status === PaymentStatus.REJECTED;
@@ -107,7 +110,7 @@ export function PaymentRow({ payment: pay, multiUnit }: { payment: Payment; mult
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-3">
             <p className="truncate text-[14px] font-semibold leading-tight text-ios-label">{paymentTitle(pay)}</p>
-            <Money value={formatCurrency(pay.amount)} className="shrink-0 text-[15px] font-semibold text-ios-label" />
+            <Money value={formatCurrency(pay.amount, paymentCurrencyOf(pay))} className="shrink-0 text-[15px] font-semibold text-ios-label" />
           </div>
           <div className="mt-0.5 flex items-center justify-between gap-3">
             <p className="min-w-0 truncate text-[12px] text-ios-secondary">
@@ -150,7 +153,7 @@ export function PaymentRow({ payment: pay, multiUnit }: { payment: Payment; mult
                         {it.label}
                       </span>
                       {it.amount !== null && (
-                        <Money value={formatCurrency(it.amount)} className="shrink-0 font-medium text-ios-label" />
+                        <Money value={formatCurrency(it.amount, it.currency)} className="shrink-0 font-medium text-ios-label" />
                       )}
                     </li>
                   ))}

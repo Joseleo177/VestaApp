@@ -66,6 +66,20 @@ export const PaymentController = {
     }
   },
 
+  // POST /api/payments/:id/undo-credit — deshace un pago con saldo a favor
+  async undoCredit(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await PaymentService.undoCredit(req.params.id, req.user!.sub, req.user!.role as UserRole);
+      res.json({
+        message: result?.voided.length
+          ? `Saldo a favor devuelto. Recibo anulado: ${result.voided.join(", ")}`
+          : "Saldo a favor devuelto",
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+
   // GET /api/payments/import/template  (admin) — planilla .xlsx para llenar
   async importTemplate(_req: Request, res: Response, next: NextFunction) {
     try {

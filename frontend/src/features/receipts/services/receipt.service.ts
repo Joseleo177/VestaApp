@@ -13,6 +13,7 @@ export interface ReceiptRow {
     id: string;
     amount: number;
     currency: PaymentCurrency;
+    rateCurrency: string | null;
     amountBs: number | null;
     paymentDate: string;
     bank: string;

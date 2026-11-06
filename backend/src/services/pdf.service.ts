@@ -5,10 +5,47 @@ import { Payment, PaymentCurrency } from "../models/Payment";
 import { ChargeType, type Charge } from "../models/Charge";
 import { formatDocumentId } from "../models/User";
 
+/** Un aporte a una cuota: un abono, un uso del saldo a favor o el pago que la cerró. */
+export interface ReceiptPart {
+  paymentId: string;
+  /** "Transferencia en Bs", "Efectivo en divisas", "Saldo a favor"… */
+  modality: string;
+  paymentDate: string | null;
+  reference: string | null;
+  /** Lo que aportó, en divisas. */
+  amount: number;
+  /** Los Bs que se pagaron por ese aporte (null si no fue en Bs). */
+  bs: number | null;
+  rate: number | null;
+  /** Se entregaron dólares: el monto va con "$". */
+  paidInDivisas: boolean;
+}
+
 /** Una cuota saldada por el pago y la tasa con que se pasa a Bs (null: sin Bs). */
 export interface ReceiptLine {
   charge: Charge;
   bsRate: number | null;
+  /** Todo lo que entró a la cuota, en orden. Vacío en pagos sin registro de aplicaciones. */
+  parts?: ReceiptPart[];
+}
+
+/**
+ * Cómo se pagó, dicho para el vecino. El campo `bank` del pago guarda la
+ * modalidad del formulario (Efectivo / Transferencia); datos viejos pueden
+ * traer otra palabra (p. ej. "Pago móvil"), que se respeta.
+ */
+export function paymentModality(p: { fromCredit?: boolean; bank?: string | null; currency: PaymentCurrency }): string {
+  if (p.fromCredit) return "Saldo a favor";
+  const raw = (p.bank ?? "").trim();
+  const how = !raw || /^transferencia$/i.test(raw) ? "Transferencia" : /^efectivo$/i.test(raw) ? "Efectivo" : raw;
+  return `${how} en ${p.currency === PaymentCurrency.BS ? "Bs" : "divisas"}`;
+}
+
+/** "2026-11-06" → "06/11/2026". */
+function shortDate(iso: string | null): string {
+  if (!iso) return "";
+  const [y, m, d] = String(iso).slice(0, 10).split("-");
+  return `${d}/${m}/${y}`;
 }
 
 const CURRENCY_WORD: Record<string, string> = { USD: "dólar", EUR: "euro" };
@@ -104,10 +141,13 @@ export function generateReceiptPdf(
     // redondeo, el recibo muestra los Bs que de verdad se pagaron.
     const transferredBs =
       payment.currency === PaymentCurrency.BS && payment.amountBs != null ? Number(payment.amountBs) : null;
-    // Pagado en $: los montos en divisas llevan el símbolo. Pagado en Bs quedan
-    // sin prefijo (la cuota puede ir a tasa USD o EUR y "$" confundiría).
-    const divSym = payment.currency === PaymentCurrency.DIVISAS ? "$ " : "";
-    const div = (n: number) => `${divSym}${eur(n)}`;
+    // Pagado en $: los montos en divisas llevan "$". Pagado en Bs, cada monto
+    // lleva el símbolo de la moneda de su cuota (€ o $), que es la de su tasa.
+    // Con saldo a favor no se entregaron dólares: va en la moneda de la cuota.
+    const paidInDivisas = payment.currency === PaymentCurrency.DIVISAS && !payment.fromCredit;
+    const symOf = (cur?: string | null) =>
+      paidInDivisas ? "$ " : cur === "USD" ? "$ " : cur === "EUR" ? "€ " : "";
+    const div = (n: number, cur?: string | null) => `${symOf(cur)}${eur(n)}`;
     const snapBs = (computed: number | null, rateSum: number): number | null =>
       computed != null && transferredBs != null && Math.abs(computed - transferredBs) <= rateSum * 0.005 + 0.01
         ? transferredBs
@@ -217,6 +257,17 @@ export function generateReceiptPdf(
       .text(dateStr, { align: "left" });
     doc.moveDown(1);
 
+    // ── Aportes ──
+    // La tabla dice con qué se pagó: un renglón por aporte con su modalidad,
+    // fecha, referencia y los Bs que de verdad se pagaron. En un recibo de
+    // varias cuotas solo se abren las pagadas en partes (abonos, saldo a favor)
+    // o cerradas con dinero de otro pago; las demás llevan la modalidad debajo.
+    const needsBreakdown = (parts?: ReceiptPart[]): parts is ReceiptPart[] =>
+      !!parts?.length && (parts.length > 1 || parts[0].paymentId !== payment.id);
+    const paymentHow = [paymentModality(payment), !payment.fromCredit && payment.reference ? `Ref. ${payment.reference}` : ""]
+      .filter(Boolean)
+      .join(" · ");
+
     // ── Cuerpo ─────────────────────────────────────────────────────────────────
     const ownerUser = payment.property?.owner ?? payment.submittedBy;
     const owner = ownerUser?.fullName ?? "—";
@@ -259,12 +310,44 @@ export function generateReceiptPdf(
     let ty = tableStartY;
 
 
-    type Row = { label: string; bsAmt?: number | null; eurAmt: number; bold?: boolean; highlight?: boolean };
+    type Row = {
+      label: string; bsAmt?: number | null; eurAmt: number; bold?: boolean; highlight?: boolean;
+      /** Moneda de la tasa del monto en divisas (USD/EUR); null = mezcla, sin símbolo. */
+      cur?: string | null;
+      /** Segunda línea, más pequeña, bajo la etiqueta. */
+      sub?: string;
+      /** Aporte a una cuota: lleva el símbolo de su propia moneda. */
+      part?: boolean;
+      /** Aporte bajo la fila de su cuota (recibo de varias): sangrado y más pequeño. */
+      nested?: boolean;
+    };
+
+    const rateFmt = new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+    const partRow = (p: ReceiptPart, chargeCur: string | null | undefined, nested = false): Row => ({
+      label: p.modality,
+      sub: [
+        shortDate(p.paymentDate),
+        p.reference ? `Ref. ${p.reference}` : "",
+        p.rate ? `Tasa ${rateFmt.format(p.rate)}` : "",
+      ].filter(Boolean).join(" · "),
+      bsAmt: p.bs,
+      eurAmt: p.amount,
+      // Dólares entregados: "$"; lo demás, en la moneda de la cuota.
+      cur: p.paidInDivisas ? "USD" : chargeCur ?? "EUR",
+      part: true,
+      nested,
+    });
+    /** Bs de una cuota según sus aportes: solo si todos fueron en Bs. */
+    const partsBs = (parts: ReceiptPart[]) =>
+      parts.every((p) => p.bs != null) ? Math.round(parts.reduce((a, p) => a + (p.bs ?? 0), 0) * 100) / 100 : null;
+
+    // Moneda del monto en divisas: la de la cuota (la tasa con que se convierte).
+    const singleCur = charge?.currency ?? rateCurrency;
 
     // Mora sumada en Monto base — no se desglosa por separado
     const rows: Row[] = [
-      { label: "Monto", bsAmt: bsTotal, eurAmt: total },
-      { label: "TOTAL", bsAmt: bsTotal, eurAmt: total, bold: true, highlight: true },
+      { label: "Monto", bsAmt: bsTotal, eurAmt: total, cur: singleCur },
+      { label: "TOTAL", bsAmt: bsTotal, eurAmt: total, cur: singleCur, bold: true, highlight: true },
     ];
 
     // Cuota cerrada con saldo condonado: el recibo solo acredita lo que se
@@ -274,8 +357,32 @@ export function generateReceiptPdf(
       const paid = Number(charge!.amountPaid);
       const paidBs = exRate ? snapBs(Math.round(paid * exRate * 100) / 100, exRate) : null;
       rows.splice(0, rows.length,
-        { label: "Monto", bsAmt: paidBs, eurAmt: paid },
-        { label: "TOTAL", bsAmt: paidBs, eurAmt: paid, bold: true, highlight: true },
+        { label: "Monto", bsAmt: paidBs, eurAmt: paid, cur: singleCur },
+        { label: "TOTAL", bsAmt: paidBs, eurAmt: paid, cur: singleCur, bold: true, highlight: true },
+      );
+    }
+
+    // Una cuota: un renglón por aporte (uno solo si se pagó de una vez) y el total.
+    if (!multi) {
+      const singleParts = lines?.[0]?.parts;
+      const parts: ReceiptPart[] = needsBreakdown(singleParts)
+        ? singleParts
+        : [{
+            // Pagada de una vez (o pago sin registro de aplicaciones): este mismo
+            // pago, con los montos de arriba (ya ajustados a lo transferido).
+            paymentId: payment.id,
+            modality: paymentModality(payment),
+            paymentDate: payment.paymentDate ?? null,
+            reference: payment.fromCredit ? null : payment.reference || null,
+            amount: rows[0].eurAmt,
+            bs: rows[0].bsAmt ?? null,
+            rate: rows[0].bsAmt != null ? exRate : null,
+            paidInDivisas,
+          }];
+      const paid = Math.round(parts.reduce((a, p) => a + p.amount, 0) * 100) / 100;
+      rows.splice(0, rows.length,
+        ...parts.map((p) => partRow(p, singleCur)),
+        { label: "TOTAL", bsAmt: partsBs(parts), eurAmt: paid, cur: singleCur, bold: true, highlight: true },
       );
     }
 
@@ -286,14 +393,21 @@ export function generateReceiptPdf(
       if (Number(c.writeOffAmount ?? 0) > 0) return Number(c.amountPaid);
       return chargeTotal(c);
     };
-    const multiRows: (Row & { sub?: string })[] = multi
+    const multiRows: Row[] = multi
       ? lines!.map((l) => {
           const t = totalOf(l.charge);
           return {
             label: `${propOf(l.charge)?.code ?? "—"} · ${formatPeriod(l.charge.period)}`,
-            sub: l.charge.description,
-            bsAmt: l.bsRate ? Math.round(t * l.bsRate * 100) / 100 : null,
+            // Pagada de una vez con este pago: la modalidad va debajo del concepto.
+            sub: needsBreakdown(l.parts)
+              ? l.charge.description
+              : [l.charge.description, paymentHow].filter(Boolean).join(" · "),
+            // Pagada en partes: los Bs que de verdad entraron, no la cuota entera a esta tasa.
+            bsAmt: needsBreakdown(l.parts)
+              ? partsBs(l.parts)
+              : l.bsRate ? Math.round(t * l.bsRate * 100) / 100 : null,
             eurAmt: t,
+            cur: l.charge.currency ?? "EUR",
           };
         })
       : [];
@@ -307,47 +421,65 @@ export function generateReceiptPdf(
         const last = multiRows[multiRows.length - 1];
         last.bsAmt = Math.round(((last.bsAmt ?? 0) + sumBs - rawBs) * 100) / 100;
       }
-      rows.splice(0, rows.length, ...multiRows, {
-        label: "TOTAL", bsAmt: sumBs, eurAmt: sumRef, bold: true, highlight: true,
+      // El TOTAL lleva símbolo solo si todas las cuotas son de la misma moneda:
+      // sumar € y $ no da ni euros ni dólares.
+      const curs = new Set(multiRows.map((r) => r.cur));
+      // Bajo cada cuota pagada en partes, sus aportes (no suman al TOTAL: ya
+      // están en la fila de la cuota).
+      const display = multiRows.flatMap((r, i) => {
+        const parts = lines![i].parts;
+        return needsBreakdown(parts) ? [r, ...parts.map((p) => partRow(p, lines![i].charge.currency, true))] : [r];
+      });
+      rows.splice(0, rows.length, ...display, {
+        label: "TOTAL", bsAmt: sumBs, eurAmt: sumRef, cur: curs.size === 1 ? [...curs][0] : null,
+        bold: true, highlight: true,
       });
     }
-    const hasBs = multi ? rows.some((r) => r.bsAmt != null) : bsTotal !== null;
+    const hasBs = rows.some((r) => r.bsAmt != null);
 
-    for (const row of rows as (Row & { sub?: string })[]) {
+    // Un aporte lleva el símbolo de su propia moneda, sin la regla del pago en $.
+    const partMoney = (n: number, cur?: string | null) =>
+      `${cur === "USD" ? "$ " : cur === "EUR" ? "€ " : ""}${eur(n)}`;
+
+    for (const row of rows) {
       if (row.highlight) {
         doc.rect(tableX, ty, tableW, rowH).fillColor("#f1f5f9").fill();
       }
-      const textY = ty + (rowH - (row.bold ? 12 : 10)) / 2 - (row.sub ? 5 : 0);
+      const size = row.bold ? 12 : row.nested ? 9 : 10;
+      const textY = ty + (rowH - size) / 2 - (row.sub ? 5 : 0);
+      const indent = row.nested ? 22 : 8;
+      const money = row.part ? partMoney(row.eurAmt, row.cur) : div(row.eurAmt, row.cur);
+      const ink = row.nested ? "#334155" : "#000000";
 
       // Columna label
-      doc.fillColor(row.bold ? "#000000" : "#000000")
+      doc.fillColor(ink)
         .font(row.bold ? "Helvetica-Bold" : "Helvetica")
-        .fontSize(row.bold ? 12 : 10)
-        .text(row.label, tableX + 8, textY, { width: labelW - 8, lineBreak: false, ellipsis: true });
+        .fontSize(size)
+        .text(row.label, tableX + indent, textY, { width: labelW - indent, lineBreak: false, ellipsis: true });
       if (row.sub) {
         doc.fillColor("#475569").font("Helvetica").fontSize(7.5)
-          .text(row.sub, tableX + 8, textY + 12, { width: labelW - 8, lineBreak: false, ellipsis: true });
+          .text(row.sub, tableX + indent, textY + size + 2, { width: labelW + bsW * 0.4 - indent, lineBreak: false, ellipsis: true });
       }
 
       if (hasBs) {
         // Columna Bs (principal)
         const bsText = row.bsAmt != null ? `Bs. ${bs(row.bsAmt)}` : "—";
-        doc.fillColor("#000000")
+        doc.fillColor(ink)
           .font(row.bold ? "Helvetica-Bold" : "Helvetica")
-          .fontSize(row.bold ? 12 : 10)
+          .fontSize(size)
           .text(bsText, tableX + labelW, textY, { width: bsW, align: "right" });
 
         // Columna EUR (referencia, más pequeña)
-        doc.fillColor("#000000")
-          .font("Helvetica-Bold")
+        doc.fillColor(ink)
+          .font(row.nested ? "Helvetica" : "Helvetica-Bold")
           .fontSize(9)
-          .text(div(row.eurAmt), tableX + labelW + bsW, textY, { width: eurW - 8, align: "right" });
+          .text(money, tableX + labelW + bsW, textY, { width: eurW - 8, align: "right" });
       } else {
         // Sin Bs — solo EUR a la derecha
-        doc.fillColor("#000000")
+        doc.fillColor(ink)
           .font(row.bold ? "Helvetica-Bold" : "Helvetica")
-          .fontSize(row.bold ? 12 : 10)
-          .text(div(row.eurAmt), tableX + labelW, textY, { width: bsW + eurW - 8, align: "right" });
+          .fontSize(size)
+          .text(money, tableX + labelW, textY, { width: bsW + eurW - 8, align: "right" });
       }
 
       ty += rowH + (row.sub ? 6 : 0);

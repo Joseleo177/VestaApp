@@ -98,6 +98,10 @@ export function useOwnerDashboard() {
   const paySelected = () => setPayIds(selected.map((c) => c.id));
   const payAll = () => setPayIds(payable.map((c) => c.id));
   const closePay = () => setPayIds(null);
+  // Sin cerrar el formulario: tras usar (o deshacer) el saldo a favor, cuotas y saldo frescos.
+  const refreshAccount = async () => {
+    await Promise.all([refetchPayments(), refetchStatement()]);
+  };
   const onPaid = () => {
     setPayIds(null);
     setChecked([]);
@@ -132,7 +136,7 @@ export function useOwnerDashboard() {
     // selección
     selected, selectedTotal, allSelected, toggle, toggleAll,
     // pago
-    payIds, payOne, paySelected, payAll, closePay, onPaid,
+    payIds, payOne, paySelected, payAll, closePay, onPaid, refreshAccount,
     // PDF
     downloading, downloadStatement,
   };

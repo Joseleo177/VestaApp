@@ -5,7 +5,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Card } from "@/components/ui/Card";
 import { Money } from "@/components/ui/Money";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, paymentCurrencyOf } from "@/lib/format";
 import { relativeDay } from "./PendingQueue";
 
 /** Los últimos pagos que entraron: el pulso del día. */
@@ -48,7 +48,7 @@ export function RecentActivity({
                     {[p.property?.code, relativeDay(p.reviewedAt ?? p.paymentDate)].filter(Boolean).join(" · ")}
                   </p>
                 </div>
-                <Money value={formatCurrency(p.amount)} className="shrink-0 text-[13px] font-semibold text-ios-label" />
+                <Money value={formatCurrency(p.amount, paymentCurrencyOf(p))} className="shrink-0 text-[13px] font-semibold text-ios-label" />
               </li>
             );
           })}

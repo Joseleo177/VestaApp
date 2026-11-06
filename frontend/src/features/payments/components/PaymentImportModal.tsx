@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { AlertTriangle, ArrowRight, Download, FileSpreadsheet, Upload } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
-import { formatCurrency, formatDate, formatPeriod } from "@/lib/format";
+import { formatCurrency, paymentCurrencyOf, formatDate, formatPeriod } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { ApiError } from "@/services/api";
 import {
@@ -47,7 +47,9 @@ function PreviewRow({ row }: { row: ImportPreviewRow }) {
           <span className="truncate text-xs text-ios-secondary">{row.ownerName}</span>
         )}
         <span className="ml-auto font-semibold text-ios-label">
-          {row.amountEur !== null ? formatCurrency(row.amountEur) : "—"}
+          {row.amountEur !== null
+            ? formatCurrency(row.amountEur, paymentCurrencyOf({ currency: row.currency, rateCurrency: row.targetCurrency }))
+            : "—"}
         </span>
       </div>
 

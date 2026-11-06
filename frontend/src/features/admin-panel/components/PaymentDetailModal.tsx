@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/Button";
 import { Money } from "@/components/ui/Money";
 import { StatusMark } from "@/components/ui/StatusMark";
 import { Payment, PaymentCurrency, PaymentStatus } from "@/types/domain";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, paymentCurrencyOf, formatDate } from "@/lib/format";
 import { paymentService } from "@/features/payments/services/payment.service";
 import { ApiError } from "@/services/api";
 import { chargeLabelFull, coveredCharges } from "@/features/payments/coveredCharges";
@@ -70,10 +70,13 @@ export function PaymentDetailModal({ payment, open, onClose, onResolved, ownerNa
   const who = ownerName ?? payment.submittedBy?.fullName ?? "Vecino";
   const isBs = payment.currency === PaymentCurrency.BS;
   const { lines, credit } = paymentBreakdown(payment);
+  // Cada cuota con su moneda; pagado en $ todo va en $.
+  const lineCurrency = (c: { currency?: string | null }) =>
+    paymentCurrencyOf({ currency: payment.currency, fromCredit: payment.fromCredit, rateCurrency: c.currency });
   // Sin registro de aplicaciones (en revisión o pagos viejos): las cuotas elegidas, sin monto.
   const items = lines.length
-    ? lines.map((l) => ({ id: l.charge.id, label: chargeLabelFull(l.charge), amount: l.amount as number | null }))
-    : coveredCharges(payment).map((c) => ({ id: c.id, label: chargeLabelFull(c), amount: null }));
+    ? lines.map((l) => ({ id: l.charge.id, label: chargeLabelFull(l.charge), amount: l.amount as number | null, currency: lineCurrency(l.charge) }))
+    : coveredCharges(payment).map((c) => ({ id: c.id, label: chargeLabelFull(c), amount: null, currency: lineCurrency(c) }));
 
   const handleConfirm = async () => {
     setAction("confirm");
@@ -133,7 +136,7 @@ export function PaymentDetailModal({ payment, open, onClose, onResolved, ownerNa
                 <p className="text-[12px] font-medium text-ios-secondary">Monto del pago</p>
                 <StatusMark {...ADMIN_PAYMENT_STATUS[payment.status]} />
               </div>
-              <Money value={formatCurrency(payment.amount)} className="mt-1 block text-[34px] font-bold leading-tight tracking-tight text-ios-label" />
+              <Money value={formatCurrency(payment.amount, paymentCurrencyOf(payment))} className="mt-1 block text-[34px] font-bold leading-tight tracking-tight text-ios-label" />
               <p className="text-[13px] text-ios-secondary">
                 {isBs && payment.amountBs ? `${bs(Number(payment.amountBs))} pagados en bolívares` : "Pagado en divisas"}
               </p>
@@ -155,7 +158,7 @@ export function PaymentDetailModal({ payment, open, onClose, onResolved, ownerNa
                     <li key={it.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-[13px]">
                       <span className="min-w-0 text-ios-label">{it.label}</span>
                       {it.amount !== null && (
-                        <Money value={formatCurrency(it.amount)} className="shrink-0 font-semibold text-ios-label" />
+                        <Money value={formatCurrency(it.amount, it.currency)} className="shrink-0 font-semibold text-ios-label" />
                       )}
                     </li>
                   ))}

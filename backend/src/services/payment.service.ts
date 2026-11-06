@@ -14,6 +14,7 @@ import { getRateConfig, getRateForDate } from "./exchange-rate.service";
 import { RateCurrency } from "../models/ExchangeRateRecord";
 import { ReconciliationService, findBankEntryFor, isSamePayment } from "./reconciliation.service";
 import { SettingsService } from "./settings.service";
+import { paymentModality, ReceiptLine, ReceiptPart } from "./pdf.service";
 
 function normalizeRef(s: string): string {
   return s.trim().replace(/^'+/, "").toLowerCase();
@@ -670,6 +671,35 @@ export const PaymentService = {
   },
 
   /**
+   * Deshace un uso del saldo a favor (aplicado sin querer o a la cuota que no
+   * era): lo abonado vuelve al saldo del titular y las cuotas quedan como
+   * estaban. Si llegó a cerrar alguna cuota, su recibo queda anulado. El admin
+   * puede deshacer cualquiera; el vecino, solo los que hizo él.
+   */
+  async undoCredit(
+    paymentId: string,
+    userId: string,
+    userRole?: UserRole
+  ): Promise<{ voided: string[]; reissued: string[] } | null> {
+    const payment = await paymentRepo().findOne({
+      where: { id: paymentId },
+      relations: { submittedBy: true },
+    });
+    if (!payment || !payment.fromCredit) throw new HttpError(404, "Pago con saldo a favor no encontrado");
+    if (payment.status !== PaymentStatus.CONFIRMED) {
+      throw new HttpError(409, "Este uso del saldo a favor ya se deshizo");
+    }
+    const isAdmin = userRole === UserRole.ADMIN;
+    if (!isAdmin && payment.submittedBy?.id !== userId) {
+      throw new HttpError(403, "Solo puedes deshacer el saldo a favor que aplicaste tú");
+    }
+    return PaymentService.delete(paymentId, {
+      voidReason: "Se quitó el saldo a favor aplicado",
+      adminId: isAdmin ? userId : null,
+    });
+  },
+
+  /**
    * Historial de las unidades que el usuario gestiona (como titular o como
    * autorizado), no solo de los pagos que él mismo registró: titular y
    * autorizado ven el mismo movimiento del departamento.
@@ -1126,18 +1156,63 @@ export const PaymentService = {
     if (p.currency === PaymentCurrency.BS && Number(p.exchangeRate) > 0) {
       rates.set(p.rateCurrency ?? RateCurrency.EUR, Number(p.exchangeRate));
     }
-    const lines: { charge: Charge; bsRate: number | null }[] = [];
+    // Todo lo que entró a cada cuota (abonos, saldo a favor y el pago que la
+    // cerró), para que el recibo diga de dónde salió el dinero. Un recibo
+    // anulado ya no tiene aplicaciones vigentes: sale como se emitió.
+    const apps =
+      charges.length && !receipt.voidedAt
+        ? await AppDataSource.getRepository(PaymentApplication).find({
+            where: { charge: { id: In(charges.map((c) => c.id)) } },
+            relations: { payment: true, charge: true },
+            order: { createdAt: "ASC" },
+          })
+        : [];
+    // Tasa de un pago en Bs para la moneda de una cuota: la congelada en el
+    // pago o, si es la otra moneda, la de su fecha.
+    const rateCache = new Map<string, number>();
+    const rateFor = async (pay: Payment, cur: RateCurrency): Promise<number | null> => {
+      if (pay.currency !== PaymentCurrency.BS) return null;
+      if ((pay.rateCurrency ?? RateCurrency.EUR) === cur && Number(pay.exchangeRate) > 0) return Number(pay.exchangeRate);
+      const key = `${pay.paymentDate}|${cur}`;
+      if (!rateCache.has(key)) {
+        rateCache.set(key, await getRateForDate(pay.paymentDate, cur).then((r) => r.rate, () => 0));
+      }
+      return rateCache.get(key) || null;
+    };
+
+    const lines: ReceiptLine[] = [];
     for (const charge of charges) {
       let bsRate: number | null = null;
+      const cur = chargeRateCurrency(charge);
       if (p.currency === PaymentCurrency.BS) {
-        const cur = chargeRateCurrency(charge);
         // Sin tasa de esa fecha el recibo sale solo en divisas, no con la de hoy.
         if (!rates.has(cur)) {
           rates.set(cur, await getRateForDate(p.paymentDate, cur).then((r) => r.rate, () => 0));
         }
         bsRate = rates.get(cur) || null;
       }
-      lines.push({ charge, bsRate });
+      const parts: ReceiptPart[] = [];
+      for (const a of apps.filter((x) => x.charge.id === charge.id)) {
+        const pay = a.payment;
+        const amount = Math.round(Number(a.amount) * 100) / 100;
+        const rate = await rateFor(pay, cur);
+        let bs = rate ? Math.round(amount * rate * 100) / 100 : null;
+        // Si la diferencia con lo transferido es solo redondeo, van los Bs reales.
+        if (bs != null && rate && pay.amountBs != null && Math.abs(bs - Number(pay.amountBs)) <= rate * 0.005 + 0.01) {
+          bs = Number(pay.amountBs);
+        }
+        parts.push({
+          paymentId: pay.id,
+          modality: paymentModality(pay),
+          paymentDate: pay.paymentDate,
+          reference: pay.fromCredit ? null : pay.reference || null,
+          amount,
+          bs,
+          rate,
+          paidInDivisas: pay.currency === PaymentCurrency.DIVISAS && !pay.fromCredit,
+        });
+      }
+      lines.push({ charge, bsRate, parts });
     }
     return { receipt, lines };
   },

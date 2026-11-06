@@ -7,7 +7,7 @@ import { EmptyBlock } from "@/components/ui/Ledger";
 import { Money } from "@/components/ui/Money";
 import { Page } from "@/components/ui/Page";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { formatCurrency } from "@/lib/format";
+import { commonCurrency, formatCurrency } from "@/lib/format";
 import { dueAmount } from "../dueDays";
 import { useResident } from "../hooks/useResident";
 
@@ -131,7 +131,7 @@ export function PaymentInfoPage() {
         {s.payable.length > 0 && (
           <div className="mt-4 flex flex-col gap-3 rounded-xl bg-ios-fill/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-[13px] text-ios-secondary">
-              Tienes <Money value={formatCurrency(payableTotal)} className="font-semibold text-ios-label" /> por
+              Tienes <Money value={formatCurrency(payableTotal, commonCurrency(s.payable))} className="font-semibold text-ios-label" /> por
               pagar
             </p>
             <Button size="sm" onClick={s.payAll}>

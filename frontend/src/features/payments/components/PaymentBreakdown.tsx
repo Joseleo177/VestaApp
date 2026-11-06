@@ -1,5 +1,5 @@
 import { Charge, Payment } from "@/types/domain";
-import { formatCurrency, formatPeriod } from "@/lib/format";
+import { formatCurrency, paymentCurrencyOf, formatPeriod } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { chargeLabelFull } from "../coveredCharges";
 
@@ -70,7 +70,7 @@ export function PaymentBreakdown({
           <span className="min-w-0 truncate" title={chargeLabelFull(charge)}>
             → {label(charge)}
           </span>
-          <span className="shrink-0 font-medium tabular-nums">{formatCurrency(amount)}</span>
+          <span className="shrink-0 font-medium tabular-nums">{formatCurrency(amount, paymentCurrencyOf({ currency: payment.currency, fromCredit: payment.fromCredit, rateCurrency: charge.currency }))}</span>
         </li>
       ))}
       {credit > 0 && (

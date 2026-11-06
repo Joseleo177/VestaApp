@@ -25,7 +25,7 @@ export const ReceiptController = {
         .leftJoin("r.issuedBy", "ib")
         .select([
           "r.id", "r.receiptNumber", "r.issuedAt", "r.voidedAt", "r.voidReason",
-          "p.id", "p.amount", "p.currency", "p.amountBs", "p.paymentDate", "p.bank", "p.reference",
+          "p.id", "p.amount", "p.currency", "p.rateCurrency", "p.amountBs", "p.paymentDate", "p.bank", "p.reference",
           "prop.id", "prop.code", "tw.id", "tw.name", "ow.id", "ow.fullName",
           "rc.id", "rc.period", "rc.description",
           "ib.id", "ib.fullName",
@@ -63,6 +63,7 @@ export const ReceiptController = {
                   id: r.payment.id,
                   amount: Number(r.payment.amount),
                   currency: r.payment.currency,
+                  rateCurrency: r.payment.rateCurrency ?? null,
                   amountBs: r.payment.amountBs !== null && r.payment.amountBs !== undefined ? Number(r.payment.amountBs) : null,
                   paymentDate: r.payment.paymentDate,
                   bank: r.payment.bank,

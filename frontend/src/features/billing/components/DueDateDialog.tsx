@@ -19,7 +19,7 @@ export const mergeDue = (charge: Charge, updated: Charge): Charge => ({
 
 export type DueDateTarget =
   | { kind: "charge"; charge: Charge }
-  | { kind: "period"; period: string; type: ChargeType; current?: string; moraAmount?: number };
+  | { kind: "period"; period: string; type: ChargeType; current?: string; moraAmount?: number; currency?: string | null };
 
 interface Props {
   target: DueDateTarget | null;
@@ -114,7 +114,7 @@ export function DueDateDialog({ target, onClose, onDone }: Props) {
           )}
           <p>
             Los pagos <span className="font-medium text-ios-label">por confirmar</span> con fecha posterior al vencimiento
-            llevarán la mora{mora > 0 ? ` de ${formatCurrency(mora)}` : ""} al pagarse en bolívares.
+            llevarán la mora{mora > 0 ? ` de ${formatCurrency(mora, target?.kind === "charge" ? target.charge.currency : target?.currency)}` : ""} al pagarse en bolívares.
             {date && date < today && " Con esta fecha la cuota ya queda vencida."}
           </p>
           <p>Las cuotas ya pagadas y los pagos ya confirmados no cambian.</p>

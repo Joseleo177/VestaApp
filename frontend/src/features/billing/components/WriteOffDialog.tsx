@@ -37,7 +37,7 @@ export function WriteOffDialog({ charge, onClose, onDone }: WriteOffDialogProps)
     setSaving(true);
     try {
       const updated = await billingService.writeOff(charge.id, reason.trim());
-      toast.success(`Saldo de ${formatCurrency(remaining)} condonado`);
+      toast.success(`Saldo de ${formatCurrency(remaining, charge?.currency)} condonado`);
       onDone(updated);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo condonar el saldo");
@@ -58,11 +58,11 @@ export function WriteOffDialog({ charge, onClose, onDone }: WriteOffDialogProps)
             <p className="mb-1 text-xs text-ios-secondary">{charge.description}</p>
             <div className="flex justify-between">
               <span className="text-ios-secondary">Abonado</span>
-              <span className="text-ios-green">{formatCurrency(charge.amountPaid ?? 0)}</span>
+              <span className="text-ios-green">{formatCurrency(charge.amountPaid ?? 0, charge.currency)}</span>
             </div>
             <div className="flex justify-between border-t border-ios-separator pt-2">
               <span className="font-semibold text-ios-label">Saldo a condonar</span>
-              <span className="text-lg font-bold text-ios-label">{formatCurrency(remaining)}</span>
+              <span className="text-lg font-bold text-ios-label">{formatCurrency(remaining, charge?.currency)}</span>
             </div>
           </div>
 
@@ -98,7 +98,7 @@ export function WriteOffDialog({ charge, onClose, onDone }: WriteOffDialogProps)
               disabled={!valid}
               className="w-full justify-center sm:w-auto"
             >
-              Condonar {formatCurrency(remaining)}
+              Condonar {formatCurrency(remaining, charge?.currency)}
             </Button>
           </div>
         </div>

@@ -44,6 +44,12 @@ export const paymentService = {
     return data;
   },
 
+  /** Deshace un pago con saldo a favor: lo abonado vuelve al saldo. Devuelve el mensaje. */
+  async undoCredit(paymentId: string): Promise<string> {
+    const { data } = await api.post<{ message: string }>(`/payments/${paymentId}/undo-credit`);
+    return data.message;
+  },
+
   /** `allowSettled`: confirmar aunque sus cuotas ya estén pagadas (ver `useSettledGuard`). */
   async confirm(paymentId: string, allowSettled = false): Promise<void> {
     await api.post(`/payments/${paymentId}/confirm`, { allowSettled });

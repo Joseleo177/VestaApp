@@ -74,7 +74,7 @@ function Remaining({ p }: { p: PeriodRow }) {
   if (remaining <= 0.005) return <StatusMark label="Nada" tone="success" quiet="check" />;
   return (
     <>
-      <Money value={formatCurrency(remaining)} className="font-semibold text-ios-label" />
+      <Money value={formatCurrency(remaining, p.currencies?.length === 1 ? p.currencies[0] : null)} className="font-semibold text-ios-label" />
       {pr.overdue > 0 && (
         <p className="text-[12px] font-medium text-red-600 dark:text-red-400">
           {pr.overdue} vencida{pr.overdue === 1 ? "" : "s"}
@@ -166,7 +166,7 @@ export function PeriodsTable({ periods, loading, onSelect, onDeleted, onCreate }
                           </td>
                           <td>{pr ? <Progress p={pr} /> : <span className="text-ios-tertiary">—</span>}</td>
                           <td className="whitespace-nowrap text-right">
-                            <Money value={formatCurrency(p.total)} className="font-semibold text-ios-label" />
+                            <Money value={formatCurrency(p.total, single)} className="font-semibold text-ios-label" />
                             <p className="text-[12px] tabular-nums text-ios-secondary">
                               {rate ? `≈ ${formatBs(p.total, rate.rate)}` : "Tasa mixta"}
                             </p>

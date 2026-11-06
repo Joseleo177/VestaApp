@@ -118,6 +118,8 @@ function serializeCharge(charge: import("../models/Charge").Charge) {
             bank: a.payment?.bank ?? null,
             paymentDate: a.payment?.paymentDate ?? null,
             amount: Number(a.amount),
+            // Pagado con saldo a favor: el admin puede quitarlo y devolverlo al saldo.
+            fromCredit: !!a.payment?.fromCredit,
           }))
       : null,
     pendingPayment: pending

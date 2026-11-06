@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Money } from "@/components/ui/Money";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { commonCurrency, formatCurrency, paymentCurrencyOf, formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { daysPastDue, dueAmount } from "../dueDays";
 import { DueLabel } from "./DueLabel";
@@ -95,7 +95,7 @@ export function AccountHero(p: AccountHeroProps) {
           {owes ? (
             <>
               <Money
-                value={formatCurrency(p.balance)}
+                value={formatCurrency(p.balance, commonCurrency(p.open))}
                 className={cn(
                   "mt-1 block text-[34px] font-bold leading-tight tracking-tight",
                   p.overdue.length ? "text-red-600 dark:text-red-400" : "text-ios-label"
@@ -135,7 +135,7 @@ export function AccountHero(p: AccountHeroProps) {
           <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
             <Button size="lg" className="w-full sm:w-auto" onClick={p.onPayAll}>
               {p.payable.length === 1 ? "Pagar" : "Pagar todo"}
-              <Money value={formatCurrency(payableTotal)} className="opacity-90" />
+              <Money value={formatCurrency(payableTotal, commonCurrency(p.payable))} className="opacity-90" />
             </Button>
             <Link
               to="/datos-de-pago"
@@ -152,7 +152,7 @@ export function AccountHero(p: AccountHeroProps) {
           <span className="font-semibold">
             {p.inReview.length === 1 ? "Tienes un pago en revisión" : `Tienes ${p.inReview.length} pagos en revisión`}
           </span>{" "}
-          por <Money value={formatCurrency(reviewTotal)} className="font-semibold" />. La administración lo está
+          por <Money value={formatCurrency(reviewTotal, commonCurrency(p.inReview.map((x) => ({ currency: paymentCurrencyOf(x) }))))} className="font-semibold" />. La administración lo está
           validando; no hace falta que lo registres de nuevo.
         </Notice>
       )}
@@ -175,7 +175,7 @@ export function AccountHero(p: AccountHeroProps) {
         />
         <Fact
           label="Último pago"
-          value={p.lastConfirmed ? <Money value={formatCurrency(p.lastConfirmed.amount)} /> : "—"}
+          value={p.lastConfirmed ? <Money value={formatCurrency(p.lastConfirmed.amount, paymentCurrencyOf(p.lastConfirmed))} /> : "—"}
           sub={p.lastConfirmed ? formatDate(p.lastConfirmed.paymentDate) : "Sin pagos confirmados"}
         />
         <Fact

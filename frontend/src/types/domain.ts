@@ -108,6 +108,8 @@ export interface ChargeApplication {
   bank: string | null;
   paymentDate: string | null;
   amount: number;
+  /** Pago hecho con saldo a favor: se puede deshacer. */
+  fromCredit?: boolean;
 }
 
 export interface Charge {

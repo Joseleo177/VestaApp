@@ -6,7 +6,7 @@ import { Money } from "@/components/ui/Money";
 import { Page } from "@/components/ui/Page";
 import { Pagination } from "@/components/ui/Pagination";
 import { Segmented } from "@/components/ui/Segmented";
-import { formatCurrency } from "@/lib/format";
+import { commonCurrency, formatCurrency } from "@/lib/format";
 import { usePagination } from "@/lib/usePagination";
 import { useResident } from "../hooks/useResident";
 import { ChargeRow } from "../components/ChargeRow";
@@ -65,7 +65,7 @@ export function ChargesPage() {
             />
             {bulk && s.selected.length > 0 && (
               <Button size="sm" onClick={s.paySelected}>
-                Pagar <Money value={formatCurrency(s.selectedTotal)} />
+                Pagar <Money value={formatCurrency(s.selectedTotal, commonCurrency(s.selected))} />
               </Button>
             )}
           </div>

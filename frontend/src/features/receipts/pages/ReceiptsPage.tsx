@@ -12,7 +12,7 @@ import { SearchField } from "@/components/ui/SearchField";
 import { Segmented } from "@/components/ui/Segmented";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { StatusMark } from "@/components/ui/StatusMark";
-import { formatCurrency, formatDate, formatPeriod } from "@/lib/format";
+import { formatCurrency, paymentCurrencyOf, formatDate, formatPeriod } from "@/lib/format";
 import { normalize } from "@/lib/search";
 import { usePagination } from "@/lib/usePagination";
 import { cn } from "@/lib/cn";
@@ -191,7 +191,7 @@ export function ReceiptsPage() {
                     <td className="whitespace-nowrap text-right">
                       {r.payment ? (
                         <>
-                          <Money value={formatCurrency(r.payment.amount)} className="font-semibold text-ios-label" />
+                          <Money value={formatCurrency(r.payment.amount, paymentCurrencyOf(r.payment))} className="font-semibold text-ios-label" />
                           <p className="text-[12px] tabular-nums text-ios-secondary">
                             {r.payment.currency === PaymentCurrency.BS && r.payment.amountBs ? bs(r.payment.amountBs) : "En divisas"}
                           </p>
@@ -244,7 +244,7 @@ export function ReceiptsPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="font-semibold tabular-nums text-ios-label">{r.receiptNumber}</span>
-                    {r.payment && <Money value={formatCurrency(r.payment.amount)} className="shrink-0 font-semibold text-ios-label" />}
+                    {r.payment && <Money value={formatCurrency(r.payment.amount, paymentCurrencyOf(r.payment))} className="shrink-0 font-semibold text-ios-label" />}
                   </div>
                   <p className="truncate text-[12px] text-ios-secondary">
                     {[r.property?.owner, r.property?.code, coverTitle(r)].filter(Boolean).join(" · ")}

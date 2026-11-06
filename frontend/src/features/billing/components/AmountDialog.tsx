@@ -20,7 +20,7 @@ export const mergeAmount = (charge: Charge, updated: Charge): Charge => ({
 
 export type AmountTarget =
   | { kind: "charge"; charge: Charge }
-  | { kind: "period"; period: string; type: ChargeType; amount?: number; bsPrice?: number | null };
+  | { kind: "period"; period: string; type: ChargeType; amount?: number; bsPrice?: number | null; currency?: string | null };
 
 interface Props {
   target: AmountTarget | null;
@@ -38,6 +38,8 @@ const parse = (s: string) => (s.trim() === "" ? null : Math.round(Number(s) * 10
  */
 export function AmountDialog({ target, onClose, onDone }: Props) {
   const currentAmount = target?.kind === "charge" ? target.charge.amount : target?.amount;
+  // Moneda de la cuota (o del lote): con ella se muestran los montos.
+  const cur = target?.kind === "charge" ? target.charge.currency : target?.currency;
   const currentBs = target?.kind === "charge" ? target.charge.bsPrice ?? null : target?.bsPrice ?? null;
   const [amount, setAmount] = useState("");
   const [bsPrice, setBsPrice] = useState("");
@@ -64,11 +66,11 @@ export function AmountDialog({ target, onClose, onDone }: Props) {
     try {
       if (target.kind === "charge") {
         const updated = await billingService.setChargeAmount(target.charge.id, nextAmount, nextBs);
-        toast.success(`Monto corregido a ${formatCurrency(nextAmount)}`);
+        toast.success(`Monto corregido a ${formatCurrency(nextAmount, cur)}`);
         onDone(updated);
       } else {
         const { updated } = await billingService.setPeriodAmount(target.period, target.type, nextAmount, nextBs);
-        toast.success(`${updated} ${updated === 1 ? "cuota queda" : "cuotas quedan"} en ${formatCurrency(nextAmount)}`);
+        toast.success(`${updated} ${updated === 1 ? "cuota queda" : "cuotas quedan"} en ${formatCurrency(nextAmount, cur)}`);
         onDone();
       }
     } catch (err) {
@@ -128,18 +130,18 @@ export function AmountDialog({ target, onClose, onDone }: Props) {
         <div className="space-y-1.5 rounded-2xl bg-ios-fill/60 px-4 py-3 text-[13px] text-ios-secondary">
           {currentAmount != null && (
             <p>
-              Hoy es de <span className="font-semibold text-ios-label">{formatCurrency(currentAmount)}</span>
-              {currentBs != null && ` (${formatCurrency(currentBs)} en Bs)`}
+              Hoy es de <span className="font-semibold text-ios-label">{formatCurrency(currentAmount, cur)}</span>
+              {currentBs != null && ` (${formatCurrency(currentBs, cur)} en Bs)`}
               {changed && validAmount && nextAmount !== null && (
                 <>
-                  {" "}→ quedará en <span className="font-semibold text-ios-label">{formatCurrency(nextAmount)}</span>
-                  {nextBs !== null && ` (${formatCurrency(nextBs)} en Bs)`}
+                  {" "}→ quedará en <span className="font-semibold text-ios-label">{formatCurrency(nextAmount, cur)}</span>
+                  {nextBs !== null && ` (${formatCurrency(nextBs, cur)} en Bs)`}
                 </>
               )}
               .
             </p>
           )}
-          {paid > 0 && <p>Ya tiene abonado {formatCurrency(paid)}: el monto nuevo debe ser mayor.</p>}
+          {paid > 0 && <p>Ya tiene abonado {formatCurrency(paid, cur)}: el monto nuevo debe ser mayor.</p>}
           <p>Las cuotas ya pagadas no cambian.</p>
         </div>
 

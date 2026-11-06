@@ -14,7 +14,7 @@ import {
 import { Money } from "@/components/ui/Money";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { StatusDef, StatusMark } from "@/components/ui/StatusMark";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, paymentCurrencyOf, formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { chargeLabelFull, coveredCharges, paymentTitle } from "../coveredCharges";
 
@@ -142,7 +142,7 @@ export function PaymentsTable(props: PaymentsTableProps) {
                       </p>
                     </td>
                     <td className="whitespace-nowrap text-right">
-                      <Money value={formatCurrency(p.amount)} className="font-semibold text-ios-label" />
+                      <Money value={formatCurrency(p.amount, paymentCurrencyOf(p))} className="font-semibold text-ios-label" />
                       <p className="text-[12px] tabular-nums text-ios-secondary">
                         {p.currency === PaymentCurrency.BS && p.amountBs ? bs(Number(p.amountBs)) : "En divisas"}
                       </p>
@@ -204,7 +204,7 @@ export function PaymentsTable(props: PaymentsTableProps) {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between gap-2">
                       <p className="truncate text-[15px] font-semibold text-ios-label">{who}</p>
-                      <Money value={formatCurrency(p.amount)} className="shrink-0 text-[15px] font-semibold text-ios-label" />
+                      <Money value={formatCurrency(p.amount, paymentCurrencyOf(p))} className="shrink-0 text-[15px] font-semibold text-ios-label" />
                     </div>
                     <p className="truncate text-[12px] text-ios-secondary">
                       {[paymentTitle(p), p.property?.code, formatDate(p.paymentDate)].filter(Boolean).join(" · ")}

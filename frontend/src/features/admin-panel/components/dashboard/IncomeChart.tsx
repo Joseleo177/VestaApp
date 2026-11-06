@@ -3,7 +3,7 @@ import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Money } from "@/components/ui/Money";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { formatCurrency } from "@/lib/format";
+import { currencySymbol, formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { MonthIncome } from "../../hooks/useAdminDashboard";
 
@@ -119,7 +119,7 @@ export function IncomeChart({ loading, months, thisMonth, lastMonth }: IncomeCha
                           className="absolute z-10 -translate-y-full whitespace-nowrap pb-1.5 text-[11px] font-semibold tabular-nums text-ios-label"
                           style={{ bottom: `${h}%` }}
                         >
-                          {compact.format(m.total)}
+                          {currencySymbol()} {compact.format(m.total)}
                         </span>
                       )}
                       <span

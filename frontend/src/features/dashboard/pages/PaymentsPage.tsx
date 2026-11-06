@@ -3,7 +3,7 @@ import { PaymentStatus } from "@/types/domain";
 import { Card } from "@/components/ui/Card";
 import { EmptyBlock } from "@/components/ui/Ledger";
 import { Money } from "@/components/ui/Money";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { commonCurrency, formatCurrency, paymentCurrencyOf, formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { Page } from "@/components/ui/Page";
 import { Pagination } from "@/components/ui/Pagination";
@@ -44,7 +44,12 @@ export function PaymentsPage() {
       (best, p) => (!best || p.paymentDate > best.paymentDate ? p : best),
       null
     );
-    return { total: thisYear.reduce((sum, p) => sum + Number(p.amount), 0), count: thisYear.length, last };
+    return {
+      total: thisYear.reduce((sum, p) => sum + Number(p.amount), 0),
+      currency: commonCurrency(thisYear.map((p) => ({ currency: paymentCurrencyOf(p) }))),
+      count: thisYear.length,
+      last,
+    };
   }, [s.payments, year]);
 
   return (
@@ -52,7 +57,7 @@ export function PaymentsPage() {
       {!s.loadingPayments && s.payments.length > 0 && (
         <Card className="mb-4 grid grid-cols-2 divide-ios-separator sm:grid-cols-3 sm:divide-x">
           <Stat label={`Pagado en ${year}`}>
-            <Money value={formatCurrency(summary.total)} className="text-[20px] font-bold text-ios-label" />
+            <Money value={formatCurrency(summary.total, summary.currency)} className="text-[20px] font-bold text-ios-label" />
             <span className="block text-[12px] text-ios-secondary">
               {summary.count} {summary.count === 1 ? "pago confirmado" : "pagos confirmados"}
             </span>
@@ -63,7 +68,7 @@ export function PaymentsPage() {
                 <span className="block text-[20px] font-bold tabular-nums text-ios-label">
                   {formatDate(summary.last.paymentDate)}
                 </span>
-                <Money value={formatCurrency(summary.last.amount)} className="block text-[12px] text-ios-secondary" />
+                <Money value={formatCurrency(summary.last.amount, paymentCurrencyOf(summary.last))} className="block text-[12px] text-ios-secondary" />
               </>
             ) : (
               <span className="block text-[20px] font-bold text-ios-label">—</span>

@@ -12,6 +12,8 @@ export interface MoraTarget {
   period: string;
   current: number;
   dueDate?: string;
+  /** Moneda del lote; sin ella, la principal. */
+  currency?: string | null;
 }
 
 interface Props {
@@ -44,7 +46,7 @@ export function MoraDialog({ target, onClose, onDone }: Props) {
       const { updated } = await billingService.setPeriodMora(target.period, amount);
       toast.success(
         amount > 0
-          ? `${updated} ${updated === 1 ? "cuota lleva" : "cuotas llevan"} ahora mora de ${formatCurrency(amount)}`
+          ? `${updated} ${updated === 1 ? "cuota lleva" : "cuotas llevan"} ahora mora de ${formatCurrency(amount, target?.currency)}`
           : `Se quitó la mora a ${updated} ${updated === 1 ? "cuota" : "cuotas"}`
       );
       onDone();
@@ -84,13 +86,13 @@ export function MoraDialog({ target, onClose, onDone }: Props) {
         <div className="space-y-1.5 rounded-2xl bg-ios-fill/60 px-4 py-3 text-[13px] text-ios-secondary">
           <p>
             Hoy {target?.current ? (
-              <>la mora es de <span className="font-semibold text-ios-label">{formatCurrency(target.current)}</span></>
+              <>la mora es de <span className="font-semibold text-ios-label">{formatCurrency(target.current, target.currency)}</span></>
             ) : (
               <span className="font-semibold text-ios-label">no tiene mora</span>
             )}
             {changed && (
               <>
-                {" "}→ pasará a <span className="font-semibold text-ios-label">{formatCurrency(amount)}</span>
+                {" "}→ pasará a <span className="font-semibold text-ios-label">{formatCurrency(amount, target?.currency)}</span>
               </>
             )}
             .

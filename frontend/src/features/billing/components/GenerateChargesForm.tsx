@@ -420,17 +420,17 @@ export function GenerateChargesForm({ onGenerated, onCancel, emittedPeriods = []
               <span className="font-semibold">
                 {targetCount} {targetCount === 1 ? "cuota" : "cuotas"}
               </span>{" "}
-              de <span className="font-semibold">{formatCurrency(amount)}</span>
+              de <span className="font-semibold">{formatCurrency(amount, currency)}</span>
               {bsPrice !== null && (
                 <>
                   {" "}
-                  (<span className="font-semibold">{formatCurrency(bsPrice)}</span> si pagan en Bs)
+                  (<span className="font-semibold">{formatCurrency(bsPrice, currency)}</span> si pagan en Bs)
                 </>
               )}
               {targetCount > 1 && bsPrice === null && (
                 <>
                   {" "}
-                  (<span className="font-semibold">{formatCurrency(amount * targetCount)}</span> en total)
+                  (<span className="font-semibold">{formatCurrency(amount * targetCount, currency)}</span> en total)
                 </>
               )}
               .

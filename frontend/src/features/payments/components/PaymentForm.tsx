@@ -33,9 +33,14 @@ interface PaymentFormProps {
   creditBalance?: number;
   onSuccess: () => void;
   onCancel: () => void;
+  /**
+   * Se usó o se deshizo el saldo a favor sin cerrar el formulario: el padre
+   * recarga cuotas y saldo (el formulario espera a que termine).
+   */
+  onChanged?: () => Promise<void> | void;
 }
 
-export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, creditBalance = 0, onSuccess, onCancel }: PaymentFormProps) {
+export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, creditBalance = 0, onSuccess, onCancel, onChanged }: PaymentFormProps) {
   // En hora local: con toISOString, de noche en Venezuela ya era el día siguiente.
   const today = toISODate(new Date());
   // Solo inicial: lo que se marque después vive en el formulario.
@@ -114,6 +119,21 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, credit
   );
   const multi = selectedCharges.length > 1;
   const selected = selectedCharges[0];
+  // Símbolo de los montos: pagando en dólares, "$"; en Bs, el de la tasa de la
+  // cuota (si las elegidas mezclan tasas, el de la principal).
+  const chargeCur = (c: Charge) => (isBS ? c.currency : "USD");
+  const selCur = isBS
+    ? new Set(selectedCharges.map((c) => c.currency)).size === 1 ? selectedCharges[0].currency : null
+    : "USD";
+
+  // Una cuota que el saldo a favor dejó pagada sale de la lista al recargar:
+  // tampoco puede seguir marcada para este pago.
+  useEffect(() => {
+    const valid = chargeIds.filter((id) => selectable.some((c) => c.id === id));
+    if (valid.length > 0 && valid.length !== chargeIds.length) {
+      setValue("chargeIds", valid, { shouldValidate: true });
+    }
+  }, [selectable, chargeIds, setValue]);
 
   const toggleCharge = (id: string) => {
     const next = chargeIds.includes(id) ? chargeIds.filter((x) => x !== id) : [...chargeIds, id];
@@ -170,8 +190,8 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, credit
     Math.abs(bsExtra) < 0.005
       ? null
       : (bsExtra > 0) !== isBS
-        ? { saves: true, text: `Pagando en ${isBS ? "Bs" : "divisas"} te ahorras ${formatCurrency(Math.abs(bsExtra))}.` }
-        : { saves: false, text: `Pagando en ${isBS ? "divisas" : "Bs"} serían ${formatCurrency(Math.abs(bsExtra))} menos.` };
+        ? { saves: true, text: `Pagando en ${isBS ? "Bs" : "divisas"} te ahorras ${formatCurrency(Math.abs(bsExtra), selCur)}.` }
+        : { saves: false, text: `Pagando en ${isBS ? "divisas" : "Bs"} serían ${formatCurrency(Math.abs(bsExtra), selCur)} menos.` };
   const promoNote = promo && (
     <p
       className={
@@ -266,7 +286,10 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, credit
   );
   const creditUse = round2(Math.min(creditBalance, owedDivisas));
   const [usingCredit, setUsingCredit] = useState(false);
-  const [creditResult, setCreditResult] = useState<{ applied: number; left: number } | null>(null);
+  // Saldo a favor ya aplicado desde este formulario. Si no alcanzó para todo,
+  // el formulario sigue abierto para registrar el resto; se puede deshacer.
+  const [appliedCredit, setAppliedCredit] = useState<{ paymentId: string; amount: number; covered: boolean } | null>(null);
+  const [undoingCredit, setUndoingCredit] = useState(false);
 
   const payWithCredit = async () => {
     setSubmitError(null);
@@ -274,11 +297,31 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, credit
     try {
       const payment = await paymentService.payWithCredit(chargeIds);
       const applied = Number(payment.amount);
-      setCreditResult({ applied, left: round2(Math.max(0, owedDivisas - applied)) });
+      // Antes de soltar el botón, cuotas y saldo frescos: lo que falta se calcula con ellos.
+      await onChanged?.();
+      setAppliedCredit({ paymentId: payment.id, amount: applied, covered: applied >= owedDivisas - 0.005 });
+      // El monto sugerido se vuelve a calcular con lo que quedó pendiente.
+      setAmountTouched(false);
     } catch (err) {
       setSubmitError(err instanceof ApiError ? err.message : "No se pudo usar el saldo a favor");
     } finally {
       setUsingCredit(false);
+    }
+  };
+
+  const undoCredit = async () => {
+    if (!appliedCredit) return;
+    setSubmitError(null);
+    setUndoingCredit(true);
+    try {
+      await paymentService.undoCredit(appliedCredit.paymentId);
+      await onChanged?.();
+      setAppliedCredit(null);
+      setAmountTouched(false);
+    } catch (err) {
+      setSubmitError(err instanceof ApiError ? err.message : "No se pudo deshacer el saldo a favor");
+    } finally {
+      setUndoingCredit(false);
     }
   };
 
@@ -313,7 +356,8 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, credit
     );
   }
 
-  if (creditResult) {
+  // El saldo alcanzó para todo: no queda nada que registrar.
+  if (appliedCredit?.covered) {
     return (
       <div className="flex flex-col items-center gap-5 py-4 text-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-violet-500/10">
@@ -322,15 +366,26 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, credit
         <div>
           <h3 className="text-lg font-semibold text-ios-label">Pagado con saldo a favor</h3>
           <p className="mt-1.5 max-w-xs text-sm text-ios-secondary">
-            Se aplicaron {formatCurrency(creditResult.applied)} del saldo a favor.{" "}
-            {creditResult.left > 0.005
-              ? `Quedan ${formatCurrency(creditResult.left)} por pagar: regístralos como un pago normal.`
-              : "Las cuotas elegidas quedaron pagadas; el recibo está en el historial."}
+            Se aplicaron {formatCurrency(appliedCredit.amount)} del saldo a favor. Las cuotas elegidas quedaron
+            pagadas; el recibo está en el historial.
           </p>
         </div>
-        <Button className="w-full justify-center" onClick={onSuccess}>
-          Cerrar
-        </Button>
+        {submitError && (
+          <p className="w-full rounded-lg bg-ios-red/10 px-3 py-2 text-sm text-ios-red">{submitError}</p>
+        )}
+        <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
+          <Button
+            variant="outline"
+            className="w-full justify-center sm:w-auto"
+            loading={undoingCredit}
+            onClick={() => void undoCredit()}
+          >
+            Deshacer
+          </Button>
+          <Button className="w-full justify-center sm:w-auto" onClick={onSuccess} disabled={undoingCredit}>
+            Cerrar
+          </Button>
+        </div>
       </div>
     );
   }
@@ -345,8 +400,30 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, credit
 
   return (
     <form onSubmit={handleSubmit(onSubmit, onValidationError)} className="space-y-4">
+      {/* Saldo a favor ya aplicado que no alcanzó: el resto se registra aquí mismo. */}
+      {appliedCredit && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-violet-500/30 bg-violet-500/[0.06] p-4">
+          <div className="min-w-0 text-sm">
+            <p className="font-semibold text-violet-700 dark:text-violet-300">
+              Se aplicaron {formatCurrency(appliedCredit.amount)} del saldo a favor
+            </p>
+            <p className="text-[13px] text-ios-secondary">Registra abajo lo que falta por pagar.</p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            loading={undoingCredit}
+            disabled={isSubmitting}
+            onClick={() => void undoCredit()}
+          >
+            Deshacer
+          </Button>
+        </div>
+      )}
+
       {/* Saldo a favor: paga sin transferir, hasta donde alcance. */}
-      {creditUse > 0.005 && (
+      {!appliedCredit && creditUse > 0.005 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-violet-500/30 bg-violet-500/[0.06] p-4">
           <div className="min-w-0 text-sm">
             <p className="font-semibold text-violet-700 dark:text-violet-300">
@@ -354,8 +431,8 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, credit
             </p>
             <p className="text-[13px] text-ios-secondary">
               {creditUse >= owedDivisas - 0.005
-                ? `Alcanza para ${selectedCharges.length > 1 ? "las cuotas elegidas" : "esta cuota"} (${formatCurrency(owedDivisas)}).`
-                : `Cubre ${formatCurrency(creditUse)} de ${formatCurrency(owedDivisas)}; el resto se paga aparte.`}
+                ? `Alcanza para ${selectedCharges.length > 1 ? "las cuotas elegidas" : "esta cuota"} (${formatCurrency(owedDivisas, selCur)}).`
+                : `Cubre ${formatCurrency(creditUse, selCur)} de ${formatCurrency(owedDivisas, selCur)}; el resto se paga aparte.`}
             </p>
           </div>
           <Button
@@ -401,7 +478,7 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, credit
                   <span className="font-medium text-ios-label">{chargeLabel(c)}</span>
                   <span className="block truncate text-xs text-ios-secondary">{c.description}</span>
                 </span>
-                <span className="shrink-0 font-medium text-ios-label">{formatCurrency(dueFor(c))}</span>
+                <span className="shrink-0 font-medium text-ios-label">{formatCurrency(dueFor(c), chargeCur(c))}</span>
               </label>
             ))}
           </div>
@@ -417,7 +494,7 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, credit
             <span className="font-semibold text-ios-label">
               Total a pagar ({selectedCharges.length} cuotas)
             </span>
-            <span className="text-lg font-bold text-ios-label">{formatCurrency(multiTotal)}</span>
+            <span className="text-lg font-bold text-ios-label">{formatCurrency(multiTotal, selCur)}</span>
           </div>
           {multiMoraAnnulled && (
             <p className="mt-2 rounded-lg bg-ios-green/10 px-2.5 py-1.5 text-xs text-ios-green">
@@ -458,24 +535,24 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, credit
             <>
               <div className="flex items-center justify-between">
                 <span className="text-ios-secondary"> Monto Cuota</span>
-                <span className="text-ios-secondary">{formatCurrency(priceFor(selected, isBS))}</span>
+                <span className="text-ios-secondary">{formatCurrency(priceFor(selected, isBS), selCur)}</span>
               </div>
               {overdueAtPaymentDate && (selected.moraAmount ?? 0) > 0 && (
                 <div className="flex items-center justify-between">
                   <span className="text-ios-secondary">Mora (vencida)</span>
                   <span className={moraAnnulled ? "text-ios-green line-through" : "font-medium text-ios-red"}>
-                    {formatCurrency(selected.moraAmount ?? 0)}
+                    {formatCurrency(selected.moraAmount ?? 0, selCur)}
                   </span>
                 </div>
               )}
               <div className="flex items-center justify-between">
                 <span className="text-ios-secondary">Ya pagado</span>
-                <span className="text-ios-green">– {formatCurrency(selected.amountPaid ?? 0)}</span>
+                <span className="text-ios-green">– {formatCurrency(selected.amountPaid ?? 0, selCur)}</span>
               </div>
               <div className="flex items-center justify-between border-t border-ios-separator pt-2 mt-1">
                 <span className="font-semibold text-ios-label">Pendiente</span>
                 <span className="text-lg font-bold text-ios-label">
-                  {formatCurrency(isBS ? amountEurForBs : amountEurRef)}
+                  {formatCurrency(isBS ? amountEurForBs : amountEurRef, selCur)}
                 </span>
               </div>
               {promoNote}
@@ -484,20 +561,20 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, credit
             <>
               <div className="flex items-center justify-between">
                 <span className="text-ios-secondary">Monto Cuota</span>
-                <span className="font-medium text-ios-label">{formatCurrency(priceFor(selected, isBS))}</span>
+                <span className="font-medium text-ios-label">{formatCurrency(priceFor(selected, isBS), selCur)}</span>
               </div>
               {overdueAtPaymentDate && (selected.moraAmount ?? 0) > 0 && (
                 <div className="flex items-center justify-between">
                   <span className="text-ios-secondary">Mora (vencida)</span>
                   <span className={moraAnnulled ? "text-ios-green line-through" : "font-medium text-ios-red"}>
-                    {formatCurrency(selected.moraAmount ?? 0)}
+                    {formatCurrency(selected.moraAmount ?? 0, selCur)}
                   </span>
                 </div>
               )}
               <div className="flex items-center justify-between border-t border-ios-separator pt-2 mt-1">
                 <span className="font-semibold text-ios-label">Total a pagar</span>
                 <span className="text-lg font-bold text-ios-label">
-                  {formatCurrency(isBS ? amountEurForBs : amountEurRef)}
+                  {formatCurrency(isBS ? amountEurForBs : amountEurRef, selCur)}
                 </span>
               </div>
               {moraAnnulled && (
@@ -574,12 +651,12 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, credit
             />
           ) : (
             <p className="text-[13px] text-ios-secondary">
-              Se registra el total: <span className="font-semibold text-ios-label">{formatCurrency(totalRef)}</span>.
+              Se registra el total: <span className="font-semibold text-ios-label">{formatCurrency(totalRef, selCur)}</span>.
             </p>
           )}
 
           {mode === "full" && isBS && eurFromBs !== null && (
-            <p className="text-[12px] text-ios-secondary">Equivalente estimado: {formatCurrency(eurFromBs)}</p>
+            <p className="text-[12px] text-ios-secondary">Equivalente estimado: {formatCurrency(eurFromBs, selCur)}</p>
           )}
 
           {mode === "partial" && paidRef !== null && pendingAfter !== null && (
@@ -592,13 +669,13 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, credit
             >
               {pendingAfter > 0.005 ? (
                 <>
-                  Abona <span className="font-semibold">{formatCurrency(paidRef)}</span> y quedan{" "}
-                  <span className="font-semibold">{formatCurrency(pendingAfter)}</span> pendientes.
+                  Abona <span className="font-semibold">{formatCurrency(paidRef, selCur)}</span> y quedan{" "}
+                  <span className="font-semibold">{formatCurrency(pendingAfter, selCur)}</span> pendientes.
                   {multi ? " Se aplica primero a la cuota más antigua." : " La cuota queda abonada en parte."}
                 </>
               ) : pendingAfter < -0.005 ? (
                 <>
-                  Cubre el total y sobran <span className="font-semibold">{formatCurrency(-pendingAfter)}</span>, que quedan
+                  Cubre el total y sobran <span className="font-semibold">{formatCurrency(-pendingAfter, selCur)}</span>, que quedan
                   como saldo a favor.
                 </>
               ) : (
@@ -695,7 +772,7 @@ export function PaymentForm({ charges, defaultChargeId, defaultChargeIds, credit
 
       <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end sm:gap-3">
         <Button type="button" variant="outline" onClick={onCancel} className="w-full sm:w-auto justify-center">Cancelar</Button>
-        <Button type="submit" loading={isSubmitting} disabled={charges.length === 0} className="w-full sm:w-auto justify-center">
+        <Button type="submit" loading={isSubmitting} disabled={charges.length === 0 || usingCredit || undoingCredit} className="w-full sm:w-auto justify-center">
           {isSubmitting ? "Verificando..." : "Registrar pago"}
         </Button>
       </div>

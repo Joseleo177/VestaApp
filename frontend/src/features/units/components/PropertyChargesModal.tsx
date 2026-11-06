@@ -69,7 +69,7 @@ function paymentLine(c: Charge): string | null {
   const parts =
     apps.length > 0
       ? apps.map((a) =>
-          [a.paymentDate && formatDate(a.paymentDate), a.reference && `Ref. ${a.reference}`, apps.length > 1 && formatCurrency(a.amount)]
+          [a.paymentDate && formatDate(a.paymentDate), a.reference && `Ref. ${a.reference}`, apps.length > 1 && formatCurrency(a.amount, c.currency)]
             .filter(Boolean)
             .join(" · ")
         )
@@ -95,32 +95,40 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
   const [revertTarget, setRevertTarget] = useState<Charge | null>(null);
   const [dueTarget, setDueTarget] = useState<Charge | null>(null);
   const [amountTarget, setAmountTarget] = useState<Charge | null>(null);
+  // Cuota a la que se le quita el saldo a favor aplicado (el último uso).
+  const [undoCreditTarget, setUndoCreditTarget] = useState<Charge | null>(null);
   const [chosen, setChosen] = useState<Filter | null>(null);
   const [credit, setCredit] = useState<CreditInfo | null>(null);
   const [creditOpen, setCreditOpen] = useState(false);
   const owner = property?.owner ?? null;
 
   // El saldo a favor es del titular: se pide fresco, no el de la lista de departamentos.
-  const loadCredit = () => {
+  const loadCredit = async () => {
     if (!owner) return setCredit(null);
-    userService.getCredit(owner.id).then(setCredit).catch(() => setCredit(null));
+    await userService.getCredit(owner.id).then(setCredit).catch(() => setCredit(null));
   };
 
-  const load = () => {
+  const load = async () => {
     if (!property) return;
     setLoading(true);
-    billingService
-      .listForProperty(property.id)
-      .then(setCharges)
-      .catch(() => toast.error("No se pudieron cargar las cuotas"))
-      .finally(() => setLoading(false));
-    loadCredit();
+    await Promise.all([
+      billingService
+        .listForProperty(property.id)
+        .then(setCharges)
+        .catch(() => toast.error("No se pudieron cargar las cuotas"))
+        .finally(() => setLoading(false)),
+      loadCredit(),
+    ]);
   };
+
+  /** Último uso del saldo a favor en la cuota: es el que se puede quitar. */
+  const creditAppOf = (c: Charge) =>
+    [...(c.applications ?? [])].reverse().find((a) => a.fromCredit && a.paymentId) ?? null;
 
   useEffect(() => {
     if (!open || !property) return;
     setChosen(null);
-    load();
+    void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, property]);
 
@@ -129,6 +137,8 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
   const open_ = useMemo(() => charges.filter(isOpen), [charges]);
   const payable = open_.filter((c) => !c.pendingPayment);
   const debt = open_.reduce((s, c) => s + due(c), 0);
+  // La deuda lleva el símbolo de sus cuotas si todas comparten tasa; si no, el de la principal.
+  const openCur = new Set(open_.map((c) => c.currency)).size === 1 ? open_[0].currency : null;
   const overdue = open_.filter((c) => c.overdue).length;
   const debtMora = open_.reduce((s, c) => s + moraIn(c), 0);
   const paidCount = charges.filter((c) => c.status === ChargeStatus.PAID).length;
@@ -194,8 +204,28 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
     });
   };
 
+  const handleUndoCredit = async () => {
+    const target = undoCreditTarget;
+    const app = target && creditAppOf(target);
+    if (!target || !app?.paymentId) return;
+    await run(target, async () => {
+      toast.success(await paymentService.undoCredit(app.paymentId!));
+      setUndoCreditTarget(null);
+      await load();
+    });
+  };
+
   const menuFor = (c: Charge): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
+    // Saldo a favor aplicado sin querer (o a la cuota que no era): vuelve al saldo.
+    const creditApp = creditAppOf(c);
+    if (creditApp)
+      items.push({
+        label: "Quitar saldo a favor",
+        icon: Undo2,
+        onClick: () => setUndoCreditTarget(c),
+        hint: `Se aplicó ${formatCurrency(creditApp.amount, c.currency)}`,
+      });
     if (c.status === ChargeStatus.PARTIAL)
       items.push({
         label: "Condonar el saldo",
@@ -215,7 +245,7 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
         icon: Coins,
         onClick: () => setAmountTarget(c),
         disabled: !!c.pendingPayment,
-        hint: c.pendingPayment ? "Tiene un pago en revisión" : `Hoy es de ${formatCurrency(c.amount)}`,
+        hint: c.pendingPayment ? "Tiene un pago en revisión" : `Hoy es de ${formatCurrency(c.amount, c.currency)}`,
       });
     if (c.status === ChargeStatus.PENDING) items.push({ label: "Exonerar", icon: Ban, onClick: () => toggleExonerated(c) });
     if (c.status === ChargeStatus.EXONERATED) items.push({ label: "Reactivar", icon: RotateCcw, onClick: () => toggleExonerated(c) });
@@ -257,13 +287,13 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
                 {debt > 0.005 ? (
                   <>
                     <Money
-                      value={formatCurrency(debt)}
+                      value={formatCurrency(debt, openCur)}
                       className={cn("block text-[26px] font-bold leading-tight", overdue ? "text-red-600 dark:text-red-400" : "text-ios-label")}
                     />
                     <p className="text-[12px] text-ios-secondary">
                       {open_.length} {open_.length === 1 ? "cuota abierta" : "cuotas abiertas"}
                       {overdue > 0 && ` · ${overdue} vencida${overdue === 1 ? "" : "s"}`}
-                      {debtMora > 0.005 && ` · ${formatCurrency(debtMora)} de mora`}
+                      {debtMora > 0.005 && ` · ${formatCurrency(debtMora, openCur)} de mora`}
                     </p>
                   </>
                 ) : (
@@ -340,8 +370,8 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
                       {[
                         c.description,
                         isOpen(c) && `Vence ${formatDate(c.dueDate)}`,
-                        isOpen(c) && c.bsPrice != null && c.bsPrice !== c.amount && `${formatCurrency(c.bsPrice)} si paga en Bs`,
-                        c.status === ChargeStatus.PARTIAL && paid > 0 && `Abonó ${formatCurrency(paid)}`,
+                        isOpen(c) && c.bsPrice != null && c.bsPrice !== c.amount && `${formatCurrency(c.bsPrice, c.currency)} si paga en Bs`,
+                        c.status === ChargeStatus.PARTIAL && paid > 0 && `Abonó ${formatCurrency(paid, c.currency)}`,
                         c.pendingPayment && "Pago en revisión",
                       ]
                         .filter(Boolean)
@@ -350,7 +380,7 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
                     {line && <p className="truncate text-[12px] text-ios-secondary">{line}</p>}
                     {c.writeOff && (
                       <p className="truncate text-[12px] text-violet-700 dark:text-violet-300">
-                        Condonado {formatCurrency(c.writeOff.amount)}: {c.writeOff.reason}
+                        Condonado {formatCurrency(c.writeOff.amount, c.currency)}: {c.writeOff.reason}
                       </p>
                     )}
                     {c.status === ChargeStatus.PAID && !line && !c.writeOff && (
@@ -360,12 +390,12 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
 
                   <div className="shrink-0 text-right">
                     <Money
-                      value={formatCurrency(c.status === ChargeStatus.PAID ? c.amountPaid ?? c.amount : due(c))}
+                      value={formatCurrency(c.status === ChargeStatus.PAID ? c.amountPaid ?? c.amount : due(c), c.currency)}
                       className="text-[14px] font-semibold text-ios-label"
                     />
                     {moraIn(c) > 0 ? (
                       <p className="whitespace-nowrap text-[11px] text-red-600 dark:text-red-400">
-                        con {formatCurrency(moraIn(c))} de mora
+                        con {formatCurrency(moraIn(c), c.currency)} de mora
                       </p>
                     ) : receipt ? (
                       <p className="whitespace-nowrap text-[11px] tabular-nums text-ios-secondary">{receipt}</p>
@@ -431,9 +461,25 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
         onClose={() => setRevertTarget(null)}
         onConfirm={() => void handleRevert()}
         title="Revertir condonación"
-        description={`La cuota de ${revertTarget ? formatPeriod(revertTarget.period) : ""} vuelve a quedar con ${revertTarget?.writeOff ? formatCurrency(revertTarget.writeOff.amount) : ""} pendiente, y se anula el recibo emitido al condonar.`}
+        description={`La cuota de ${revertTarget ? formatPeriod(revertTarget.period) : ""} vuelve a quedar con ${revertTarget?.writeOff ? formatCurrency(revertTarget.writeOff.amount, revertTarget.currency) : ""} pendiente, y se anula el recibo emitido al condonar.`}
         confirmLabel="Revertir"
         loading={busyId === revertTarget?.id}
+      />
+
+      <ConfirmDialog
+        open={undoCreditTarget !== null}
+        onClose={() => setUndoCreditTarget(null)}
+        onConfirm={() => void handleUndoCredit()}
+        title={`¿Quitar el saldo a favor de ${undoCreditTarget ? formatPeriod(undoCreditTarget.period) : ""}?`}
+        description={
+          undoCreditTarget
+            ? `Lo aplicado (${formatCurrency(creditAppOf(undoCreditTarget)?.amount ?? 0, undoCreditTarget.currency)}) vuelve al saldo a favor del titular y la cuota queda como estaba antes. ` +
+              "Si ese uso del saldo pagó otras cuotas a la vez, también se les quita. " +
+              (undoCreditTarget.status === ChargeStatus.PAID ? "El recibo de la cuota queda anulado." : "")
+            : ""
+        }
+        confirmLabel="Quitar saldo a favor"
+        loading={busyId === undoCreditTarget?.id}
       />
 
       <ConfirmDialog
@@ -443,7 +489,7 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
         title={`¿Anular la cuota de ${deleteTarget ? formatPeriod(deleteTarget.period) : ""}?`}
         description={
           deleteTarget && Number(deleteTarget.amountPaid ?? 0) > 0
-            ? `Desaparece del estado de cuenta del departamento. Lo abonado (${formatCurrency(Number(deleteTarget.amountPaid))}) pasa al saldo a favor del titular. Esta acción no se puede deshacer.`
+            ? `Desaparece del estado de cuenta del departamento. Lo abonado (${formatCurrency(Number(deleteTarget.amountPaid), deleteTarget.currency)}) pasa al saldo a favor del titular. Esta acción no se puede deshacer.`
             : "Desaparece del estado de cuenta del departamento, como si nunca se hubiera emitido. Esta acción no se puede deshacer."
         }
         confirmLabel="Anular cuota"
@@ -469,9 +515,10 @@ export function PropertyChargesModal({ property, open, onClose }: PropertyCharge
             creditBalance={credit?.creditBalance ?? 0}
             onSuccess={() => {
               setPayIds(null);
-              load();
+              void load();
             }}
             onCancel={() => setPayIds(null)}
+            onChanged={load}
           />
         )}
       </Modal>
