@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { PaymentCurrency } from "@/types/domain";
 
-export const MODALIDADES_BS      = ["Efectivo", "Transferencia"] as const;
-export const MODALIDADES_DIVISAS = ["Efectivo", "Transferencia"] as const;
+// El primer valor es el predeterminado (el form lo aplica al cambiar de moneda).
+export const MODALIDADES_BS      = ["Transferencia", "Efectivo"] as const;
+export const MODALIDADES_DIVISAS = ["Transferencia", "Efectivo"] as const;
 
 export const paymentSchema = z
   .object({
