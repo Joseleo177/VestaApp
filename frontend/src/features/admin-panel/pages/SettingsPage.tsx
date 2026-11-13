@@ -255,7 +255,7 @@ export function SettingsPage() {
               icon={Landmark}
               tone="bg-sky-500/[0.12] text-sky-600 dark:text-sky-400"
               title="Cuenta en bolívares"
-              description="Para transferencias en Bs. Los pagos que llegan aquí se concilian con el extracto."
+              description="Para transferencias en Bs. Con este número se reconoce solo el extracto de esta cuenta al subirlo."
               aside={
                 <AccountPreview
                   title="Pago en bolívares"
@@ -278,7 +278,7 @@ export function SettingsPage() {
               icon={Coins}
               tone="bg-lime-500/[0.14] text-lime-700 dark:text-lime-400"
               title="Cuenta en divisas"
-              description="Para transferencias en $. No aparecen en el extracto en Bs, así que se confirman a mano."
+              description="Para transferencias en $. Con el número de cuenta (no un correo) se reconoce solo su extracto al subirlo."
               aside={
                 <AccountPreview
                   title="Pago en divisas"

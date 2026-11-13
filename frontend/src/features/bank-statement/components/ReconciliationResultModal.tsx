@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertTriangle, Check, ChevronDown, FileSpreadsheet } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Check, ChevronDown, FileSpreadsheet } from "lucide-react";
 import { Modal, ModalIcon } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Money } from "@/components/ui/Money";
@@ -27,6 +27,36 @@ function Stat({ label, value, tone }: { label: string; value: number; tone?: str
       <p className={cn("text-[22px] font-bold leading-tight tabular-nums text-ios-label", tone)}>{value}</p>
       <p className="text-[12px] text-ios-secondary">{label}</p>
     </div>
+  );
+}
+
+const accountName = (a: StatementAccount) => (a === "USD" ? "la cuenta en $" : "la cuenta en Bs");
+
+/** A qué cuenta fue el extracto y por qué: el número de cuenta del archivo manda sobre la pestaña. */
+function AccountNote({ result }: { result: ReconciliationResult }) {
+  if (result.accountSource === "file" && result.currency !== result.selectedCurrency) {
+    return (
+      <p className="-mt-2 flex items-start gap-2 rounded-xl border border-sky-500/25 bg-sky-500/[0.07] px-4 py-3 text-[13px] text-sky-800 dark:text-sky-300">
+        <ArrowLeftRight className="mt-0.5 h-4 w-4 shrink-0" />
+        <span>
+          Estaba elegida {accountName(result.selectedCurrency)}, pero el número de cuenta del archivo es el de{" "}
+          <strong>{accountName(result.currency)}</strong>: se cargó ahí.
+        </span>
+      </p>
+    );
+  }
+  if (result.accountSource === "file") {
+    return (
+      <p className="-mt-2 text-[12px] text-ios-secondary">
+        Número de cuenta verificado: es el de {accountName(result.currency)}.
+      </p>
+    );
+  }
+  return (
+    <p className="-mt-2 text-[12px] text-ios-secondary">
+      No se encontró en el archivo el número de cuenta configurado en Ajustes: se cargó en{" "}
+      {accountName(result.currency)}, la que estaba elegida.
+    </p>
   );
 }
 
@@ -64,6 +94,8 @@ export function ReconciliationResultModal({ open, onClose, result, busyId, onCon
           <Stat label="Confirmados" value={result.confirmed.length} tone="text-emerald-700 dark:text-emerald-400" />
           <Stat label="Por revisar" value={pendingReview} tone={pendingReview ? "text-amber-700 dark:text-amber-400" : undefined} />
         </div>
+        <AccountNote result={result} />
+
         {result.duplicates > 0 && (
           <p className="-mt-2 text-[12px] text-ios-secondary">
             {result.duplicates} {result.duplicates === 1 ? "fila ya estaba cargada" : "filas ya estaban cargadas"} y no se

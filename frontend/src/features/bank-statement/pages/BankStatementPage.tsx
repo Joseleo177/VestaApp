@@ -96,7 +96,8 @@ export function BankStatementPage() {
             <p className="text-[14px] text-ios-secondary">
               {s.account === "USD"
                 ? "Extracto de la cuenta en divisas: casa con los pagos reportados en $ por referencia y monto."
-                : "Sube el extracto del banco en .xlsx (o suéltalo aquí): los pagos cuya referencia y monto coinciden se confirman solos."}
+                : "Sube el extracto del banco en .xlsx (o suéltalo aquí): los pagos cuya referencia y monto coinciden se confirman solos."}{" "}
+              La cuenta se reconoce por el número de cuenta del archivo.
             </p>
             <Segmented<StatementAccount>
               aria-label="Cuenta del extracto"

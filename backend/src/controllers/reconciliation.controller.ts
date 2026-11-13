@@ -16,7 +16,8 @@ export const ReconciliationController = {
       const result = await ReconciliationService.reconcile(
         req.file.buffer,
         req.user!.sub,
-        currency as BankEntryCurrency
+        currency as BankEntryCurrency,
+        req.file.originalname
       );
       res.json(result);
     } catch (err) {

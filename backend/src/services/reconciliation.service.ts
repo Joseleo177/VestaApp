@@ -7,6 +7,8 @@ import { User } from "../models/User";
 import { PaymentService } from "./payment.service";
 import { HttpError } from "../middlewares/error.middleware";
 import { stripAccents, parseDate, parseAmount } from "../utils/sheet";
+import { detectStatementAccount } from "../utils/statement-account";
+import { SettingsService } from "./settings.service";
 
 export interface ConfirmedMatch {
   bankRef: string;
@@ -35,8 +37,15 @@ export interface UnmatchedRow {
 }
 
 export interface ReconciliationResult {
-  /** Cuenta a la que se subió el extracto. */
+  /** Cuenta a la que se cargó el extracto. */
   currency: BankEntryCurrency;
+  /** Cuenta que estaba elegida en la página al subirlo. */
+  selectedCurrency: BankEntryCurrency;
+  /**
+   * "file": la cuenta salió del número de cuenta que trae el archivo (y manda
+   * sobre la elegida). "selected": no se encontró, se usó la elegida.
+   */
+  accountSource: "file" | "selected";
   newEntries: number;
   duplicates: number;
   confirmed: ConfirmedMatch[];
@@ -164,6 +173,35 @@ export async function findBankEntryFor(
   );
 }
 
+/**
+ * Cuenta del extracto según el número de cuenta que trae: se busca en todas las
+ * hojas y celdas, y en el nombre del archivo, contra las cuentas de Ajustes.
+ */
+async function detectAccount(wb: XLSX.WorkBook, fileName?: string): Promise<BankEntryCurrency | null> {
+  const [bsAccount, usdAccount] = await Promise.all([
+    SettingsService.get("bank_account"),
+    SettingsService.get("bank_usd_account"),
+  ]);
+
+  function* texts(): Generator<string> {
+    for (const name of wb.SheetNames) {
+      const rows: unknown[][] = XLSX.utils.sheet_to_json(wb.Sheets[name]!, {
+        header: 1,
+        defval: "",
+        raw: false,
+      });
+      for (const row of rows) for (const cell of row) yield String(cell ?? "");
+    }
+    if (fileName) yield fileName;
+  }
+
+  const match = detectStatementAccount<BankEntryCurrency>(texts(), {
+    [BankEntryCurrency.BS]: bsAccount,
+    [BankEntryCurrency.USD]: usdAccount,
+  });
+  return match?.key ?? null;
+}
+
 const money = (n: number, currency: BankEntryCurrency) =>
   currency === BankEntryCurrency.USD
     ? `$ ${n.toLocaleString("es-VE", { minimumFractionDigits: 2 })}`
@@ -173,10 +211,17 @@ export const ReconciliationService = {
   async reconcile(
     buffer: Buffer,
     adminId: string,
-    currency: BankEntryCurrency = BankEntryCurrency.BS
+    selectedCurrency: BankEntryCurrency = BankEntryCurrency.BS,
+    fileName?: string
   ): Promise<ReconciliationResult> {
     // raw: false → texto formateado (preserva ceros a la izquierda en referencias)
     const wbText = XLSX.read(buffer, { type: "buffer", cellText: true, cellDates: false });
+
+    // La cuenta la dice el número de cuenta del archivo, esté donde esté; la
+    // pestaña elegida solo vale si no aparece (se equivocaban de pestaña y los
+    // movimientos en $ caían en la cuenta en Bs y al revés).
+    const detected = await detectAccount(wbText, fileName);
+    const currency = detected ?? selectedCurrency;
     // raw: true + cellDates: true → objetos Date reales para celdas de fecha (evita dependencia del locale del servidor)
     const wbDates = XLSX.read(buffer, { type: "buffer", cellText: false, cellDates: true });
 
@@ -274,6 +319,8 @@ export const ReconciliationService = {
 
     const result: ReconciliationResult = {
       currency,
+      selectedCurrency,
+      accountSource: detected ? "file" : "selected",
       newEntries,
       duplicates,
       confirmed: [],

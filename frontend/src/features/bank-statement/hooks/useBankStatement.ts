@@ -182,6 +182,9 @@ export function useBankStatement() {
       const res = await reconciliationService.reconcile(file, account);
       setResult(res);
       setResultOpen(true);
+      // El backend decide la cuenta por el número que trae el archivo: la página
+      // se pasa a esa cuenta para que se vean los movimientos recién cargados.
+      if (res.currency !== account) setAccount(res.currency);
       void load(true);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo procesar el extracto");
@@ -219,7 +222,7 @@ export function useBankStatement() {
       await guard(
         (allowSettled) => paymentService.confirmPartial(m.paymentId, m.bankAmount, allowSettled),
         () => {
-          toast.success(`Confirmado por lo que llegó al banco: ${account === "USD" ? "$" : "Bs."} ${amountText(m.bankAmount)}`);
+          toast.success(`Confirmado por lo que llegó al banco: ${(result?.currency ?? account) === "USD" ? "$" : "Bs."} ${amountText(m.bankAmount)}`);
           settle(m);
           void load(true);
         }

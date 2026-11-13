@@ -30,8 +30,12 @@ export interface UnmatchedRow {
 export type StatementAccount = "BS" | "USD";
 
 export interface ReconciliationResult {
-  /** Cuenta a la que se subió el extracto. */
+  /** Cuenta a la que se cargó el extracto. */
   currency: StatementAccount;
+  /** Cuenta que estaba elegida en la página al subirlo. */
+  selectedCurrency: StatementAccount;
+  /** "file": salió del número de cuenta del archivo; "selected": no apareció y se usó la elegida. */
+  accountSource: "file" | "selected";
   newEntries: number;
   duplicates: number;
   confirmed: ConfirmedMatch[];
