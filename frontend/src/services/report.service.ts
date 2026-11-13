@@ -35,6 +35,18 @@ export const ReportService = {
     link.remove();
   },
 
+  async downloadBalance(year: number): Promise<void> {
+    const res = await api.get("/reports/balance", { params: { year }, responseType: "blob" });
+    const url = window.URL.createObjectURL(new Blob([res.data]));
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `balance_general_${year}.xlsx`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  },
+
   async downloadAccountStatement(userId?: string) {
     const url = userId ? `/reports/statement?userId=${userId}` : "/reports/statement";
     const res = await api.get(url, { responseType: "blob" });

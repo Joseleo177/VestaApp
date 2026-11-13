@@ -13,5 +13,6 @@ router.use(authenticate, authorize(UserRole.ADMIN));
 
 router.get("/collected", ReportController.exportCollectedPayments);
 router.get("/debt", ReportController.exportOwedCharges);
+router.get("/balance", ReportController.exportBalance);
 
 export default router;

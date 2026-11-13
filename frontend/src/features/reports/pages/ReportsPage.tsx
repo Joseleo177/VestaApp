@@ -1,5 +1,5 @@
 import { ReactNode, useMemo, useState } from "react";
-import { AlertCircle, Download, FileSpreadsheet, FileText, Receipt } from "lucide-react";
+import { AlertCircle, Download, FileSpreadsheet, FileText, Receipt, Table2 } from "lucide-react";
 import { toast } from "sonner";
 import { UserRole } from "@/types/domain";
 import { Avatar } from "@/components/ui/Avatar";
@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/Card";
 import { Money } from "@/components/ui/Money";
 import { Page } from "@/components/ui/Page";
 import { SearchSelect } from "@/components/ui/SearchSelect";
+import { Segmented } from "@/components/ui/Segmented";
 import { StatusMark } from "@/components/ui/StatusMark";
 import { formatCurrency, formatDocumentId } from "@/lib/format";
 import { cn } from "@/lib/cn";
@@ -91,6 +92,12 @@ const DEBT_PRESETS: RangePreset[] = [
 
 /** Reportes para la junta y la asamblea: cobros, deuda y estado de cuenta por vecino. */
 export function ReportsPage() {
+  // ── Balance general ──
+  const thisYear = new Date().getFullYear();
+  const balanceYears = [thisYear - 1, thisYear];
+  const [balanceYear, setBalanceYear] = useState(thisYear);
+  const [loadingBalance, setLoadingBalance] = useState(false);
+
   // ── Cobros ──
   const [collectedPreset, setCollectedPreset] = useState("thisMonth");
   const [collectedCustom, setCollectedCustom] = useState<DateRange>({ from: "", to: "" });
@@ -137,6 +144,46 @@ export function ReportsPage() {
       subheader={<p className="text-[14px] text-ios-secondary">Descarga la información de la asociación para la junta, la asamblea o un vecino.</p>}
     >
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* ── Balance general ── */}
+        <ReportCard
+          className="lg:col-span-2"
+          icon={<Table2 className="h-5 w-5" />}
+          tone="bg-violet-500/[0.12] text-violet-600 dark:text-violet-400"
+          title="Balance general"
+          format="Excel"
+          description="La relación de pagos: cada apartamento con lo que debe de cada cuota del año."
+          includes={[
+            "Propietario y apartamento",
+            "Deuda de años anteriores",
+            "Cada mes y cada cuota especial",
+            "Deuda total y totales por columna",
+            "Resumen por torre",
+          ]}
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Segmented<string>
+              aria-label="Año del balance"
+              value={String(balanceYear)}
+              onChange={(v) => setBalanceYear(Number(v))}
+              options={balanceYears.map((y) => ({ key: String(y), label: String(y) }))}
+              className="self-start"
+            />
+            <Summary>
+              Todos los apartamentos, con las cuotas de {balanceYear} y lo que arrastran de antes.
+            </Summary>
+            <Button
+              className="sm:ml-auto sm:w-auto"
+              loading={loadingBalance}
+              onClick={() =>
+                download(() => ReportService.downloadBalance(balanceYear), setLoadingBalance, `Balance general ${balanceYear} descargado`)
+              }
+            >
+              {!loadingBalance && <Download className="h-4 w-4" />}
+              {loadingBalance ? "Generando…" : "Descargar Excel"}
+            </Button>
+          </div>
+        </ReportCard>
+
         {/* ── Cobros ── */}
         <ReportCard
           icon={<FileSpreadsheet className="h-5 w-5" />}

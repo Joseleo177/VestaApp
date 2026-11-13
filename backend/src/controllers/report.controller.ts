@@ -127,6 +127,23 @@ export const ReportController = {
     }
   },
 
+  // GET /api/reports/balance?year=2026 — relación de pagos: deuda por apto y cuota
+  async exportBalance(req: Request, res: Response, next: NextFunction) {
+    try {
+      const year = Number(req.query.year ?? new Date().getFullYear());
+      if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+        throw new HttpError(400, "Año inválido");
+      }
+      const { BalanceReportService } = await import("../services/balance-report.service");
+      const { buffer, fileName } = await BalanceReportService.build(year);
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+      res.send(buffer);
+    } catch (err) {
+      next(err);
+    }
+  },
+
   // GET /api/reports/statement
   async exportAccountStatement(req: Request, res: Response, next: NextFunction) {
     try {
